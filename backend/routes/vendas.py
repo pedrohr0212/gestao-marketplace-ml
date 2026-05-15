@@ -184,15 +184,39 @@ async def debug_order(
     ml_user_id: str = Query(...),
     order_id: str   = Query(...),
 ):
-    """Retorna estrutura raw COMPLETA de um pedido para debug."""
+    """Retorna pedido + shipment completos para debug financeiro."""
     token = await get_valid_token(ml_user_id)
     headers = {"Authorization": f"Bearer {token}"}
     async with httpx.AsyncClient(timeout=15) as client:
-        resp = await client.get(f"{ML_API}/orders/{order_id}", headers=headers)
-    if resp.status_code != 200:
-        raise HTTPException(status_code=resp.status_code, detail="Pedido não encontrado")
-    # Retorna o pedido completo sem filtros
-    return resp.json()
+        order_resp = await client.get(f"{ML_API}/orders/{order_id}", headers=headers)
+    if order_resp.status_code != 200:
+        raise HTTPException(status_code=order_resp.status_code, detail="Pedido não encontrado")
+    order = order_resp.json()
+
+    # Buscar dados do shipment (frete cobrado do vendedor)
+    shipping_id = (order.get("shipping") or {}).get("id")
+    shipment_data = None
+    if shipping_id:
+        async with httpx.AsyncClient(timeout=15) as client:
+            ship_resp = await client.get(f"{ML_API}/shipments/{shipping_id}", headers=headers)
+        if ship_resp.status_code == 200:
+            s = ship_resp.json()
+            shipment_data = {
+                "id":                    s.get("id"),
+                "status":                s.get("status"),
+                "base_cost":             s.get("base_cost"),
+                "cost":                  s.get("cost"),
+                "receiver_shipping_cost":s.get("receiver_shipping_cost"),
+                "sender_cost":           s.get("sender_cost"),
+                "cost_components":       s.get("cost_components"),
+                "logistic_type":         s.get("logistic_type"),
+                "raw_keys":              list(s.keys()),
+            }
+
+    return {
+        "order":    order,
+        "shipment": shipment_data,
+    }
 
 
 @router.get("/resumo")
