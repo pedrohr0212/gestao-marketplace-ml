@@ -353,7 +353,50 @@ tbody tr:hover td{background:var(--bg3)}
   .dre-anual-wrap.show{display:block}
   .dre-monthly-wrap{min-width:0}
 }
-@media(max-width:480px){.g4{grid-template-columns:1fr}.g5{grid-template-columns:1fr}.page{padding:10px 10px 48px}.hdr{padding:48px 10px 0}.fat-hero-val{font-size:24px}.mini-link{flex:1;text-align:center}}
+/* MARKETPLACES HUB */
+.mkt-header{margin-bottom:20px}
+.mkt-title{font-size:18px;font-weight:600;color:var(--text)}
+.mkt-sub{font-size:12px;color:var(--text3);margin-top:3px;font-family:var(--mono)}
+.mkt-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.mkt-card{background:var(--bg2);border:0.5px solid var(--border2);border-radius:16px;padding:20px;display:flex;flex-direction:column;gap:16px;transition:border-color .15s}
+.mkt-card:not(.mkt-disabled):hover{border-color:rgba(124,106,247,0.3)}
+.mkt-card.mkt-disabled{opacity:0.55}
+.mkt-card-top{display:flex;align-items:center;gap:12px}
+.mkt-logo{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;background:var(--bg4);flex-shrink:0}
+.mkt-plat-info{flex:1;overflow:hidden}
+.mkt-plat-name{font-size:14px;font-weight:600;color:var(--text)}
+.mkt-plat-country{font-size:11px;color:var(--text3);margin-top:2px}
+.mkt-status-badge{display:flex;align-items:center;gap:5px;font-size:11px;font-weight:500;padding:4px 10px;border-radius:20px;background:var(--bg4);color:var(--text2);white-space:nowrap;flex-shrink:0}
+.mkt-status-badge.mkt-connected{background:rgba(52,211,153,0.1);color:var(--green)}
+.mkt-status-badge.mkt-disconnected{background:rgba(240,82,82,0.1);color:var(--red)}
+.mkt-dot{width:5px;height:5px;border-radius:50%;background:currentColor}
+.mkt-badge-soon{font-size:10px;font-weight:600;padding:3px 8px;border-radius:6px;background:var(--bg4);color:var(--text3);text-transform:uppercase;letter-spacing:.06em;flex-shrink:0}
+.mkt-account{display:flex;flex-direction:column;gap:12px}
+.mkt-account-row{display:flex;align-items:center;gap:10px}
+.mkt-account-avatar{width:36px;height:36px;border-radius:10px;background:var(--accent);display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:11px;font-weight:700;color:#fff;flex-shrink:0}
+.mkt-account-info{flex:1}
+.mkt-account-name{font-size:13px;font-weight:600;color:var(--text)}
+.mkt-account-detail{font-size:11px;color:var(--text3);margin-top:1px}
+.mkt-account-plan{font-size:10px;font-weight:600;padding:3px 8px;border-radius:6px;background:rgba(124,106,247,0.15);color:var(--accent2)}
+.mkt-divider{height:0.5px;background:var(--border)}
+.mkt-stats-row{display:flex;gap:0}
+.mkt-stat{flex:1;text-align:center}
+.mkt-stat-label{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px}
+.mkt-stat-val{font-size:12px;font-weight:600;color:var(--text2);font-family:var(--mono)}
+.mkt-stat-val.mkt-green{color:var(--green)}
+.mkt-actions{display:flex;gap:8px}
+.mkt-btn-primary{flex:1;padding:9px 14px;background:var(--accent);border:none;border-radius:8px;font-family:var(--font);font-size:12px;font-weight:600;color:#fff;cursor:pointer;transition:all .15s}
+.mkt-btn-primary:hover{background:var(--accent2)}
+.mkt-btn-secondary{flex:1;padding:9px 14px;background:transparent;border:0.5px solid var(--border2);border-radius:8px;font-family:var(--font);font-size:12px;font-weight:500;color:var(--text2);cursor:pointer;transition:all .15s}
+.mkt-btn-secondary:hover{background:var(--bg4);color:var(--red);border-color:var(--red)}
+.mkt-connect{display:flex;flex-direction:column;gap:12px}
+.mkt-connect-desc{font-size:12px;color:var(--text2);line-height:1.6}
+.mkt-features{display:flex;flex-direction:column;gap:4px}
+.mkt-feature{font-size:11px;color:var(--text3)}
+.mkt-btn-ml{display:flex;align-items:center;justify-content:center;gap:8px;padding:11px 16px;background:#FFE600;border:none;border-radius:9px;font-family:var(--font);font-size:13px;font-weight:600;color:#1a1a2e;cursor:pointer;transition:all .15s}
+.mkt-btn-ml:hover{background:#FFD700;transform:translateY(-1px)}
+.mkt-btn-disabled{padding:10px 16px;background:var(--bg4);border:0.5px solid var(--border);border-radius:9px;font-family:var(--font);font-size:12px;color:var(--text3);cursor:not-allowed;width:100%}
+@media(max-width:768px){.mkt-grid{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -409,10 +452,10 @@ tbody tr:hover td{background:var(--bg3)}
     </div>
   </nav>
   <div class="sb-user">
-    <div class="sb-avatar">VP</div>
+    <div class="sb-avatar" id="sbAvatar">VP</div>
     <div class="sb-user-info">
-      <div class="sb-user-name">VPATACADISTA</div>
-      <div class="sb-user-plan">Mercado Livre · Pro</div>
+      <div class="sb-user-name" id="sbUserName">VPATACADISTA</div>
+      <div class="sb-user-plan" id="sbUserPlan">Mercado Livre · Pro</div>
     </div>
   </div>
 </aside>
@@ -536,16 +579,142 @@ tbody tr:hover td{background:var(--bg3)}
 <!-- MARKETPLACES -->
 <div class="page" id="page-marketplaces">
   <div style="height:16px"></div>
-  <div class="mp-coming">
-    <div class="mp-icon">🔌</div>
-    <div class="mp-title">Integrações em breve</div>
-    <div class="mp-sub">Conecte suas contas de marketplace para sincronizar vendas, estoque e anúncios automaticamente em tempo real.</div>
-    <div class="mp-badge">🚧 Em desenvolvimento</div>
-    <div class="mp-channels">
-      <div class="mp-ch ready">Mercado Livre — em breve</div>
-      <div class="mp-ch">Shopee</div><div class="mp-ch">Amazon</div><div class="mp-ch">TikTok Shop</div>
+  <div class="mkt-header">
+    <div class="mkt-title">Integrações</div>
+    <div class="mkt-sub">Gerencie suas contas conectadas nas plataformas de marketplace</div>
+  </div>
+  <div class="mkt-grid">
+
+    <!-- Mercado Livre -->
+    <div class="mkt-card" id="mktCardML">
+      <div class="mkt-card-top">
+        <div class="mkt-logo">
+          <svg width="28" height="28" viewBox="0 0 48 48" fill="none">
+            <circle cx="24" cy="24" r="22" fill="#FFE600"/>
+            <path d="M33 18l-6 10-3-5-3 5-6-10" stroke="#1a1a2e" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <div class="mkt-plat-info">
+          <div class="mkt-plat-name">Mercado Livre</div>
+          <div class="mkt-plat-country">Brasil · mercadolivre.com.br</div>
+        </div>
+        <div class="mkt-status-badge" id="mlStatusBadge">
+          <span class="mkt-dot" id="mlDot"></span>
+          <span id="mlStatusText">Verificando...</span>
+        </div>
+      </div>
+      <!-- Conta conectada -->
+      <div class="mkt-account" id="mlAccount" style="display:none">
+        <div class="mkt-account-row">
+          <div class="mkt-account-avatar" id="mlAvatar">VP</div>
+          <div class="mkt-account-info">
+            <div class="mkt-account-name" id="mlNickname">—</div>
+            <div class="mkt-account-detail">Conta conectada via OAuth2</div>
+          </div>
+          <div class="mkt-account-plan">Pro</div>
+        </div>
+        <div class="mkt-divider"></div>
+        <div class="mkt-stats-row">
+          <div class="mkt-stat">
+            <div class="mkt-stat-label">Token</div>
+            <div class="mkt-stat-val mkt-green">Ativo</div>
+          </div>
+          <div class="mkt-stat">
+            <div class="mkt-stat-label">Webhooks</div>
+            <div class="mkt-stat-val mkt-green">Recebendo</div>
+          </div>
+          <div class="mkt-stat">
+            <div class="mkt-stat-label">Última sync</div>
+            <div class="mkt-stat-val" id="mlLastSync">—</div>
+          </div>
+        </div>
+        <div class="mkt-actions">
+          <button class="mkt-btn-secondary" onclick="desconectarML()">Desconectar</button>
+          <button class="mkt-btn-primary" onclick="reconectarML()">Reconectar</button>
+        </div>
+      </div>
+      <!-- Sem conta -->
+      <div class="mkt-connect" id="mlConnect" style="display:none">
+        <div class="mkt-connect-desc">Conecte sua conta do Mercado Livre para sincronizar vendas, estoque e publicidade automaticamente.</div>
+        <div class="mkt-features">
+          <div class="mkt-feature">✓ Vendas em tempo real via webhook</div>
+          <div class="mkt-feature">✓ Gestão de estoque Full ML</div>
+          <div class="mkt-feature">✓ Dados de publicidade ADS</div>
+          <div class="mkt-feature">✓ DRE automático por período</div>
+        </div>
+        <button class="mkt-btn-ml" onclick="conectarML()">
+          <svg width="18" height="18" viewBox="0 0 48 48" fill="none">
+            <circle cx="24" cy="24" r="22" fill="#1a1a2e"/>
+            <path d="M33 18l-6 10-3-5-3 5-6-10" stroke="#FFE600" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          Conectar com Mercado Livre
+        </button>
+      </div>
     </div>
-    <div style="font-size:12px;color:var(--text3);margin-top:6px">A integração com Mercado Livre será a primeira a ser lançada.</div>
+
+    <!-- Shopee -->
+    <div class="mkt-card mkt-disabled">
+      <div class="mkt-card-top">
+        <div class="mkt-logo">
+          <svg width="26" height="26" viewBox="0 0 48 48" fill="none">
+            <circle cx="24" cy="24" r="22" fill="#EE4D2D"/>
+            <path d="M24 10c-4 0-7 3-7 7 0 2 .8 3.8 2 5H17l-2 16h18l-2-16h-2c1.2-1.2 2-3 2-5 0-4-3-7-7-7z" fill="white" opacity=".9"/>
+          </svg>
+        </div>
+        <div class="mkt-plat-info">
+          <div class="mkt-plat-name">Shopee</div>
+          <div class="mkt-plat-country">Brasil · shopee.com.br</div>
+        </div>
+        <div class="mkt-badge-soon">Em breve</div>
+      </div>
+      <div class="mkt-connect">
+        <div class="mkt-connect-desc">Integração com Shopee em desenvolvimento. Vendas, estoque e anúncios em breve.</div>
+        <button class="mkt-btn-disabled" disabled>Indisponível no momento</button>
+      </div>
+    </div>
+
+    <!-- Amazon -->
+    <div class="mkt-card mkt-disabled">
+      <div class="mkt-card-top">
+        <div class="mkt-logo">
+          <svg width="26" height="26" viewBox="0 0 48 48" fill="none">
+            <circle cx="24" cy="24" r="22" fill="#FF9900"/>
+            <text x="24" y="31" text-anchor="middle" font-size="20" font-weight="700" fill="#1a1a2e" font-family="serif">a</text>
+          </svg>
+        </div>
+        <div class="mkt-plat-info">
+          <div class="mkt-plat-name">Amazon</div>
+          <div class="mkt-plat-country">Brasil · amazon.com.br</div>
+        </div>
+        <div class="mkt-badge-soon">Em breve</div>
+      </div>
+      <div class="mkt-connect">
+        <div class="mkt-connect-desc">Integração com Amazon Seller Central em planejamento para as próximas versões.</div>
+        <button class="mkt-btn-disabled" disabled>Indisponível no momento</button>
+      </div>
+    </div>
+
+    <!-- TikTok Shop -->
+    <div class="mkt-card mkt-disabled">
+      <div class="mkt-card-top">
+        <div class="mkt-logo">
+          <svg width="26" height="26" viewBox="0 0 48 48" fill="none">
+            <circle cx="24" cy="24" r="22" fill="#010101"/>
+            <path d="M32 16c-2 0-4-1-5-3v14c0 4-3 7-7 7s-7-3-7-7 3-7 7-7v4c-2 0-3 1-3 3s1 3 3 3 3-1 3-3V10h4c1 3 4 6 8 6v4h-3z" fill="white"/>
+          </svg>
+        </div>
+        <div class="mkt-plat-info">
+          <div class="mkt-plat-name">TikTok Shop</div>
+          <div class="mkt-plat-country">Brasil · tiktok.com/shop</div>
+        </div>
+        <div class="mkt-badge-soon">Em breve</div>
+      </div>
+      <div class="mkt-connect">
+        <div class="mkt-connect-desc">Integração com TikTok Shop prevista para as próximas versões do sistema.</div>
+        <button class="mkt-btn-disabled" disabled>Indisponível no momento</button>
+      </div>
+    </div>
+
   </div>
 </div>
 </main>
@@ -1142,6 +1311,62 @@ function toggleTheme(){
   }catch(e){}
   setThemeIcon();
 })();
+const BASE_API='https://gestao-marketplace-ml-production.up.railway.app';
+
+// ── AUTH — capturar token do callback OAuth2 ──────────────────
+(function(){
+  const params=new URLSearchParams(window.location.search);
+  const token=params.get('token');
+  const userId=params.get('ml_user_id');
+  if(token&&userId){
+    localStorage.setItem('ml_token',token);
+    localStorage.setItem('ml_user_id',userId);
+    window.history.replaceState({},'',window.location.pathname+window.location.hash);
+  }
+})();
+
+// ── MARKETPLACES ──────────────────────────────────────────────
+function initMarketplaces(){
+  const token=localStorage.getItem('ml_token');
+  const userId=localStorage.getItem('ml_user_id');
+  const badge=document.getElementById('mlStatusBadge');
+  const dot=document.getElementById('mlDot');
+  const txt=document.getElementById('mlStatusText');
+  const acc=document.getElementById('mlAccount');
+  const con=document.getElementById('mlConnect');
+  if(!badge)return;
+  if(token&&userId){
+    badge.className='mkt-status-badge mkt-connected';
+    txt.textContent='Conectado';
+    acc.style.display='flex';
+    con.style.display='none';
+    const nickname=localStorage.getItem('ml_nickname')||userId;
+    const el=document.getElementById('mlNickname');
+    const av=document.getElementById('mlAvatar');
+    const sy=document.getElementById('mlLastSync');
+    if(el)el.textContent=nickname;
+    if(av)av.textContent=nickname.substring(0,2).toUpperCase();
+    if(sy)sy.textContent=new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+  }else{
+    badge.className='mkt-status-badge mkt-disconnected';
+    txt.textContent='Desconectado';
+    acc.style.display='none';
+    con.style.display='flex';
+  }
+}
+function conectarML(){window.location.href=BASE_API+'/auth/login';}
+function desconectarML(){
+  if(!confirm('Tem certeza que deseja desconectar sua conta do Mercado Livre?'))return;
+  localStorage.removeItem('ml_token');
+  localStorage.removeItem('ml_user_id');
+  localStorage.removeItem('ml_nickname');
+  initMarketplaces();
+}
+function reconectarML(){
+  localStorage.removeItem('ml_token');
+  window.location.href=BASE_API+'/auth/login';
+}
+
 const PAGE_TITLES={faturamento:'Faturamento',publicidade:'Publicidade',dre:'DRE — Demonstração do Resultado',marketplaces:'Marketplaces'};
 function goModule(file,page){window.location=file+(page?'#'+page:'');}
 function showPage(name,el){
@@ -1156,6 +1381,7 @@ function showPage(name,el){
   closeSidebar();
   if(name==='publicidade')renderPublicidade();
   if(name==='dre'){renderDRE();setDreView('mensal');}
+  if(name==='marketplaces')initMarketplaces();
 }
 function openInitialPage(){
   const hash=(location.hash||'#faturamento').slice(1);
@@ -1165,6 +1391,17 @@ function openInitialPage(){
 window.addEventListener('hashchange',openInitialPage);
 
 // ── INIT ──────────────────────────────────────────────────────
+// Atualizar sidebar com dados do usuário logado
+(function(){
+  const userId=localStorage.getItem('ml_user_id');
+  const nickname=localStorage.getItem('ml_nickname')||userId;
+  if(nickname){
+    const av=document.getElementById('sbAvatar');
+    const nm=document.getElementById('sbUserName');
+    if(av)av.textContent=nickname.substring(0,2).toUpperCase();
+    if(nm)nm.textContent=nickname;
+  }
+})();
 loadState();
 buildPBar('periodBar',currentPeriod,'setPeriod','customDates');
 renderFaturamento();
