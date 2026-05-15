@@ -183,6 +183,43 @@ async def get_vendas(
     }
 
 
+@router.get("/debug-order")
+async def debug_order(
+    ml_user_id: str = Query(...),
+    order_id: str   = Query(...),
+):
+    """Retorna estrutura raw de um pedido para debug de campos financeiros."""
+    token = await get_valid_token(ml_user_id)
+    headers = {"Authorization": f"Bearer {token}"}
+    async with httpx.AsyncClient(timeout=15) as client:
+        resp = await client.get(f"{ML_API}/orders/{order_id}", headers=headers)
+    if resp.status_code != 200:
+        raise HTTPException(status_code=resp.status_code, detail="Pedido não encontrado")
+    order = resp.json()
+    # Retornar campos financeiros relevantes
+    return {
+        "id":           order.get("id"),
+        "status":       order.get("status"),
+        "total_amount": order.get("total_amount"),
+        "paid_amount":  order.get("paid_amount"),
+        "shipping_cost":order.get("shipping_cost"),
+        "taxes":        order.get("taxes"),
+        "fee_details":  order.get("fee_details"),
+        "order_items":  [
+            {
+                "title":      i["item"].get("title"),
+                "unit_price": i.get("unit_price"),
+                "quantity":   i.get("quantity"),
+                "full_unit_price": i.get("full_unit_price"),
+                "sale_fee":   i.get("sale_fee"),
+                "listing_type_id": i["item"].get("listing_type_id"),
+            }
+            for i in order.get("order_items", [])
+        ],
+        "raw_keys": list(order.keys()),
+    }
+
+
 @router.get("/resumo")
 async def get_resumo(
     ml_user_id: str = Query(...),
