@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, timezone
 
 router = APIRouter(prefix="/api/vendas", tags=["vendas"])
 
-ML_API = "https://api.mercadolivre.com"
+ML_API = "https://api.mercadolibre.com"
 
 def get_date_range(periodo: str):
     now = datetime.now(timezone.utc)
