@@ -845,7 +845,7 @@ async function carregarVendasAPI(periodo){
   const userId=localStorage.getItem('ml_user_id');
   if(!token||!userId) return {vendas:null, erro:'sem_token'};
   try{
-    const r=await fetch(BASE_API+'/api/vendas?ml_user_id='+userId+'&periodo='+periodo+'&limit=50',{
+    const r=await fetch(BASE_API+'/api/vendas?ml_user_id='+userId+'&periodo='+periodo,{
       headers:{Authorization:'Bearer '+token}
     });
     if(r.status===401||r.status===403) return {vendas:null, erro:'token_expirado'};
@@ -861,12 +861,12 @@ async function carregarVendasAPI(periodo){
       data: new Date(v.data),
       valor: +v.valor||0,
       qtd: +v.qtde||1,
-      tarifa: +(v.valor*(11.5/100)+5).toFixed(2),
-      frete: 0,
-      custo: 0,
-      imposto: +(v.valor*(IMPOSTOGLOBAL/100)).toFixed(2),
-      mc: +(v.valor - (v.valor*(11.5/100)+5) - v.valor*(IMPOSTOGLOBAL/100)).toFixed(2),
-      mcPct: 0,
+      tarifa: +v.tarifa||0,
+      frete: +v.frete||0,
+      custo: +v.custo||0,
+      imposto: +v.imposto||+(v.valor*(IMPOSTOGLOBAL/100)).toFixed(2),
+      mc: +v.mc||0,
+      mcPct: +v.mcPct||0,
       isPub: v.isPub||false,
       cancelada: v.cancelada||false,
       idAnuncio: '—',
