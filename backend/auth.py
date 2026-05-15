@@ -11,8 +11,8 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 settings = get_settings()
 
 ML_AUTH_URL   = "https://auth.mercadolivre.com.br/authorization"
-ML_TOKEN_URL  = "https://api.mercadolivre.com/oauth/token"
-ML_ME_URL     = "https://api.mercadolivre.com/users/me"
+ML_TOKEN_URL  = "https://api.mercadolibre.com/oauth/token"
+ML_ME_URL     = "https://api.mercadolibre.com/users/me"
 
 # ── Redis para cache de tokens ────────────────────────────
 async def get_redis():
