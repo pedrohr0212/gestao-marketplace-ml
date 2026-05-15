@@ -105,13 +105,15 @@ async def buscar_pedidos_por_status(
 async def buscar_todos_pedidos(headers: dict, seller_id: int, date_from: datetime, date_to: datetime) -> list:
     """Busca pedidos pagos + cancelados + em processamento do período."""
     async with httpx.AsyncClient(timeout=30) as client:
-        pagos      = await buscar_pedidos_por_status(client, headers, seller_id, date_from, date_to, "paid")
-        cancelados = await buscar_pedidos_por_status(client, headers, seller_id, date_from, date_to, "cancelled")
-        em_processo = await buscar_pedidos_por_status(client, headers, seller_id, date_from, date_to, "payment_in_process")
+        pagos        = await buscar_pedidos_por_status(client, headers, seller_id, date_from, date_to, "paid")
+        cancelados   = await buscar_pedidos_por_status(client, headers, seller_id, date_from, date_to, "cancelled")
+        em_processo  = await buscar_pedidos_por_status(client, headers, seller_id, date_from, date_to, "payment_in_process")
+        confirmados  = await buscar_pedidos_por_status(client, headers, seller_id, date_from, date_to, "confirmed")
+        pag_required = await buscar_pedidos_por_status(client, headers, seller_id, date_from, date_to, "payment_required")
 
-    todos = pagos + cancelados + em_processo
+    todos = pagos + cancelados + em_processo + confirmados + pag_required
 
-    # Deduplicar por order_id (caso algum apareça em mais de um status)
+    # Deduplicar por order_id
     vistos = set()
     unicos = []
     for o in todos:
@@ -120,7 +122,7 @@ async def buscar_todos_pedidos(headers: dict, seller_id: int, date_from: datetim
             vistos.add(oid)
             unicos.append(o)
 
-    print(f"[DEBUG] pagos={len(pagos)} cancelados={len(cancelados)} em_processo={len(em_processo)} total_unico={len(unicos)}")
+    print(f"[DEBUG] pagos={len(pagos)} cancelados={len(cancelados)} em_processo={len(em_processo)} confirmados={len(confirmados)} pag_required={len(pag_required)} total_unico={len(unicos)}")
     return sorted(unicos, key=lambda o: o.get("date_created", ""), reverse=True)
 
 
