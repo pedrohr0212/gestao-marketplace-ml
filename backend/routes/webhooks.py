@@ -5,7 +5,7 @@ from auth import get_valid_token
 from database import get_pool
 
 router = APIRouter(prefix="/api/webhooks", tags=["webhooks"])
-ML_API = "https://api.mercadolivre.com"
+ML_API = "https://api.mercadolibre.com"
 
 async def processar_venda(user_id: str, resource: str):
     try:
