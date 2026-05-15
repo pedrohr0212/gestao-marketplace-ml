@@ -1,8 +1,303 @@
 <!DOCTYPE html>
-<html>
+<html lang="pt-BR">
 <head>
-  <meta charset="UTF-8">
-  <meta http-equiv="refresh" content="0; url=vendas_marketplace.html">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nexora · Gestão Marketplace</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&family=DM+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:     #0e0f11;
+    --bg2:    #16181c;
+    --bg3:    #1e2026;
+    --bg4:    #25282f;
+    --border: rgba(255,255,255,0.07);
+    --border2:rgba(255,255,255,0.12);
+    --text:   #f0f0f0;
+    --text2:  #9a9ea8;
+    --text3:  #5c6070;
+    --green:  #34d399;
+    --accent: #7c6af7;
+    --accent2:#a78bfa;
+    --font:   'Sora', sans-serif;
+    --mono:   'DM Mono', monospace;
+  }
+
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+  }
+
+  /* Fundo com gradiente sutil */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background:
+      radial-gradient(ellipse 60% 50% at 50% 0%, rgba(124,106,247,0.12) 0%, transparent 70%),
+      radial-gradient(ellipse 40% 30% at 80% 80%, rgba(45,212,191,0.06) 0%, transparent 60%);
+    pointer-events: none;
+  }
+
+  .login-wrap {
+    position: relative;
+    width: 100%;
+    max-width: 420px;
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+  }
+
+  /* Logo */
+  .logo-area {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 40px;
+  }
+
+  .logo-icon {
+    width: 56px;
+    height: 56px;
+    border-radius: 16px;
+    background: var(--accent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--mono);
+    font-size: 18px;
+    font-weight: 700;
+    color: #fff;
+    box-shadow: 0 0 0 1px rgba(124,106,247,0.3), 0 8px 32px rgba(124,106,247,0.25);
+  }
+
+  .logo-name {
+    font-size: 22px;
+    font-weight: 600;
+    color: var(--text);
+    letter-spacing: -0.02em;
+  }
+
+  .logo-sub {
+    font-size: 13px;
+    color: var(--text3);
+    font-family: var(--mono);
+    margin-top: -8px;
+  }
+
+  /* Card de login */
+  .login-card {
+    width: 100%;
+    background: var(--bg2);
+    border: 0.5px solid var(--border2);
+    border-radius: 20px;
+    padding: 32px 28px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 24px;
+  }
+
+  .login-title {
+    font-size: 17px;
+    font-weight: 600;
+    color: var(--text);
+    text-align: center;
+  }
+
+  .login-desc {
+    font-size: 13px;
+    color: var(--text2);
+    text-align: center;
+    line-height: 1.6;
+    margin-top: -12px;
+  }
+
+  /* Botão ML */
+  .btn-ml {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 14px 20px;
+    background: #FFE600;
+    border: none;
+    border-radius: 12px;
+    font-family: var(--font);
+    font-size: 15px;
+    font-weight: 600;
+    color: #1a1a2e;
+    cursor: pointer;
+    transition: all .18s;
+    text-decoration: none;
+    box-shadow: 0 4px 16px rgba(255,230,0,0.2);
+  }
+
+  .btn-ml:hover {
+    background: #FFD700;
+    transform: translateY(-1px);
+    box-shadow: 0 6px 24px rgba(255,230,0,0.3);
+  }
+
+  .btn-ml:active { transform: translateY(0); }
+
+  .btn-ml svg {
+    width: 22px;
+    height: 22px;
+    flex-shrink: 0;
+  }
+
+  /* Loading state */
+  .btn-ml.loading {
+    opacity: 0.7;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  /* Divider */
+  .divider {
+    width: 100%;
+    height: 0.5px;
+    background: var(--border);
+  }
+
+  /* Footer info */
+  .login-footer {
+    font-size: 11px;
+    color: var(--text3);
+    text-align: center;
+    line-height: 1.7;
+  }
+
+  .login-footer a {
+    color: var(--text2);
+    text-decoration: none;
+  }
+
+  /* Status de conexão */
+  .status-msg {
+    display: none;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--text2);
+    background: var(--bg3);
+    border: 0.5px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    width: 100%;
+  }
+
+  .status-msg.show { display: flex; }
+  .status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); animation: pulse 1.2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+  /* Badge versão */
+  .version-badge {
+    margin-top: 24px;
+    font-size: 11px;
+    color: var(--text3);
+    font-family: var(--mono);
+  }
+
+  @media(max-width: 480px) {
+    .login-wrap { padding: 16px; }
+    .login-card { padding: 24px 20px; }
+  }
+</style>
 </head>
-<body></body>
+<body>
+
+<div class="login-wrap">
+
+  <!-- Logo -->
+  <div class="logo-area">
+    <div class="logo-icon">NX</div>
+    <div class="logo-name">Nexora</div>
+    <div class="logo-sub">Gestão Marketplace</div>
+  </div>
+
+  <!-- Card -->
+  <div class="login-card">
+    <div class="login-title">Acesse sua conta</div>
+    <div class="login-desc">Conecte sua conta do Mercado Livre para visualizar vendas, estoque e publicidade em tempo real.</div>
+
+    <div class="divider"></div>
+
+    <!-- Status de carregamento -->
+    <div class="status-msg" id="statusMsg">
+      <div class="status-dot"></div>
+      <span id="statusText">Conectando ao Mercado Livre...</span>
+    </div>
+
+    <!-- Botão ML -->
+    <a class="btn-ml" id="btnML" href="#" onclick="conectarML(event)">
+      <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M24 4C12.954 4 4 12.954 4 24s8.954 20 20 20 20-8.954 20-20S35.046 4 24 4z" fill="#FFE600"/>
+        <path d="M33.5 18.5l-6 10-3.5-6-3.5 6-6-10" stroke="#1a1a2e" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      Conectar com Mercado Livre
+    </a>
+
+    <div class="divider"></div>
+
+    <div class="login-footer">
+      Ao conectar, você autoriza o acesso à sua conta do<br>
+      Mercado Livre conforme nossa política de privacidade.
+    </div>
+  </div>
+
+  <div class="version-badge">v1.0.0 · beta</div>
+
+</div>
+
+<script>
+  const BASE = 'https://gestao-marketplace-ml-production.up.railway.app';
+
+  // Verificar se já está logado
+  (function() {
+    const token   = localStorage.getItem('ml_token');
+    const userId  = localStorage.getItem('ml_user_id');
+    if (token && userId) {
+      // Já logado — redireciona direto para o sistema
+      window.location.href = 'vendas_marketplace.html';
+    }
+  })();
+
+  // Capturar callback com token na URL (vindo do backend)
+  (function() {
+    const params = new URLSearchParams(window.location.search);
+    const token  = params.get('token');
+    const userId = params.get('ml_user_id');
+    if (token && userId) {
+      localStorage.setItem('ml_token',   token);
+      localStorage.setItem('ml_user_id', userId);
+      window.location.href = 'vendas_marketplace.html';
+    }
+  })();
+
+  function conectarML(e) {
+    e.preventDefault();
+    const btn = document.getElementById('btnML');
+    const msg = document.getElementById('statusMsg');
+    btn.classList.add('loading');
+    btn.textContent = 'Aguarde...';
+    msg.classList.add('show');
+    window.location.href = BASE + '/auth/login';
+  }
+</script>
+</body>
 </html>
