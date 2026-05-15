@@ -108,8 +108,29 @@ async def buscar_todos_pedidos(headers: dict, seller_id: int, date_from: datetim
         cancelados = await buscar_pedidos_por_status(client, headers, seller_id, date_from, date_to, "cancelled")
 
     todos = pagos + cancelados
-    # Ordenar do mais recente para o mais antigo
     return sorted(todos, key=lambda o: o.get("date_created", ""), reverse=True)
+
+
+async def buscar_frete_vendedor(headers: dict, shipping_id: int) -> float:
+    """Busca frete cobrado do vendedor via shipments API.
+    frete_vendedor = list_cost - frete_comprador (shipping_option.cost)
+    """
+    if not shipping_id:
+        return 0.0
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.get(f"{ML_API}/shipments/{shipping_id}", headers=headers)
+        if resp.status_code != 200:
+            return 0.0
+        s = resp.json()
+        opt = s.get("shipping_option") or {}
+        list_cost       = float(opt.get("list_cost") or 0)
+        frete_comprador = float(opt.get("cost") or 0)
+        frete_vendedor  = round(max(list_cost - frete_comprador, 0), 2)
+        return frete_vendedor
+    except Exception as e:
+        print(f"[WARN] Erro ao buscar shipment {shipping_id}: {e}")
+        return 0.0
 
 
 @router.get("")
@@ -129,26 +150,33 @@ async def get_vendas(
 
     orders = await buscar_todos_pedidos(headers, seller_id, date_from, date_to)
 
-    vendas = []
-    for order in orders:
-        cancelada = order.get("status") == "cancelled"
+    # Buscar fretes dos pedidos em paralelo (shipments API)
+    import asyncio
 
-        # shipping_cost: frete cobrado do vendedor (Full ML ou coleta)
-        frete_vendedor = float(order.get("shipping_cost") or 0)
+    async def enriquecer_order(order):
+        shipping_id = (order.get("shipping") or {}).get("id")
+        frete_vendedor = await buscar_frete_vendedor(headers, shipping_id)
+        return order, frete_vendedor
+
+    enriched = await asyncio.gather(*[enriquecer_order(o) for o in orders])
+
+    vendas = []
+    for order, frete_vendedor in enriched:
+        cancelada = order.get("status") == "cancelled"
+        n_items   = len(order.get("order_items", [])) or 1
 
         for item in order.get("order_items", []):
             qtde  = item.get("quantity", 1)
             valor = round(float(item.get("unit_price", 0)) * qtde, 2)
 
-            # sale_fee: tarifa/comissão cobrada pelo ML por item
+            # sale_fee: comissão ML por item
             tarifa = round(float(item.get("sale_fee") or 0), 2)
 
-            # Imposto estimado (4% sobre o valor — ajustável pelo usuario)
-            imposto = round(valor * (IMPOSTOGLOBAL / 100), 2)
+            # Frete proporcional por item
+            frete_item = round(frete_vendedor / n_items, 2)
 
-            # Frete proporcional por item se houver múltiplos itens
-            n_items = len(order.get("order_items", [order]))
-            frete_item = round(frete_vendedor / n_items, 2) if n_items else frete_vendedor
+            # Imposto (4% padrão — ajustável futuramente)
+            imposto = round(valor * (IMPOSTOGLOBAL / 100), 2)
 
             mc    = round(valor - tarifa - frete_item - imposto, 2)
             mcPct = round((mc / valor * 100), 1) if valor else 0
