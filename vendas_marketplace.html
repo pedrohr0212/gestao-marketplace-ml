@@ -1410,10 +1410,21 @@ const BASE_API='https://gestao-marketplace-ml-production.up.railway.app';
   const params=new URLSearchParams(window.location.search);
   const token=params.get('token');
   const userId=params.get('ml_user_id');
+  const nickname=params.get('nickname');
   if(token&&userId){
     localStorage.setItem('ml_token',token);
     localStorage.setItem('ml_user_id',userId);
+    if(nickname)localStorage.setItem('ml_nickname',nickname);
     window.history.replaceState({},'',window.location.pathname+window.location.hash);
+  }
+})();
+
+// ── GUARD — redireciona para login se não estiver autenticado ──
+(function(){
+  const token=localStorage.getItem('ml_token');
+  const userId=localStorage.getItem('ml_user_id');
+  if(!token||!userId){
+    window.location.replace('index.html');
   }
 })();
 
