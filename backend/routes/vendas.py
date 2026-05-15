@@ -206,9 +206,11 @@ async def debug_order(
                 "status":                s.get("status"),
                 "base_cost":             s.get("base_cost"),
                 "cost":                  s.get("cost"),
+                "order_cost":            s.get("order_cost"),
                 "receiver_shipping_cost":s.get("receiver_shipping_cost"),
                 "sender_cost":           s.get("sender_cost"),
                 "cost_components":       s.get("cost_components"),
+                "shipping_option":       s.get("shipping_option"),
                 "logistic_type":         s.get("logistic_type"),
                 "raw_keys":              list(s.keys()),
             }
