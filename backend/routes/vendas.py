@@ -9,6 +9,7 @@ ML_API = "https://api.mercadolibre.com"
 
 # Brasília = UTC-3 (fixo, sem horário de verão)
 BRT = timezone(timedelta(hours=-3))
+IMPOSTOGLOBAL = 4.0  # percentual padrão — ajustável futuramente por usuário
 
 def get_date_range(periodo: str):
     # Pega hora atual em UTC e converte explicitamente para BRT
