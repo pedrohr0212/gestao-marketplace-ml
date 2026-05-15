@@ -133,28 +133,24 @@ async def get_vendas(
     for order in orders:
         cancelada = order.get("status") == "cancelled"
 
-        # Extrair taxas do pedido — fee_details contém comissão e outros custos
-        fee_details     = order.get("fee_details", [])
-        comissao        = sum(float(f.get("amount", 0)) for f in fee_details if f.get("type") in ("ml_fee", "fixed_fee", "marketplace_fee"))
-        frete_vendedor  = float(order.get("shipping_cost", 0) or 0)
-
-        # Imposto: order.taxes.amount quando disponível
-        taxes      = order.get("taxes", {}) or {}
-        imposto    = float(taxes.get("amount", 0) or 0)
+        # shipping_cost: frete cobrado do vendedor (Full ML ou coleta)
+        frete_vendedor = float(order.get("shipping_cost") or 0)
 
         for item in order.get("order_items", []):
             qtde  = item.get("quantity", 1)
-            valor = float(item.get("unit_price", 0)) * qtde
+            valor = round(float(item.get("unit_price", 0)) * qtde, 2)
 
-            # Imposto por unidade proporcional
-            imposto_item = round(imposto * (valor / float(order.get("total_amount", valor) or valor)), 2) if order.get("total_amount") else round(valor * 0.04, 2)
+            # sale_fee: tarifa/comissão cobrada pelo ML por item
+            tarifa = round(float(item.get("sale_fee") or 0), 2)
 
-            # Comissão por item proporcional ao valor
-            total_order  = float(order.get("total_amount", valor) or valor)
-            comissao_item = round(comissao * (valor / total_order), 2) if total_order else 0
-            frete_item    = round(frete_vendedor * (valor / total_order), 2) if total_order else 0
+            # Imposto estimado (4% sobre o valor — ajustável pelo usuario)
+            imposto = round(valor * (IMPOSTOGLOBAL / 100), 2)
 
-            mc    = round(valor - comissao_item - frete_item - imposto_item, 2)
+            # Frete proporcional por item se houver múltiplos itens
+            n_items = len(order.get("order_items", [order]))
+            frete_item = round(frete_vendedor / n_items, 2) if n_items else frete_vendedor
+
+            mc    = round(valor - tarifa - frete_item - imposto, 2)
             mcPct = round((mc / valor * 100), 1) if valor else 0
 
             vendas.append({
@@ -163,9 +159,9 @@ async def get_vendas(
                 "nome":        item["item"].get("title", ""),
                 "valor":       valor,
                 "qtde":        qtde,
-                "tarifa":      comissao_item,
+                "tarifa":      tarifa,
                 "frete":       frete_item,
-                "imposto":     imposto_item,
+                "imposto":     imposto,
                 "mc":          mc,
                 "mcPct":       mcPct,
                 "data":        order.get("date_created", ""),
@@ -188,36 +184,15 @@ async def debug_order(
     ml_user_id: str = Query(...),
     order_id: str   = Query(...),
 ):
-    """Retorna estrutura raw de um pedido para debug de campos financeiros."""
+    """Retorna estrutura raw COMPLETA de um pedido para debug."""
     token = await get_valid_token(ml_user_id)
     headers = {"Authorization": f"Bearer {token}"}
     async with httpx.AsyncClient(timeout=15) as client:
         resp = await client.get(f"{ML_API}/orders/{order_id}", headers=headers)
     if resp.status_code != 200:
         raise HTTPException(status_code=resp.status_code, detail="Pedido não encontrado")
-    order = resp.json()
-    # Retornar campos financeiros relevantes
-    return {
-        "id":           order.get("id"),
-        "status":       order.get("status"),
-        "total_amount": order.get("total_amount"),
-        "paid_amount":  order.get("paid_amount"),
-        "shipping_cost":order.get("shipping_cost"),
-        "taxes":        order.get("taxes"),
-        "fee_details":  order.get("fee_details"),
-        "order_items":  [
-            {
-                "title":      i["item"].get("title"),
-                "unit_price": i.get("unit_price"),
-                "quantity":   i.get("quantity"),
-                "full_unit_price": i.get("full_unit_price"),
-                "sale_fee":   i.get("sale_fee"),
-                "listing_type_id": i["item"].get("listing_type_id"),
-            }
-            for i in order.get("order_items", [])
-        ],
-        "raw_keys": list(order.keys()),
-    }
+    # Retorna o pedido completo sem filtros
+    return resp.json()
 
 
 @router.get("/resumo")
