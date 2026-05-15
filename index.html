@@ -279,12 +279,14 @@
 
   // Capturar callback com token na URL (vindo do backend)
   (function() {
-    const params = new URLSearchParams(window.location.search);
-    const token  = params.get('token');
-    const userId = params.get('ml_user_id');
+    const params   = new URLSearchParams(window.location.search);
+    const token    = params.get('token');
+    const userId   = params.get('ml_user_id');
+    const nickname = params.get('nickname');
     if (token && userId) {
       localStorage.setItem('ml_token',   token);
       localStorage.setItem('ml_user_id', userId);
+      if (nickname) localStorage.setItem('ml_nickname', nickname);
       window.location.href = 'vendas_marketplace.html';
     }
   })();
