@@ -103,13 +103,25 @@ async def buscar_pedidos_por_status(
 
 
 async def buscar_todos_pedidos(headers: dict, seller_id: int, date_from: datetime, date_to: datetime) -> list:
-    """Busca pedidos pagos + cancelados do período com paginação automática."""
+    """Busca pedidos pagos + cancelados + em processamento do período."""
     async with httpx.AsyncClient(timeout=30) as client:
         pagos      = await buscar_pedidos_por_status(client, headers, seller_id, date_from, date_to, "paid")
         cancelados = await buscar_pedidos_por_status(client, headers, seller_id, date_from, date_to, "cancelled")
+        em_processo = await buscar_pedidos_por_status(client, headers, seller_id, date_from, date_to, "payment_in_process")
 
-    todos = pagos + cancelados
-    return sorted(todos, key=lambda o: o.get("date_created", ""), reverse=True)
+    todos = pagos + cancelados + em_processo
+
+    # Deduplicar por order_id (caso algum apareça em mais de um status)
+    vistos = set()
+    unicos = []
+    for o in todos:
+        oid = o.get("id")
+        if oid not in vistos:
+            vistos.add(oid)
+            unicos.append(o)
+
+    print(f"[DEBUG] pagos={len(pagos)} cancelados={len(cancelados)} em_processo={len(em_processo)} total_unico={len(unicos)}")
+    return sorted(unicos, key=lambda o: o.get("date_created", ""), reverse=True)
 
 
 async def buscar_frete_vendedor(headers: dict, shipping_id: int) -> float:
