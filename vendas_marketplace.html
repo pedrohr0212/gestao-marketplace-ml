@@ -353,6 +353,7 @@ tbody tr:hover td{background:var(--bg3)}
   .dre-anual-wrap.show{display:block}
   .dre-monthly-wrap{min-width:0}
 }
+@keyframes spin{to{transform:rotate(360deg)}}
 /* MARKETPLACES HUB */
 .mkt-header{margin-bottom:20px}
 .mkt-title{font-size:18px;font-weight:600;color:var(--text)}
@@ -830,12 +831,103 @@ function buildPBar(elId,sel,fn,customId){
   el.innerHTML=PERIODS.map(p=>'<button class="pbtn'+(sel===p.key?' active':'')+'" onclick="'+fn+'(\''+p.key+'\')">'+p.label+'</button>').join('');
 }
 
+// ── API REAL ──────────────────────────────────────────────────
+let _isLoadingApi=false;
+
+function showApiLoader(msg){
+  const el=document.getElementById('fatHero');
+  if(el)el.innerHTML='<div style="display:flex;align-items:center;gap:10px;padding:20px 0;color:var(--text3);font-size:13px"><div style="width:16px;height:16px;border:2px solid var(--accent);border-top-color:transparent;border-radius:50%;animation:spin .7s linear infinite"></div>'+msg+'</div>';
+}
+
+// ── BANNER DEMO ───────────────────────────────────────────────
+async function carregarVendasAPI(periodo){
+  const token=localStorage.getItem('ml_token');
+  const userId=localStorage.getItem('ml_user_id');
+  if(!token||!userId) return {vendas:null, erro:'sem_token'};
+  try{
+    const r=await fetch(BASE_API+'/api/vendas?ml_user_id='+userId+'&periodo='+periodo+'&limit=50',{
+      headers:{Authorization:'Bearer '+token}
+    });
+    if(r.status===401||r.status===403) return {vendas:null, erro:'token_expirado'};
+    if(!r.ok) return {vendas:null, erro:'api_erro'};
+    const data=await r.json();
+    const vendas=(data.vendas||[]).map(v=>({
+      id: 'VDA-'+v.ml_order_id,
+      sku: v.sku||'—',
+      titulo: v.nome||'Produto',
+      img: '📦',
+      conta: localStorage.getItem('ml_nickname')||'ML',
+      logistica: 'Full',
+      data: new Date(v.data),
+      valor: +v.valor||0,
+      qtd: +v.qtde||1,
+      tarifa: +(v.valor*(11.5/100)+5).toFixed(2),
+      frete: 0,
+      custo: 0,
+      imposto: +(v.valor*(IMPOSTOGLOBAL/100)).toFixed(2),
+      mc: +(v.valor - (v.valor*(11.5/100)+5) - v.valor*(IMPOSTOGLOBAL/100)).toFixed(2),
+      mcPct: 0,
+      isPub: v.isPub||false,
+      cancelada: v.cancelada||false,
+      idAnuncio: '—',
+    }));
+    return {vendas, erro:null};
+  }catch(e){
+    console.warn('API indisponivel, usando dados demo',e);
+    return {vendas:null, erro:'sem_conexao'};
+  }
+}
+
+const DEMO_MSGS={
+  token_expirado: {msg:'Sua sessão expirou. Reconecte sua conta para ver os dados reais.', acao:'Reconectar →', fn:'reconectarML()'},
+  api_erro:       {msg:'Erro no servidor. Os dados reais estão temporariamente indisponíveis.', acao:null, fn:null},
+  sem_conexao:    {msg:'Sem conexão com o servidor. Verifique sua internet e tente novamente.', acao:'Tentar novamente', fn:'location.reload()'},
+  sem_token:      {msg:'Você não está conectado. Exibindo dados demonstrativos.', acao:'Conectar conta →', fn:"window.location.href='index.html'"},
+};
+
+function setDemoBanner(show, erroKey){
+  let el=document.getElementById('demoBanner');
+  if(!show){if(el)el.remove();return;}
+  const info=DEMO_MSGS[erroKey]||DEMO_MSGS['api_erro'];
+  if(!el){
+    el=document.createElement('div');
+    el.id='demoBanner';
+    el.style.cssText='display:flex;align-items:center;gap:10px;padding:9px 16px;background:rgba(245,158,11,0.1);border:0.5px solid rgba(245,158,11,0.3);border-radius:10px;margin-bottom:12px;font-size:12px;color:var(--amber)';
+    const page=document.getElementById('page-faturamento');
+    const periodBar=document.getElementById('periodBar');
+    if(page&&periodBar)page.insertBefore(el,periodBar);
+  }
+  el.innerHTML='<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>'
+  +'<span><strong>Modo Demo</strong> · '+info.msg+'</span>'
+  +(info.acao?'<button onclick="'+info.fn+'" style="margin-left:auto;background:transparent;border:0.5px solid var(--amber);border-radius:6px;color:var(--amber);font-size:11px;font-weight:600;padding:4px 10px;cursor:pointer;white-space:nowrap">'+info.acao+'</button>':'');
+}
+
 // ── FATURAMENTO ───────────────────────────────────────────────
 function setPeriod(key){
   currentPeriod=key;
   document.getElementById('customDates').className='custom-dates'+(key==='custom'?' show':'');
-  if(key!=='custom'){vendas=gerarVendas(key);salesPage=1;renderFaturamento();}
   buildPBar('periodBar',currentPeriod,'setPeriod','customDates');
+  if(key!=='custom'){
+    const token=localStorage.getItem('ml_token');
+    if(token){
+      salesPage=1;
+      showApiLoader('Carregando vendas do Mercado Livre...');
+      carregarVendasAPI(key).then(res=>{
+        if(res.vendas&&res.vendas.length>0){
+          vendas=res.vendas;
+          setDemoBanner(false);
+        }else{
+          vendas=gerarVendas(key);
+          setDemoBanner(true, res.erro||'api_erro');
+        }
+        renderFaturamento();
+      });
+    }else{
+      vendas=gerarVendas(key);salesPage=1;
+      setDemoBanner(true,'sem_token');
+      renderFaturamento();
+    }
+  }
 }
 function applyCustom(){vendas=gerarVendas('custom');salesPage=1;renderFaturamento();}
 
@@ -1404,7 +1496,25 @@ window.addEventListener('hashchange',openInitialPage);
 })();
 loadState();
 buildPBar('periodBar',currentPeriod,'setPeriod','customDates');
-renderFaturamento();
+
+// Carregar com API real se logado, senão usa dados demo
+const _initToken=localStorage.getItem('ml_token');
+if(_initToken){
+  showApiLoader('Carregando vendas do Mercado Livre...');
+  carregarVendasAPI(currentPeriod).then(res=>{
+    if(res.vendas&&res.vendas.length>0){
+      vendas=res.vendas;
+      setDemoBanner(false);
+    }else{
+      vendas=gerarVendas(currentPeriod);
+      setDemoBanner(true, res.erro||'api_erro');
+    }
+    renderFaturamento();
+  });
+}else{
+  setDemoBanner(true,'sem_token');
+  renderFaturamento();
+}
 openInitialPage();
 // drag-to-scroll on all .tw elements
 document.querySelectorAll('.tw').forEach(makeDraggable);
