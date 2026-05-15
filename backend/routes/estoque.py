@@ -5,7 +5,7 @@ from auth import get_valid_token
 from database import get_pool
 
 router = APIRouter(prefix="/api/estoque", tags=["estoque"])
-ML_API = "https://api.mercadolivre.com"
+ML_API = "https://api.mercadolibre.com"
 
 @router.get("")
 async def get_estoque(ml_user_id: str = Query(...)):
