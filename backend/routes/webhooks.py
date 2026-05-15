@@ -1,5 +1,6 @@
 # routes/webhooks.py — Nexora Gestão Marketplace ML
 import httpx
+import json
 from fastapi import APIRouter, Request, BackgroundTasks
 from auth import get_valid_token
 from database import get_pool
@@ -51,7 +52,7 @@ async def processar_venda(user_id: str, resource: str):
                 order.get("status"),
                 float(order.get("total_amount", 0)),
                 date_created,
-                str(order),
+                json.dumps(order, ensure_ascii=False),
             )
 
         print(f"✅ Venda {order_id} processada para usuário {user_id}")
