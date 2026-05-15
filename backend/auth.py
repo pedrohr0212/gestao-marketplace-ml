@@ -79,9 +79,10 @@ async def callback(code: str):
     r = await get_redis()
     await r.setex(f"token:{ml_user_id}", expires_in, access_token)
 
-    # Redireciona de volta ao frontend com o user_id
-    frontend_url = f"https://pedrohr0212.github.io/gestao-marketplace-ml/vendas_marketplace.html"
-    return RedirectResponse(f"{frontend_url}?ml_user_id={ml_user_id}&token={access_token}")
+    # Redireciona ao frontend com token + nickname
+    nickname = user_data.get("nickname", ml_user_id)
+    frontend_url = "https://pedrohr0212.github.io/gestao-marketplace-ml/index.html"
+    return RedirectResponse(f"{frontend_url}?ml_user_id={ml_user_id}&token={access_token}&nickname={nickname}")
 
 # ── Refresh de token ──────────────────────────────────────
 async def refresh_token_ml(ml_user_id: str, refresh_token: str) -> str:
