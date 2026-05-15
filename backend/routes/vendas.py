@@ -119,7 +119,7 @@ async def buscar_frete_vendedor(headers: dict, shipping_id: int) -> float:
     if not shipping_id:
         return 0.0
     try:
-        async with httpx.AsyncClient(timeout=10) as client:
+        async with httpx.AsyncClient(timeout=20) as client:
             resp = await client.get(f"{ML_API}/shipments/{shipping_id}", headers=headers)
         if resp.status_code != 200:
             return 0.0
@@ -151,15 +151,19 @@ async def get_vendas(
 
     orders = await buscar_todos_pedidos(headers, seller_id, date_from, date_to)
 
-    # Buscar fretes dos pedidos em paralelo (shipments API)
+    # Buscar fretes dos pedidos em paralelo com limite de concorrência
     import asyncio
 
-    async def enriquecer_order(order):
-        shipping_id = (order.get("shipping") or {}).get("id")
-        frete_vendedor = await buscar_frete_vendedor(headers, shipping_id)
-        return order, frete_vendedor
+    semaphore = asyncio.Semaphore(10)  # máx 10 requisições simultâneas
 
-    enriched = await asyncio.gather(*[enriquecer_order(o) for o in orders])
+    async def enriquecer_order(order):
+        async with semaphore:
+            shipping_id = (order.get("shipping") or {}).get("id")
+            frete_vendedor = await buscar_frete_vendedor(headers, shipping_id)
+            return order, frete_vendedor
+
+    enriched = await asyncio.gather(*[enriquecer_order(o) for o in orders], return_exceptions=False)
+    print(f"[DEBUG] orders={len(orders)} enriched={len(enriched)}")
 
     vendas = []
     for order, frete_vendedor in enriched:
