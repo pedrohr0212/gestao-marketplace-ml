@@ -5,7 +5,7 @@ from auth import get_valid_token
 from datetime import datetime, timedelta, timezone
 
 router = APIRouter(prefix="/api/publicidade", tags=["publicidade"])
-ML_API = "https://api.mercadolivre.com"
+ML_API = "https://api.mercadolibre.com"
 
 @router.get("")
 async def get_publicidade(
