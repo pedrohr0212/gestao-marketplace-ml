@@ -132,14 +132,42 @@ async def get_vendas(
     vendas = []
     for order in orders:
         cancelada = order.get("status") == "cancelled"
+
+        # Extrair taxas do pedido — fee_details contém comissão e outros custos
+        fee_details     = order.get("fee_details", [])
+        comissao        = sum(float(f.get("amount", 0)) for f in fee_details if f.get("type") in ("ml_fee", "fixed_fee", "marketplace_fee"))
+        frete_vendedor  = float(order.get("shipping_cost", 0) or 0)
+
+        # Imposto: order.taxes.amount quando disponível
+        taxes      = order.get("taxes", {}) or {}
+        imposto    = float(taxes.get("amount", 0) or 0)
+
         for item in order.get("order_items", []):
-            valor = float(item.get("unit_price", 0))
+            qtde  = item.get("quantity", 1)
+            valor = float(item.get("unit_price", 0)) * qtde
+
+            # Imposto por unidade proporcional
+            imposto_item = round(imposto * (valor / float(order.get("total_amount", valor) or valor)), 2) if order.get("total_amount") else round(valor * 0.04, 2)
+
+            # Comissão por item proporcional ao valor
+            total_order  = float(order.get("total_amount", valor) or valor)
+            comissao_item = round(comissao * (valor / total_order), 2) if total_order else 0
+            frete_item    = round(frete_vendedor * (valor / total_order), 2) if total_order else 0
+
+            mc    = round(valor - comissao_item - frete_item - imposto_item, 2)
+            mcPct = round((mc / valor * 100), 1) if valor else 0
+
             vendas.append({
                 "id":          order["id"],
                 "sku":         item["item"].get("seller_sku", ""),
                 "nome":        item["item"].get("title", ""),
                 "valor":       valor,
-                "qtde":        item.get("quantity", 1),
+                "qtde":        qtde,
+                "tarifa":      comissao_item,
+                "frete":       frete_item,
+                "imposto":     imposto_item,
+                "mc":          mc,
+                "mcPct":       mcPct,
                 "data":        order.get("date_created", ""),
                 "status":      order.get("status", ""),
                 "isPub":       order.get("context", {}).get("channel") == "advertising",
