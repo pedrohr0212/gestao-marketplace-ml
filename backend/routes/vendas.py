@@ -54,7 +54,7 @@ def get_date_range(periodo: str):
     start_utc = start_brt.astimezone(timezone.utc)
     end_utc   = end_brt.astimezone(timezone.utc)
 
-    print(f"[DEBUG] start_brt={start_brt.isoformat()} end_brt={end_brt.isoformat()}")
+    print(f"[DEBUG] date_closed start_brt={start_brt.isoformat()} end_brt={end_brt.isoformat()}")
     print(f"[DEBUG] start_utc={start_utc.isoformat()} end_utc={end_utc.isoformat()}")
 
     return start_utc, end_utc
@@ -77,8 +77,8 @@ async def buscar_pedidos_por_status(
         params = {
             "seller":                    seller_id,
             "order.status":              status,
-            "order.date_created.from":   date_from.strftime("%Y-%m-%dT%H:%M:%S.000-00:00"),
-            "order.date_created.to":     date_to.strftime("%Y-%m-%dT%H:%M:%S.000-00:00"),
+            "order.date_closed.from":    date_from.strftime("%Y-%m-%dT%H:%M:%S.000-00:00"),
+            "order.date_closed.to":      date_to.strftime("%Y-%m-%dT%H:%M:%S.000-00:00"),
             "sort":                      "date_desc",
             "offset":                    offset,
             "limit":                     limit,
@@ -211,7 +211,7 @@ async def get_vendas(
                 "imposto":     imposto,
                 "mc":          mc,
                 "mcPct":       mcPct,
-                "data":        order.get("date_created", ""),
+                "data":        order.get("date_closed") or order.get("date_created", ""),
                 "status":      order.get("status", ""),
                 "isPub":       order.get("context", {}).get("channel") == "advertising",
                 "cancelada":   cancelada,
