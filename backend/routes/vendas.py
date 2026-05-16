@@ -188,8 +188,8 @@ async def get_vendas(
             qtde  = item.get("quantity", 1)
             valor = round(float(item.get("unit_price", 0)) * qtde, 2)
 
-            # sale_fee: comissão ML por item
-            tarifa = round(float(item.get("sale_fee") or 0), 2)
+            # sale_fee: comissão ML por item — multiplicar pela quantidade
+            tarifa = round(float(item.get("sale_fee") or 0) * qtde, 2)
 
             # Frete proporcional por item
             frete_item = round(frete_vendedor / n_items, 2)
