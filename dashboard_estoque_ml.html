@@ -1143,22 +1143,6 @@ function renderInvTable(prods,filter){
 }
 
 
-function setFF(k){finFilter=decodeURIComponent(k);const prods=data.map(calcProd).sort((a,b)=>PO[a.status]-PO[b.status]);const forns=[...new Set(prods.map(p=>p.forn))];let fh='<span class="fl">Ordenar:</span><button class="fb'+(finFilter==='valor'?' active':'')+'" onclick="setFF(\'valor\')">Maior valor</button><button class="fb'+(finFilter==='cob'?' active':'')+'" onclick="setFF(\'cob\')">Menor cobertura</button><button class="fb'+(finFilter==='todos'?' active':'')+'" onclick="setFF(\'todos\')">Padrão</button><span class="fl" style="margin-left:6px">Fornecedor:</span>';forns.forEach(f=>fh+='<button class="fb'+(finFilter===f?' active':'')+'" onclick="setFF(\''+encodeURIComponent(f)+'\')">'+f+'</button>');document.getElementById('finFilters').innerHTML=fh;renderFinTable(prods,finFilter);}
-
-function renderFinTable(prods,filter){
-  let rows=[...prods];
-  const tv=prods.reduce((s,p)=>s+p.valorTotal,0);
-  if(filter==='valor')rows.sort((a,b)=>b.valorTotal-a.valorTotal);
-  else if(filter==='cob')rows.sort((a,b)=>a.diasRup-b.diasRup);
-  else if(!['todos','valor','cob'].includes(filter))rows=rows.filter(p=>p.forn===filter);
-  document.getElementById('finTBody').innerHTML=rows.map(p=>{
-    const pct=tv>0?((p.valorTotal/tv)*100).toFixed(1):0;
-    const m=calcMargem(p);const mcCls=m.mc>0&&m.mcPct>=15?'mc-pos':m.mc>0?'mc-low':'mc-neg';return '<tr><td style="font-family:var(--mono);color:var(--accent2);font-size:11px">'+p.sku+'</td><td style="color:var(--text);font-weight:500;font-size:12px">'+p.nome+'</td><td style="color:var(--text3);font-size:11px">'+p.forn+'</td><td style="text-align:right;font-family:var(--mono)">'+BRL(p.custo||0)+'</td><td style="text-align:right;font-family:var(--mono);color:var(--green)">'+( m.pv>0?BRL(m.pv):'—')+'</td><td style="text-align:right"><span class="mc-badge '+mcCls+'">'+( m.pv>0?BRL(m.mc):'—')+'</span></td><td style="text-align:right"><span class="mc-badge '+mcCls+'">'+( m.pv>0?m.mcPct.toFixed(1)+'%':'—')+'</span></td><td style="text-align:right;font-family:var(--mono)">'+p.estFisico+'</td><td style="text-align:right;font-family:var(--mono);color:'+(p.estTransf>0?'var(--amber)':'var(--text2)')+'">'+p.estTransf+'</td><td style="text-align:right;font-family:var(--mono);color:var(--blue)">'+p.estFull+'</td><td style="text-align:right;font-family:var(--mono);font-weight:600;color:var(--text)">'+p.estBase+'</td><td style="text-align:right;font-family:var(--mono);font-weight:600;color:var(--teal)">'+BRL(p.valorTotal)+'</td><td style="text-align:right"><div style="display:flex;align-items:center;gap:5px;justify-content:flex-end"><div style="width:44px;background:var(--bg4);border-radius:2px;height:4px"><div style="width:'+Math.min(100,parseFloat(pct))+'%;background:var(--teal);height:4px;border-radius:2px"></div></div><span style="font-family:var(--mono);font-size:11px;color:var(--text2)">'+pct+'%</span></div></td><td style="text-align:right;font-family:var(--mono);font-weight:500;color:'+sCols[p.status]+'">'+(p.diasRup>=999?'90+':p.diasRup)+'d</td><td><span class="badge '+p.status+'" style="font-size:10px">'+SL[p.status]+'</span></td></tr>';
-  }).join('');
-  const tu=rows.reduce((s,p)=>s+p.estBase,0);const ttv=rows.reduce((s,p)=>s+p.valorTotal,0);
-  document.getElementById('finTFoot').innerHTML='<tr style="background:var(--bg3)"><td colspan="11" style="padding:8px 10px;font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase">Total ('+rows.length+' produtos)</td><td style="text-align:right;padding:8px 10px;font-family:var(--mono);font-weight:600;color:var(--text)">'+tu+'</td><td style="text-align:right;padding:8px 10px;font-family:var(--mono);font-weight:600;color:var(--teal)">'+BRL(ttv)+'</td><td colspan="2" style="padding:8px 10px"></td></tr>';
-}
-
 function renderOrderCards(prods){
   document.getElementById('orderCards').innerHTML=prods.map(p=>{
     const hoje=p.diasRup<=(p.prazo+2);
@@ -1757,7 +1741,7 @@ function showPage(name,el){
   if(name==='relatorios'){renderRelTopCards();initRelDates();}
 }
 function openInitialPage(){
-  const hash=(location.hash||'#dashboard').slice(1);
+  const hash=(location.hash||'#financeiro').slice(1);
   const target=[...document.querySelectorAll('.ni')].find(n=>(n.getAttribute('onclick')||'').includes("showPage('"+hash+"'"));
   if(target)showPage(hash,target);
 }
