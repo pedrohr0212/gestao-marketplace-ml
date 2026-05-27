@@ -821,11 +821,12 @@ tbody tr:hover td{background:var(--bg3)}
     <input type="number" id="impostoInput" step="0.1" min="0" max="100" value="6" oninput="impostoGlobal=+this.value;renderEditor();saveState()">
     <span class="imp-note">Aplicado a todos os produtos automaticamente. Ex: Simples Nacional 6%, Lucro Presumido 8%…</span>
   </div>
-  <div class="etw"><table><thead><tr><th>SKU</th><th>Produto</th><th>Categoria</th><th>Fornecedor</th><th>Custo R$</th><th>Preço Venda R$</th><th>Comissão %</th><th>Taxa Plat. R$</th><th>Frete R$</th><th>Físico</th><th>Transf.</th><th>Full ML</th><th>Total</th><th>Vendas 7d</th><th>Vendas 30d</th><th>Média/d</th><th>Prazo d</th><th>Margem R$</th><th>Margem %</th><th>Ação</th></tr></thead><tbody id="editorBody"></tbody></table></div>
+  <div class="etw"><table><thead><tr><th>SKU</th><th>Produto</th><th>Categoria</th><th>Fornecedor</th><th>Custo R$</th><th>Preço Venda R$</th><th>Comissão %</th><th>Taxa Plat. R$</th><th>Frete R$</th><th>Físico</th><th>Transf.</th><th>Full ML</th><th>Total</th><th>Vendas 7d</th><th>Vendas 30d</th><th>Média/d</th><th title="Lead time individual. Deixe em branco para usar o global.">Lead Time d ✎</th><th>Margem R$</th><th>Margem %</th><th>Ação</th></tr></thead><tbody id="editorBody"></tbody></table></div>
   <button class="add-btn" onclick="addRow()">+ Adicionar produto</button>
   <div class="ibox">
     <div style="font-size:12px;font-weight:500;color:var(--text);margin-bottom:7px">Como os cálculos funcionam</div>
     <div style="font-size:12px;color:var(--text2);line-height:1.9">
+      • <strong style="color:var(--text)">Lead Time d</strong>: Dias para chegada do pedido ao armazém. Ao salvar o Lead Time Global, todos os produtos sem override individual são atualizados. Produtos com <span style="color:var(--accent2);font-weight:500">valor destacado em roxo</span> têm lead time individual configurado.<br>
       • <strong style="color:var(--text)">Estoque total</strong>: Físico + Transferência + Full ML + Pedidos aguardando<br>
       • <strong style="color:var(--text)">Custo médio ponderado</strong>: recalculado a cada entrada<br>
       • <strong style="color:var(--text)">Margem de contribuição R$</strong>: Preço venda − Custo − Comissão% − Taxa plat. − Frete − Imposto%<br>
@@ -847,7 +848,7 @@ const fmtFull=d=>d.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',yea
 const TODAY=new Date();
 
 const DEFAULT_DATA=[
-  {sku:'MLK-001',nome:'Porta Talher c/ Tampa',cat:'Catálogo Genérico',forn:'Keita',custo:18.50,precoVenda:59.90,comissao:14,taxaPlat:5.00,taxaFrete:0,estFisico:0,estTransf:0,estFull:0,v7:30,v30:null,vd:4,prazo:7},
+  {sku:'MLK-001',nome:'Porta Talher c/ Tampa',cat:'Catálogo Genérico',forn:'Keita',custo:18.50,precoVenda:59.90,comissao:14,taxaPlat:5.00,taxaFrete:0,estFisico:0,estTransf:0,estFull:0,v7:30,v30:null,vd:4,prazo:7,prazoOverride:null},
   {sku:'MLK-002',nome:'Porta Pão Transparente',cat:'Anúncio Novo',forn:'Keita',custo:24.00,precoVenda:79.90,comissao:14,taxaPlat:5.00,taxaFrete:0,estFisico:10,estTransf:0,estFull:10,v7:30,v30:null,vd:4,prazo:7},
   {sku:'MLB-003',nome:'Kit 2 Fita Mágica 3M',cat:'',forn:'Balato Balato',custo:9.80,precoVenda:34.90,comissao:14,taxaPlat:5.00,taxaFrete:0,estFisico:20,estTransf:0,estFull:18,v7:37,v30:100,vd:5,prazo:1},
   {sku:'MLA-004',nome:'Cabideiro Mancebo Preto',cat:'Catálogo Luxkitch',forn:'Amigold',custo:32.00,precoVenda:99.90,comissao:14,taxaPlat:5.00,taxaFrete:0,estFisico:200,estTransf:50,estFull:255,v7:353,v30:1637,vd:50,prazo:20},
@@ -923,6 +924,11 @@ function showToast(msg,type='ok'){
 // STATE
 const _saved=loadState();
 let data=_saved&&_saved.data?_saved.data:JSON.parse(JSON.stringify(DEFAULT_DATA));
+// Garantir prazoOverride e prazo inicializados
+data.forEach(p=>{
+  if(p.prazoOverride===undefined)p.prazoOverride=null;
+  if(p.prazo==null||p.prazo===undefined)p.prazo=leadTime;
+});
 let pedidos=_saved&&_saved.pedidos?_saved.pedidos:[];
 let historico=_saved&&_saved.historico?_saved.historico:[];
 let enviosFull=_saved&&_saved.enviosFull?_saved.enviosFull:[];
@@ -956,7 +962,10 @@ function calcProd(p){
   const proj30=Math.round(vdEf*30);
   const diasRup=vdEf>0?Math.floor(est/vdEf):999;
   const dataRup=new Date(TODAY);dataRup.setDate(dataRup.getDate()+diasRup);
-  const daysOrd=Math.max(0,diasRup-p.prazo-2);
+  // Lead time efetivo: usa override individual se existir, senão o global
+  const ltEf=(p.prazoOverride!=null)?p.prazo:leadTime;
+  // Data de compra = hoje + (diasRuptura - leadTime efetivo)
+  const daysOrd=Math.max(0,diasRup>=999?999:diasRup-ltEf);
   const dataComp=new Date(TODAY);dataComp.setDate(dataComp.getDate()+daysOrd);
   let status;
   if(estBase===0&&estPed===0)status='ruptura';
@@ -964,7 +973,7 @@ function calcProd(p){
   else if(diasRup<=14)status='critico';
   else if(diasRup<=30)status='atencao';
   else status='ok';
-  return{...p,est,estBase,estPed,valorTotal,vdEf,proj30,diasRup,dataRup,dataComp,status,
+  return{...p,est,estBase,estPed,valorTotal,vdEf,proj30,diasRup,dataRup,dataComp,status,ltEf,
     min15:Math.round(vdEf*15),min30:Math.round(vdEf*30),
     min45:Math.round(vdEf*45),min60:Math.round(vdEf*60),
     pedido15:Math.max(0,Math.round(vdEf*15)-est),
@@ -1054,7 +1063,7 @@ function renderCovChart(prods,filter){
 function renderDashTop(prods){
   const top5=prods.filter(p=>p.status!=='ok').slice(0,5);
   document.getElementById('dashTop').innerHTML=top5.map(p=>{
-    const hoje=p.diasRup<=(p.prazo+2);
+    const hoje=p.diasRup<=p.ltEf;
     const p15=p.pedido15>0?'<span style="color:var(--accent2);font-family:var(--mono);font-weight:600">'+p.pedido15+' un</span>':'<span style="color:var(--green);font-size:11px">coberto</span>';
     const p30=p.pedido30>0?'<span style="color:var(--accent2);font-family:var(--mono);font-weight:600">'+p.pedido30+' un</span>':'<span style="color:var(--green);font-size:11px">coberto</span>';
     return '<div class="oc" style="margin-bottom:9px"><div class="oc-stripe '+p.status+'"></div><div class="oc-body"><div class="oc-hdr"><div><div class="oc-sku">'+p.sku+'</div><div class="oc-nome">'+p.nome+'</div><div class="oc-forn">'+p.forn+' · prazo '+p.prazo+'d</div></div><span class="badge '+p.status+'">'+SL[p.status]+'</span></div>'+buildEbd(p)+'<div class="pr"><div class="pi">Giro: <strong>'+(p.vdEf>0&&p.vdEf<1?1:Math.round(p.vdEf))+'/dia</strong> · Comprar até: <strong style="color:'+(hoje?'var(--red)':'var(--text)')+'">'+( hoje?'HOJE':fmt(p.dataComp))+'</strong></div><div class="pqs"><div class="pq"><span class="pql">P/ 15d</span>'+p15+'</div><div class="pq"><span class="pql">P/ 30d</span>'+p30+'</div></div></div></div></div>';
@@ -1075,6 +1084,8 @@ function applyLeadTime(){
   const inp=document.getElementById('leadTimeInput');
   const v=Math.max(1,+(inp?inp.value:leadTime)||1);
   leadTime=v;
+  // Atualizar prazo de todos os produtos sem override individual
+  data.forEach(p=>{if(p.prazoOverride==null)p.prazo=leadTime;});
   const hint=document.getElementById('leadHint');
   if(hint)hint.textContent='Estoque segurança = média/dia × '+leadTime+'d';
   // Feedback visual no botão
@@ -1084,6 +1095,7 @@ function applyLeadTime(){
   renderFinanceiro(prods);
   renderCovTable(prods);
   renderCovInsights(prods);
+  renderEditor();
   saveState();
 }
 function setLeadTime(v){
@@ -1178,7 +1190,7 @@ function renderInvTable(prods,filter){
 
 function renderOrderCards(prods){
   document.getElementById('orderCards').innerHTML=prods.map(p=>{
-    const hoje=p.diasRup<=(p.prazo+2);
+    const hoje=p.diasRup<=p.ltEf;
     const dcls=p.diasRup<=7?'red':p.diasRup<=14?'amber':'amber';
     const cs=hoje?'<span style="color:var(--red);font-weight:600">HOJE</span>':fmt(p.dataComp);
     const p15=p.pedido15>0?'<span class="pqv">'+p.pedido15+' un</span>':'<span class="pqv cov">coberto</span>';
@@ -1306,7 +1318,8 @@ function renderEditor(){
       +'<td style="font-family:var(--mono)"><input type="number" value="'+p.v7+'" onchange="data['+i+'].v7=+this.value;saveState()" style="width:48px"></td>'
       +'<td style="font-family:var(--mono)"><input type="number" value="'+(p.v30||'')+'" placeholder="—" onchange="data['+i+'].v30=this.value?+this.value:null;saveState()" style="width:52px"></td>'
       +'<td style="font-family:var(--mono)"><input type="number" value="'+p.vd+'" onchange="data['+i+'].vd=+this.value;saveState()" style="width:48px"></td>'
-      +'<td style="font-family:var(--mono)"><input type="number" value="'+p.prazo+'" onchange="data['+i+'].prazo=+this.value;saveState()" style="width:46px"></td>'
+      +'<td style="font-family:var(--mono)" title="'+(p.prazoOverride!=null?'Lead time individual (diferente do global)':'Usando lead time global: '+leadTime+'d')+'">'
+      +'<input type="number" id="prazoInp'+i+'" value="'+p.prazo+'" onchange="setProductLeadTime('+i+',+this.value)" style="width:46px;'+(p.prazoOverride!=null?'color:var(--accent2);border-bottom:1px solid var(--accent2)':'')+'"></td>'
       +'<td style="text-align:center;white-space:nowrap"><span class="mc-badge '+mcCls+'">'+mcR+'</span></td>'
       +'<td style="text-align:center"><span class="mc-badge '+mcCls+'">'+mcP+'</span></td>'
       +'<td><button class="btn dbtn" onclick="removeRow('+i+')" style="padding:3px 8px;font-size:11px">Remover</button></td>'
@@ -1316,8 +1329,45 @@ function renderEditor(){
 function upTot(i){const t=(data[i].estFisico||0)+(data[i].estTransf||0)+(data[i].estFull||0);const el=document.getElementById('eT'+i);if(el)el.textContent=t;}
 function addRow(){data.push({sku:'',nome:'Novo Produto',cat:'',forn:'Fornecedor',custo:0,estFisico:0,estTransf:0,estFull:0,v7:0,v30:null,vd:0,prazo:7});renderEditor();saveState();}
 function removeRow(i){data.splice(i,1);renderEditor();saveState();}
-function applyChanges(){renderAll();saveState();const a=document.getElementById('alertBox');a.style.display='block';setTimeout(()=>a.style.display='none',3000);}
+function applyChanges(){
+  // Coletar valores dos inputs de prazo antes de re-renderizar
+  // para não perder valores digitados mas não confirmados via onchange
+  data.forEach((p,i)=>{
+    const inp=document.getElementById('prazoInp'+i);
+    if(inp){
+      const v=Math.max(1,+inp.value||1);
+      if(v!==leadTime){
+        p.prazo=v;
+        p.prazoOverride=true;
+      }
+    }
+  });
+  renderAll();
+  saveState();
+  const a=document.getElementById('alertBox');
+  a.style.display='block';
+  setTimeout(()=>a.style.display='none',3000);
+}
 function resetData(){if(confirm('Restaurar produtos para o padrão inicial? O histórico será mantido.')){data=JSON.parse(JSON.stringify(DEFAULT_DATA));saveState();renderAll();renderEditor();showToast('Produtos restaurados.');}}
+
+
+// ── LEAD TIME POR PRODUTO ────────────────────────────────
+function setProductLeadTime(i,v){
+  const val=Math.max(1,v||1);
+  data[i].prazo=val;
+  data[i].prazoOverride=true;
+  const inp=document.getElementById('prazoInp'+i);
+  if(inp){inp.style.color='var(--accent2)';inp.style.borderBottom='1px solid var(--accent2)';}
+  saveState();
+}
+function clearProductLeadTime(i){
+  data[i].prazo=leadTime;
+  data[i].prazoOverride=null;
+  const inp=document.getElementById('prazoInp'+i);
+  if(inp){inp.style.color='';inp.style.borderBottom='';}
+  saveState();
+  renderEditor();
+}
 
 // ── SEARCH DROPDOWN (shared) ──────────────────────────────────
 let _selIdx={ped:null,mov:null,full:null};
