@@ -1087,10 +1087,10 @@ function renderFinanceiro(prods){
   // Filter bar
   const forns=[...new Set(prods.map(p=>p.forn))];
   let fh='<span class="fl">Status:</span>';
-  [{k:'todos',l:'Todos'},{k:'ruptura',l:'Ruptura'},{k:'urgente',l:'Urgente'},{k:'critico',l:'Crítico'},{k:'atencao',l:'Atenção'},{k:'ok',l:'Saudável'}].forEach(o=>fh+='<button class="fb'+(finFilter===o.k?' active':'')+'" onclick="setFF(''+o.k+'')">'+o.l+'</button>');
+  [{k:'todos',l:'Todos'},{k:'ruptura',l:'Ruptura'},{k:'urgente',l:'Urgente'},{k:'critico',l:'Crítico'},{k:'atencao',l:'Atenção'},{k:'ok',l:'Saudável'}].forEach(o=>fh+='<button class="fb'+(finFilter===o.k?' active':'')+'" onclick="setFF(\''+o.k+'\')">'+ o.l+'</button>');
   fh+='<span class="fl" style="margin-left:6px">Ordenar:</span>';
-  fh+='<button class="fb'+(finFilter==='valor'?' active':'')+'" onclick="setFF('valor')">Maior capital</button>';
-  fh+='<button class="fb'+(finFilter==='cob'?' active':'')+'" onclick="setFF('cob')">Menor cobertura</button>';
+  fh+='<button class="fb'+(finFilter==='valor'?' active':'')+'" onclick="setFF(\'valor\')">Maior capital</button>';
+  fh+='<button class="fb'+(finFilter==='cob'?' active':'')+'" onclick="setFF(\'cob\')">Menor cobertura</button>';
   document.getElementById('finFilters').innerHTML=fh;
   renderInvTable(prods,finFilter);
 }
