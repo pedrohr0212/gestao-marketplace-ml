@@ -398,6 +398,60 @@ tbody tr:hover td{background:var(--bg3)}
 .mkt-btn-ml:hover{background:#FFD700;transform:translateY(-1px)}
 .mkt-btn-disabled{padding:10px 16px;background:var(--bg4);border:0.5px solid var(--border);border-radius:9px;font-family:var(--font);font-size:12px;color:var(--text3);cursor:not-allowed;width:100%}
 @media(max-width:768px){.mkt-grid{grid-template-columns:1fr}}
+
+/* DRE LANÇAMENTOS MANUAIS */
+.dre-layout{display:grid;grid-template-columns:1fr 340px;gap:16px;align-items:start}
+.dre-lancamentos{display:flex;flex-direction:column;gap:9px}
+.dre-panel-right{display:flex;flex-direction:column;gap:12px;position:sticky;top:20px}
+.lanc-section{background:var(--bg2);border:0.5px solid var(--border);border-radius:var(--r2);padding:12px 14px}
+.lanc-section-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.lanc-section-title{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;display:flex;align-items:center;gap:7px}
+.lanc-icon{font-size:13px}
+.lanc-add-btn{padding:3px 10px;border-radius:20px;border:0.5px solid var(--border2);background:transparent;color:var(--text3);font-size:10px;cursor:pointer;font-family:var(--font);transition:all .15s;white-space:nowrap}
+.lanc-add-btn:hover{border-color:var(--accent2);color:var(--accent2)}
+.lanc-field-row{display:grid;grid-template-columns:1fr auto auto;gap:6px;align-items:center;padding:5px 0;border-bottom:0.5px solid var(--border)}
+.lanc-field-row:last-child{border-bottom:none}
+.lanc-field-label{font-size:12px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lanc-field-label.readonly{color:var(--text3);font-style:italic}
+.lanc-field-val{font-family:var(--mono);font-size:12px;color:var(--text);text-align:right;white-space:nowrap}
+.lanc-field-val.neg{color:var(--red)}
+.lanc-field-val.readonly{color:var(--text3)}
+.lanc-input{background:var(--bg3);border:0.5px solid var(--border2);border-radius:6px;padding:3px 7px;color:var(--text);font-family:var(--mono);font-size:12px;width:100px;text-align:right;outline:none}
+.lanc-input:focus{border-color:var(--accent)}
+.lanc-del{background:transparent;border:none;color:var(--text3);cursor:pointer;font-size:13px;padding:1px 4px;border-radius:3px;line-height:1;flex-shrink:0}
+.lanc-del:hover{background:var(--red-bg);color:var(--red)}
+.lanc-reset-btn{padding:3px 10px;border-radius:20px;border:0.5px solid var(--red);background:transparent;color:var(--red);font-size:10px;cursor:pointer;font-family:var(--font)}
+.lanc-reset-btn:hover{background:var(--red-bg)}
+
+/* PAINEL RESULTADOS */
+.dre-result-panel{background:var(--bg2);border:0.5px solid var(--border2);border-radius:var(--r2);padding:14px}
+.dre-rp-title{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--text3);margin-bottom:11px;display:flex;align-items:center;gap:6px}
+.dre-rp-row{display:flex;justify-content:space-between;align-items:center;padding:4px 0;font-size:12px}
+.dre-rp-row.bold{font-weight:600;font-size:13px;padding:6px 0;border-top:0.5px solid var(--border);margin-top:2px}
+.dre-rp-label{color:var(--text2)}
+.dre-rp-val{font-family:var(--mono);font-weight:500}
+.dre-rp-val.pos{color:var(--text)}.dre-rp-val.neg{color:var(--red)}.dre-rp-val.green{color:var(--green)}
+.dre-rp-divider{height:0.5px;background:var(--border);margin:5px 0}
+.dre-lucro-panel{background:linear-gradient(135deg,rgba(52,211,153,0.12),rgba(45,212,191,0.05));border:0.5px solid rgba(52,211,153,0.25);border-radius:var(--r2);padding:13px 14px;text-align:center}
+.dre-lucro-label{font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:var(--green);margin-bottom:4px}
+.dre-lucro-val{font-size:22px;font-weight:700;font-family:var(--mono);color:var(--green)}
+.dre-lucro-pct{font-size:11px;color:var(--teal);font-family:var(--mono);margin-top:2px}
+.dre-ponto{font-size:11px;color:var(--text3);margin-top:6px}
+
+/* SCORE FINANCEIRO */
+.score-card{background:var(--bg2);border:0.5px solid var(--border2);border-radius:var(--r2);padding:14px}
+.score-title{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--text3);margin-bottom:11px;display:flex;align-items:center;gap:6px}
+.score-row{display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:0.5px solid var(--border)}
+.score-row:last-child{border-bottom:none}
+.score-label{font-size:12px;color:var(--text2)}
+.score-badge{padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;font-family:var(--mono);display:flex;align-items:center;gap:4px;white-space:nowrap}
+.score-badge.critico{background:rgba(240,82,82,0.15);color:var(--red)}
+.score-badge.atencao{background:rgba(245,158,11,0.15);color:var(--amber)}
+.score-badge.saudavel{background:rgba(52,211,153,0.12);color:var(--green)}
+.score-badge.positivo{background:rgba(45,212,191,0.12);color:var(--teal)}
+
+@media(max-width:1080px){.dre-layout{grid-template-columns:1fr}.dre-panel-right{position:static}}
+@media(max-width:768px){.dre-layout{grid-template-columns:1fr}.lanc-input{width:80px}}
 </style>
 </head>
 <body>
@@ -550,7 +604,7 @@ tbody tr:hover td{background:var(--bg3)}
 <!-- DRE -->
 <div class="page" id="page-dre">
   <div style="height:16px"></div>
-  <!-- VIEW TOGGLE -->
+  <!-- CONTROLES TOPO -->
   <div style="display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap;align-items:center">
     <button class="pbtn active" id="dreVMensal" onclick="setDreView('mensal')">Mensal</button>
     <button class="pbtn" id="dreVAnual" onclick="setDreView('anual')">Anual</button>
@@ -560,15 +614,27 @@ tbody tr:hover td{background:var(--bg3)}
       <div class="dre-month" id="dreMonthLabel"></div>
       <button class="dre-navbtn" onclick="dreNav(1)">›</button>
       <select class="dre-year-sel" id="dreYearSel" onchange="dreYear=+this.value;renderDRE()"></select>
+      <button class="dre-navbtn" onclick="resetMes()" title="Resetar lançamentos deste mês" style="font-size:11px;padding:4px 9px;color:var(--red);border-color:var(--red)">↺ Resetar mês</button>
     </div>
     <div id="dreAnualControls" style="align-items:center;gap:7px">
       <select class="dre-year-sel" id="dreAnualYearSel" onchange="dreAnualYear=+this.value;renderDREAnual()"></select>
     </div>
   </div>
+
   <!-- MENSAL VIEW -->
   <div id="dreViewMensal">
-    <div id="dreMonthly"></div>
+    <div class="dre-layout">
+      <!-- COLUNA ESQUERDA: lançamentos manuais -->
+      <div class="dre-lancamentos" id="dreLancamentos"></div>
+      <!-- COLUNA DIREITA: resultados + score -->
+      <div class="dre-panel-right">
+        <div class="dre-result-panel" id="dreResultPanel"></div>
+        <div class="dre-lucro-panel" id="dreLucroPanel"></div>
+        <div class="score-card" id="dreScoreCard"></div>
+      </div>
+    </div>
   </div>
+
   <!-- ANUAL VIEW -->
   <div id="dreViewAnual">
     <div class="dre-anual-scroll" id="dreAnualScroll">
@@ -1192,26 +1258,53 @@ function buildYearSel(elId,selected,fn){
   el.onchange=function(){fn(+this.value);};
 }
 
-function getDREData(m,y){
-  const base=130000+Math.sin(m*1.3+y)*20000;
-  const fat=Math.abs(+(base*(0.8+Math.random()*0.4)).toFixed(2));
-  const cancelamentos=+(fat*0.06).toFixed(2);
-  const recLiq=fat-cancelamentos;
-  const cmv=+(recLiq*0.44).toFixed(2);
-  const lucBruto=recLiq-cmv;
-  const taxasMl=+(recLiq*0.115).toFixed(2);
-  const frete=+(recLiq*0.148).toFixed(2);
-  const ads=+(recLiq*0.038).toFixed(2);
+function getLanc(m,y){
   const key=y+'-'+String(m+1).padStart(2,'0');
-  const desp=(despesasFixas[key]||[]).concat(
-    Object.values(despesasFixas).flat().filter(d=>d.scope==='all')
-    .filter((d,i,a)=>a.findIndex(x=>x.nome===d.nome&&x.scope==='all')===i)
-  );
-  const despTotal=desp.reduce((s,d)=>s+d.valor,0);
-  const resultOp=lucBruto-taxasMl-frete-ads-despTotal;
-  const impostos=+(recLiq*0.04).toFixed(2);
+  return lancamentos[key]||getDefaultLanc();
+}
+
+function getDefaultLanc(){
+  return{
+    fat:0, devolucoes:0, cmv:0,
+    tarifas:[{nome:'Tarifa de Vendas - Marketplace',valor:0},{nome:'Frete de Vendas - Marketplace',valor:0}],
+    tarifasExtra:[],
+    estrutura:[{nome:'Aluguel',valor:0},{nome:'Energia Elétrica',valor:0},{nome:'Internet e Telefone',valor:0}],
+    estruturaExtra:[],
+    outros:[]
+  };
+}
+
+function getDREData(m,y){
+  const l=getLanc(m,y);
+  const fat=+(l.fat||0);
+  const devolucoes=+(l.devolucoes||0);
+  const cancelamentos=devolucoes; // devolucoes = cancelamentos no DRE
+  const recLiq=Math.max(0,fat-devolucoes);
+  const cmv=+(l.cmv||0);
+  const lucBruto=recLiq-cmv;
+  // Tarifas marketplace (fixas + extras)
+  const todasTarifas=[...(l.tarifas||[]),...(l.tarifasExtra||[])];
+  const taxasMl=todasTarifas.reduce((s,t)=>s+(+t.valor||0),0);
+  // Frete e ADS vêm do dashboard de vendas (lidos de lancamentos ou zerados)
+  const frete=0; // já está dentro de tarifas
+  const ads=+(l.ads||0);
+  // Estrutura e Operacional
+  const todasEstrutura=[...(l.estrutura||[]),...(l.estruturaExtra||[])];
+  const custoEstrutura=todasEstrutura.reduce((s,t)=>s+(+t.valor||0),0);
+  // Outros custos
+  const outros=(l.outros||[]);
+  const outrosTotal=outros.reduce((s,d)=>s+(+d.valor||0),0);
+  const despTotal=custoEstrutura+outrosTotal;
+  const resultOp=lucBruto-taxasMl-ads-despTotal;
+  const impostos=+(recLiq*(+(l.impostosPct||4)/100)).toFixed(2);
   const lucLiq=resultOp-impostos;
-  return{fat,cancelamentos,recLiq,cmv,cmvPct:cmv/recLiq*100,lucBruto,taxasMl,frete,ads,desp,despTotal,resultOp,impostos,lucLiq,margem:lucLiq/fat*100};
+  const margem=fat>0?lucLiq/fat*100:0;
+  const margemBruta=fat>0?lucBruto/fat*100:0;
+  const pontEquil=fat>0&&(fat-cmv)>0?custoEstrutura/((fat-cmv)/fat):0;
+  return{fat,devolucoes,cancelamentos,recLiq,cmv,cmvPct:fat>0?cmv/fat*100:0,lucBruto,margemBruta,
+    taxasMl,frete,ads,todasTarifas,todasEstrutura,outros,
+    despTotal,resultOp,impostos,impostosPct:+(l.impostosPct||4),
+    lucLiq,margem,pontEquil};
 }
 
 function dreNav(dir){
@@ -1243,20 +1336,113 @@ function setDreView(v){
   }
 }
 
+function lancKey(){return dreYear+'-'+String(dreMonth+1).padStart(2,'0');}
+function ensureLanc(){if(!lancamentos[lancKey()])lancamentos[lancKey()]=JSON.parse(JSON.stringify(getDefaultLanc()));}
+function setLancVal(field,val){ensureLanc();lancamentos[lancKey()][field]=+val||0;saveLanc();renderDRE();}
+function setLancItem(arr,idx,val){ensureLanc();lancamentos[lancKey()][arr][idx].valor=+val||0;saveLanc();renderDRE();}
+function setLancItemNome(arr,idx,val){ensureLanc();lancamentos[lancKey()][arr][idx].nome=val;saveLanc();}
+function addLancItem(arr,nome){ensureLanc();lancamentos[lancKey()][arr].push({nome:nome,valor:0});saveLanc();renderDRE();}
+function delLancItem(arr,idx){ensureLanc();lancamentos[lancKey()][arr].splice(idx,1);saveLanc();renderDRE();}
+function resetMes(){if(!confirm('Resetar lançamentos de '+MESES[dreMonth]+' '+dreYear+'?'))return;delete lancamentos[lancKey()];saveLanc();renderDRE();}
+
 function renderDRE(){
   buildYearSel('dreYearSel',dreYear,y=>{dreYear=y;renderDRE();});
-  document.getElementById('dreMonthLabel').textContent=MESES[dreMonth].slice(0,3)+' '+dreYear;
+  document.getElementById('dreMonthLabel').textContent=MESES[dreMonth]+' de '+dreYear;
   const d=getDREData(dreMonth,dreYear);
-  const key=dreYear+'-'+String(dreMonth+1).padStart(2,'0');
-  const row=(lbl,val,neg,pct)=>'<div class="dre-row"><div class="dre-row-label">'+lbl+'</div><div style="display:flex;align-items:center">'+(pct!==null&&pct!==undefined?'<span class="dre-row-pct">'+pct.toFixed(1)+'%</span>':'')+'<span class="dre-row-val '+(neg?'neg':'pos')+'">'+(neg?'- ':'')+BRL(Math.abs(val))+'</span></div></div>';
-  const result=(lbl,val,pct,barW)=>'<div class="dre-result"><div class="dre-result-label">'+lbl+'</div><div class="dre-result-val">'+BRL(val)+'</div></div><div class="dre-bar-bg"><div class="dre-bar" style="width:'+Math.min(100,Math.max(0,barW))+'%"></div></div><div class="dre-pct-label">'+pct.toFixed(1)+'%</div>';
+  const l=getLanc(dreMonth,dreYear);
 
-  document.getElementById('dreMonthly').innerHTML=
-    '<div class="dre-section"><div class="dre-section-title">RECEITA</div>'+row('Receita Bruta',d.fat,false,null)+row('(-) Cancelamentos',d.cancelamentos,true,d.cancelamentos/d.fat*100)+'<div class="dre-result"><div class="dre-result-label">= Receita Líquida</div><div class="dre-result-val">'+BRL(d.recLiq)+'</div></div></div>'+
-    '<div class="dre-section"><div class="dre-section-title">CUSTOS DOS PRODUTOS</div>'+row('(-) Custo dos Produtos (CMV)',d.cmv,true,d.cmvPct)+result('= Lucro Bruto',d.lucBruto,d.lucBruto/d.fat*100,d.lucBruto/d.fat*100)+'</div>'+
-    '<div class="dre-section"><div class="dre-section-title">DESPESAS OPERACIONAIS <button class="gerenciar-btn" onclick="openDespModal()">Gerenciar</button></div>'+row('(-) Taxas do Marketplace',d.taxasMl,true,d.taxasMl/d.fat*100)+row('(-) Frete',d.frete,true,d.frete/d.fat*100)+row('(-) Publicidade (ADS)',d.ads,true,d.ads/d.fat*100)+(d.desp.length?d.desp.map(dp=>row('(-) '+dp.nome,dp.valor,true,dp.valor/d.fat*100)).join(''):'')+result('= Resultado Operacional',d.resultOp,d.resultOp/d.fat*100,d.resultOp/d.fat*100)+'</div>'+
-    '<div class="dre-section"><div class="dre-section-title">RESULTADO FINAL</div>'+row('(-) Impostos',d.impostos,true,d.impostos/d.fat*100)+'</div>'+
-    '<div class="dre-lucro"><div style="font-size:11px;color:var(--green);font-weight:500;margin-bottom:3px">📈 Lucro Líquido</div><div class="dre-lucro-val">'+BRL(d.lucLiq)+'</div><div style="font-size:11px;color:var(--teal);font-family:var(--mono);margin-top:2px">Margem '+d.margem.toFixed(1)+'%</div><div class="dre-bar-bg" style="margin-top:6px"><div class="dre-bar" style="width:'+Math.min(100,Math.max(0,d.margem))+'%;background:var(--teal)"></div></div></div>';
+  const inp=(arr,i,ph)=>'<input class="lanc-input" type="number" step="0.01" value="'+(+(l[arr][i].valor)||0)+'" placeholder="'+ph+'" onchange="setLancItem(\''+arr+'\','+i+',+this.value)">';
+  const inpNome=(arr,i,v)=>'<input style="background:transparent;border:none;color:var(--text2);font-size:12px;outline:none;width:100%;min-width:0" value="'+v+'" onchange="setLancItemNome(\''+arr+'\','+i+',this.value)">';
+  const inpTop=(field,val)=>'<input class="lanc-input" type="number" step="0.01" value="'+(+val||0)+'" onchange="setLancVal(\''+field+'\',+this.value)">';
+  const fieldRow=(label,inputHtml,delHtml)=>'<div class="lanc-field-row"><div class="lanc-field-label">'+label+'</div><div style="display:flex;align-items:center;gap:4px">'+inputHtml+(delHtml||'')+'</div></div>';
+  const delBtn=(arr,i)=>'<button class="lanc-del" onclick="delLancItem(\''+arr+'\','+i+')">×</button>';
+  const totRow=(lbl,val,cls)=>'<div class="lanc-field-row"><div class="lanc-field-label" style="font-weight:600;color:var(--text)">'+lbl+'</div><div class="lanc-field-val '+(cls||'pos')+'">'+BRL(val)+'</div></div>';
+
+  let html='';
+
+  // RECEITAS
+  html+='<div class="lanc-section">';
+  html+='<div class="lanc-section-hdr"><div class="lanc-section-title"><span class="lanc-icon">🟢</span><span style="color:var(--green)">Receitas</span></div></div>';
+  html+=fieldRow('Faturamento Bruto',inpTop('fat',l.fat));
+  html+=fieldRow('(-) Devoluções',inpTop('devolucoes',l.devolucoes));
+  html+=totRow('= Receita Líquida',d.recLiq,'pos');
+  html+='</div>';
+
+  // CUSTO DOS PRODUTOS
+  html+='<div class="lanc-section">';
+  html+='<div class="lanc-section-hdr"><div class="lanc-section-title"><span class="lanc-icon">📦</span><span style="color:var(--amber)">Custo dos Produtos</span></div></div>';
+  html+=fieldRow('CMV — Custo de Mercadoria Vendida',inpTop('cmv',l.cmv));
+  html+=totRow('= Lucro Bruto',d.lucBruto,d.lucBruto>=0?'pos':'neg');
+  html+='</div>';
+
+  // TARIFAS E COMISSÕES
+  html+='<div class="lanc-section">';
+  html+='<div class="lanc-section-hdr"><div class="lanc-section-title"><span class="lanc-icon">🛒</span><span style="color:var(--blue)">Tarifas e Comissões Marketplace</span></div><button class="lanc-add-btn" onclick="addLancItem(\'tarifasExtra\',\'Nova tarifa\')">+ Adicionar</button></div>';
+  (l.tarifas||[]).forEach((t,i)=>{ html+=fieldRow(t.nome,inp('tarifas',i,'0,00')); });
+  (l.tarifasExtra||[]).forEach((t,i)=>{ html+=fieldRow(inpNome('tarifasExtra',i,t.nome),inp('tarifasExtra',i,'0,00'),delBtn('tarifasExtra',i)); });
+  html+=fieldRow('Publicidade Ads',inpTop('ads',l.ads||0));
+  html+='</div>';
+
+  // ESTRUTURA E OPERACIONAL
+  html+='<div class="lanc-section">';
+  html+='<div class="lanc-section-hdr"><div class="lanc-section-title"><span class="lanc-icon">🏢</span><span style="color:var(--purple)">Estrutura e Operacional</span></div><button class="lanc-add-btn" onclick="addLancItem(\'estruturaExtra\',\'Nova despesa\')">+ Adicionar</button></div>';
+  (l.estrutura||[]).forEach((t,i)=>{ html+=fieldRow(t.nome,inp('estrutura',i,'0,00')); });
+  (l.estruturaExtra||[]).forEach((t,i)=>{ html+=fieldRow(inpNome('estruturaExtra',i,t.nome),inp('estruturaExtra',i,'0,00'),delBtn('estruturaExtra',i)); });
+  html+='</div>';
+
+  // IMPOSTOS
+  html+='<div class="lanc-section">';
+  html+='<div class="lanc-section-hdr"><div class="lanc-section-title"><span class="lanc-icon">📋</span><span style="color:var(--text2)">Impostos</span></div></div>';
+  html+='<div class="lanc-field-row"><div class="lanc-field-label">% sobre Receita Líquida</div><div style="display:flex;align-items:center;gap:6px"><input class="lanc-input" type="number" step="0.1" value="'+(+(l.impostosPct||4))+'" onchange="ensureLanc();lancamentos[lancKey()].impostosPct=+this.value;saveLanc();renderDRE()" style="width:60px"><span style="font-size:11px;color:var(--text3)">%</span></div></div>';
+  html+='<div class="lanc-field-row"><div class="lanc-field-label" style="color:var(--text3);font-style:italic">Valor calculado</div><div class="lanc-field-val neg">- '+BRL(d.impostos)+'</div></div>';
+  html+='</div>';
+
+  document.getElementById('dreLancamentos').innerHTML=html;
+
+  // PAINEL RESULTADOS
+  const rp=(lbl,val,cls,bold)=>'<div class="dre-rp-row'+(bold?' bold':'')+'"><span class="dre-rp-label">'+lbl+'</span><span class="dre-rp-val '+cls+'">'+val+'</span></div>';
+  let rpHtml='';
+  rpHtml+=rp('Receita Bruta',BRL(d.fat),'pos');
+  rpHtml+=rp('(-) Deduções',d.devolucoes>0?'- '+BRL(d.devolucoes):'R$ 0,00',d.devolucoes>0?'neg':'pos');
+  rpHtml+=rp('(-) Impostos s/ Vendas','- '+BRL(d.impostos),'neg');
+  rpHtml+='<div class="dre-rp-divider"></div>';
+  rpHtml+=rp('Receita Líquida',BRL(d.recLiq),'pos',true);
+  rpHtml+=rp('(-) CMV','- '+BRL(d.cmv),'neg');
+  rpHtml+='<div class="dre-rp-divider"></div>';
+  rpHtml+=rp('Lucro Bruto',BRL(d.lucBruto),d.lucBruto>=0?'pos':'neg',true);
+  rpHtml+='<div style="font-size:10px;font-family:var(--mono);color:var(--text3);text-align:right;padding-bottom:3px">Margem Bruta: '+d.margemBruta.toFixed(1)+'%</div>';
+  rpHtml+=rp('(-) Custos Variáveis','- '+BRL(d.taxasMl+d.ads),'neg');
+  rpHtml+=rp('Margem de Contribuição',BRL(d.lucBruto-d.taxasMl-d.ads),d.lucBruto-d.taxasMl-d.ads>=0?'pos':'neg');
+  rpHtml+=rp('(-) Custos Fixos','- '+BRL(d.despTotal),'neg');
+  rpHtml+='<div class="dre-rp-divider"></div>';
+  rpHtml+=rp('Lucro Líquido',BRL(d.lucLiq),'green',true);
+  rpHtml+='<div style="font-size:10px;font-family:var(--mono);color:var(--teal);text-align:right;padding-top:2px">Margem Líquida: '+d.margem.toFixed(1)+'%</div>';
+  if(d.pontEquil>0)rpHtml+=rp('Ponto de Equilíbrio',BRL(d.pontEquil),'pos');
+  document.getElementById('dreResultPanel').innerHTML=
+    '<div class="dre-rp-title">📊 Resultados<span style="font-size:10px;color:var(--text3);font-weight:400;margin-left:6px">'+MESES[dreMonth]+' de '+dreYear+'</span></div>'+rpHtml;
+
+  // LUCRO PANEL
+  document.getElementById('dreLucroPanel').innerHTML=
+    '<div class="dre-lucro-label">💰 Lucro Líquido</div>'+
+    '<div class="dre-lucro-val">'+BRL(d.lucLiq)+'</div>'+
+    '<div class="dre-lucro-pct">Margem Líquida: '+d.margem.toFixed(1)+'%</div>'+
+    (d.pontEquil>0?'<div class="dre-ponto">Ponto de Equilíbrio: '+BRL(d.pontEquil)+'</div>':'')+
+    '<div style="height:3px;background:var(--bg4);border-radius:2px;margin-top:8px"><div style="width:'+Math.min(100,Math.max(0,d.margem))+'%;height:3px;border-radius:2px;background:var(--green)"></div></div>';
+
+  // SCORE FINANCEIRO
+  const score=(lbl,val,ranges)=>{
+    let cls,icon,text;
+    if(val<ranges[0]){cls='critico';icon='🔴';text='Crítico';}
+    else if(val<ranges[1]){cls='atencao';icon='⚠️';text='Atenção';}
+    else if(val<ranges[2]){cls='saudavel';icon='✓';text='Saudável';}
+    else{cls='positivo';icon='✓';text='Positivo';}
+    return '<div class="score-row"><span class="score-label">'+lbl+'</span><span class="score-badge '+cls+'">'+icon+' '+text+'</span></div>';
+  };
+  document.getElementById('dreScoreCard').innerHTML=
+    '<div class="score-title">🎯 Score Financeiro</div>'+
+    score('Margem Líquida',d.margem,[0,5,15])+
+    score('Margem Bruta',d.margemBruta,[0,30,50])+
+    score('Lucro Líquido',d.lucLiq<0?-1:d.margem,[0,3,8]);
 }
 
 function renderDREAnual(){
@@ -1264,18 +1450,17 @@ function renderDREAnual(){
   const meses=MESES.map((n,i)=>({n:n.slice(0,3),d:getDREData(i,dreAnualYear)}));
   const linhas=[
     {lbl:'Receita Bruta',fn:d=>d.fat,cls:''},
-    {lbl:'(-) Cancelamentos',fn:d=>-d.cancelamentos,cls:'neg'},
+    {lbl:'(-) Devoluções',fn:d=>-d.devolucoes,cls:'neg'},
     {lbl:'= Receita Líquida',fn:d=>d.recLiq,cls:'bold'},
     {lbl:'(-) CMV',fn:d=>-d.cmv,cls:'neg'},
     {lbl:'= Lucro Bruto',fn:d=>d.lucBruto,cls:'bold'},
-    {lbl:'(-) Taxas ML',fn:d=>-d.taxasMl,cls:'neg'},
-    {lbl:'(-) Frete',fn:d=>-d.frete,cls:'neg'},
-    {lbl:'(-) ADS',fn:d=>-d.ads,cls:'neg'},
-    {lbl:'(-) Desp. Fixas',fn:d=>-d.despTotal,cls:'neg'},
-    {lbl:'= Res. Operacional',fn:d=>d.resultOp,cls:'bold'},
+    {lbl:'(-) Tarifas/Comissões',fn:d=>-d.taxasMl,cls:'neg'},
+    {lbl:'(-) Publicidade Ads',fn:d=>-d.ads,cls:'neg'},
+    {lbl:'(-) Custos Fixos',fn:d=>-d.despTotal,cls:'neg'},
     {lbl:'(-) Impostos',fn:d=>-d.impostos,cls:'neg'},
     {lbl:'= Lucro Líquido',fn:d=>d.lucLiq,cls:'lucro'},
-    {lbl:'Margem %',fn:d=>d.margem,cls:'lucro',pct:true},
+    {lbl:'Margem Líquida %',fn:d=>d.margem,cls:'lucro',pct:true},
+    {lbl:'Margem Bruta %',fn:d=>d.margemBruta,cls:'',pct:true},
   ];
   const totals={};linhas.forEach(l=>{totals[l.lbl]=meses.reduce((s,m)=>s+l.fn(m.d),0);});
   let html='<thead><tr><th>Linha</th>'+meses.map(m=>'<th>'+m.n+'</th>').join('')+'<th>Total</th></tr></thead><tbody>';
@@ -1325,8 +1510,10 @@ function closeModal(id){document.getElementById(id).className='modal-overlay';}
 
 // ── PERSIST ───────────────────────────────────────────────────
 const STORE='vendasML_v2';
-function saveState(){try{localStorage.setItem(STORE,JSON.stringify({despesasFixas}));}catch(e){}}
-function loadState(){try{const r=localStorage.getItem(STORE);if(r){const p=JSON.parse(r);if(p.despesasFixas)despesasFixas=p.despesasFixas;}}catch(e){}}
+let lancamentos={};
+function saveLanc(){try{const s=JSON.parse(localStorage.getItem(STORE)||'{}')||{};s.lancamentos=lancamentos;s.despesasFixas=despesasFixas;localStorage.setItem(STORE,JSON.stringify(s));}catch(e){}}
+function saveState(){saveLanc();}
+function loadState(){try{const r=localStorage.getItem(STORE);if(r){const p=JSON.parse(r);if(p.despesasFixas)despesasFixas=p.despesasFixas;if(p.lancamentos)lancamentos=p.lancamentos;}}catch(e){}}
 
 // ── NAV ───────────────────────────────────────────────────────
 function toggleSidebar(){
