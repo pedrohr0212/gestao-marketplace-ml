@@ -172,8 +172,8 @@ img{max-width:100%}
 .tw.dragging{cursor:grabbing}
 .tw.dragging *{user-select:none}
 table{width:100%;border-collapse:collapse;font-size:12px}
-thead th{padding:8px 10px;text-align:left;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text3);background:var(--bg3);border-bottom:0.5px solid var(--border);white-space:nowrap}
-tbody td{padding:8px 10px;border-bottom:0.5px solid var(--border);color:var(--text2);vertical-align:middle}
+thead th{padding:8px 10px;text-align:center;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text3);background:var(--bg3);border-bottom:0.5px solid var(--border);white-space:nowrap}
+tbody td{padding:8px 10px;border-bottom:0.5px solid var(--border);color:var(--text2);vertical-align:middle;text-align:center}
 tbody tr:hover td{background:var(--bg3)}
 
 /* CHARTS */
@@ -221,7 +221,7 @@ tbody tr:hover td{background:var(--bg3)}
 .btn.primary:hover{background:#6d5ce7}
 .btn.dbtn{background:var(--red-bg);border-color:var(--red);color:var(--red)}
 .etw{overflow-x:auto;background:var(--bg2);border:0.5px solid var(--border);border-radius:var(--r2);margin-bottom:14px;-webkit-overflow-scrolling:touch}
-.etw table{min-width:1600px}
+.etw table{min-width:700px}
 .etw thead th{background:var(--bg3)}
 .etw tbody td input{background:transparent;border:none;color:var(--text);font-family:var(--mono);font-size:12px;width:100%;outline:none;padding:2px 0}
 .etw tbody td input:focus{color:var(--accent2)}
@@ -821,20 +821,16 @@ tbody tr:hover td{background:var(--bg3)}
     <input type="number" id="impostoInput" step="0.1" min="0" max="100" value="6" oninput="impostoGlobal=+this.value;renderEditor();saveState()">
     <span class="imp-note">Aplicado a todos os produtos automaticamente. Ex: Simples Nacional 6%, Lucro Presumido 8%…</span>
   </div>
-  <div class="etw"><table><thead><tr><th>SKU</th><th>Produto</th><th>Categoria</th><th>Fornecedor</th><th>Custo R$</th><th>Preço Venda R$</th><th>Comissão %</th><th>Taxa Plat. R$</th><th>Frete R$</th><th>Físico</th><th>Transf.</th><th>Full ML</th><th>Total</th><th>Vendas 7d</th><th>Vendas 30d</th><th>Média/d</th><th title="Lead time individual. Deixe em branco para usar o global.">Lead Time d ✎</th><th>Margem R$</th><th>Margem %</th><th>Ação</th></tr></thead><tbody id="editorBody"></tbody></table></div>
+  <div class="etw"><table><thead><tr><th>SKU</th><th>Produto</th><th>Categoria</th><th>Fornecedor</th><th>Custo R$</th><th>Preço Venda R$</th><th>Físico</th><th title="Lead time individual. Deixe em branco para usar o global.">Lead Time d ✎</th><th>Ação</th></tr></thead><tbody id="editorBody"></tbody></table></div>
   <button class="add-btn" onclick="addRow()">+ Adicionar produto</button>
   <div class="ibox">
     <div style="font-size:12px;font-weight:500;color:var(--text);margin-bottom:7px">Como os cálculos funcionam</div>
     <div style="font-size:12px;color:var(--text2);line-height:1.9">
-      • <strong style="color:var(--text)">Lead Time d</strong>: Dias para chegada do pedido ao armazém. Ao salvar o Lead Time Global, todos os produtos sem override individual são atualizados. Produtos com <span style="color:var(--accent2);font-weight:500">valor destacado em roxo</span> têm lead time individual configurado.<br>
-      • <strong style="color:var(--text)">Estoque total</strong>: Físico + Transferência + Full ML + Pedidos aguardando<br>
-      • <strong style="color:var(--text)">Custo médio ponderado</strong>: recalculado a cada entrada<br>
-      • <strong style="color:var(--text)">Margem de contribuição R$</strong>: Preço venda − Custo − Comissão% − Taxa plat. − Frete − Imposto%<br>
-      • <strong style="color:var(--text)">Margem de contribuição %</strong>: Margem R$ ÷ Preço de venda × 100<br>
-      • <strong style="color:var(--text)">Imposto global</strong>: único % aplicado sobre o preço de venda de todos os produtos<br>
-      • <strong style="color:var(--text)">Pedidos ao fornecedor</strong>: entram como "A chegar" e são somados na cobertura<br>
-      • <strong style="color:var(--text)">Confirmar coleta Full</strong>: move Físico → Transferência<br>
-      • <strong style="color:var(--text)">Transf. → Full ML</strong>: move sem duplicar estoque total
+      • <strong style="color:var(--text)">Lead Time d</strong>: Dias para chegada do pedido. Lead Time Global sobrescreve todos ao salvar. Editar individualmente aqui define override por produto — campo fica <span style="color:var(--accent2);font-weight:500">roxo</span>.<br>
+      • <strong style="color:var(--text)">Campos editáveis</strong>: SKU, Produto, Categoria, Fornecedor, Custo, Preço Venda, Estoque Físico e Lead Time individual<br>
+      • <strong style="color:var(--text)">Dados em tempo real</strong>: Transferência, Full ML, Vendas, Médias e Margens são alimentados pela API do Mercado Livre<br>
+      • <strong style="color:var(--text)">Custo médio ponderado</strong>: recalculado automaticamente a cada entrada de estoque registrada na Movimentação<br>
+      • <strong style="color:var(--text)">Imposto global</strong>: único % aplicado sobre o preço de venda de todos os produtos
     </div>
   </div>
 </div>
@@ -1085,7 +1081,7 @@ function applyLeadTime(){
   const v=Math.max(1,+(inp?inp.value:leadTime)||1);
   leadTime=v;
   // Atualizar prazo de todos os produtos sem override individual
-  data.forEach(p=>{if(p.prazoOverride==null)p.prazo=leadTime;});
+  data.forEach(p=>{p.prazo=leadTime;p.prazoOverride=null;}); // global sobrescreve todos
   const hint=document.getElementById('leadHint');
   if(hint)hint.textContent='Estoque segurança = média/dia × '+leadTime+'d';
   // Feedback visual no botão
@@ -1292,40 +1288,27 @@ function renderInsights(prods){
 }
 
 function renderEditor(){
-  // sync imposto input with global var
   const imp=document.getElementById('impostoInput');
   if(imp)imp.value=impostoGlobal;
+  const inputStyle='background:transparent;border:none;font-size:12px;outline:none;text-align:center;width:100%;padding:2px 4px';
   document.getElementById('editorBody').innerHTML=data.map((p,i)=>{
-    const tot=(p.estFisico||0)+(p.estTransf||0)+(p.estFull||0);
-    const m=calcMargem(p);
-    const mcCls=m.mc>0&&m.mcPct>=15?'mc-pos':m.mc>0?'mc-low':'mc-neg';
-    const mcR=m.pv>0?BRL(m.mc):'—';
-    const mcP=m.pv>0?m.mcPct.toFixed(1)+'%':'—';
+    const ltOvr=p.prazoOverride!=null;
+    const ltStyle=ltOvr?'color:var(--accent2);border-bottom:1px solid var(--accent2);':'';
+    const ltTitle=ltOvr?'Lead time individual (global: '+leadTime+'d)':'Usando lead time global: '+leadTime+'d';
     return '<tr>'
-      +'<td style="font-family:var(--mono)"><input value="'+(p.sku||'')+'" onchange="data['+i+'].sku=this.value;saveState()" style="width:72px;color:var(--accent2)"></td>'
-      +'<td><input value="'+p.nome+'" onchange="data['+i+'].nome=this.value;saveState()" style="min-width:130px;color:var(--text);font-weight:500"></td>'
-      +'<td><input value="'+(p.cat||'')+'" onchange="data['+i+'].cat=this.value;saveState()" style="min-width:80px"></td>'
-      +'<td><input value="'+p.forn+'" onchange="data['+i+'].forn=this.value;saveState()" style="min-width:80px"></td>'
-      +'<td style="font-family:var(--mono)"><input type="number" step="0.01" value="'+((p.custo||0).toFixed(2))+'" onchange="data['+i+'].custo=+this.value;renderEditor();saveState()" style="width:65px;color:var(--teal)"></td>'
-      +'<td style="font-family:var(--mono)"><input type="number" step="0.01" value="'+((p.precoVenda||0).toFixed(2))+'" onchange="data['+i+'].precoVenda=+this.value;renderEditor();saveState()" style="width:72px;color:var(--green)"></td>'
-      +'<td style="font-family:var(--mono)"><input type="number" step="0.1" value="'+((p.comissao||0).toFixed(1))+'" onchange="data['+i+'].comissao=+this.value;renderEditor();saveState()" style="width:55px;color:var(--amber)"></td>'
-      +'<td style="font-family:var(--mono)"><input type="number" step="0.01" value="'+((p.taxaPlat||0).toFixed(2))+'" onchange="data['+i+'].taxaPlat=+this.value;renderEditor();saveState()" style="width:60px;color:var(--amber)"></td>'
-      +'<td style="font-family:var(--mono)"><input type="number" step="0.01" value="'+((p.taxaFrete||0).toFixed(2))+'" onchange="data['+i+'].taxaFrete=+this.value;renderEditor();saveState()" style="width:60px;color:var(--amber)"></td>'
-      +'<td style="font-family:var(--mono)"><input type="number" value="'+(p.estFisico||0)+'" onchange="data['+i+'].estFisico=+this.value;upTot('+i+');saveState()" style="width:50px" id="ef'+i+'"></td>'
-      +'<td style="font-family:var(--mono)"><input type="number" value="'+(p.estTransf||0)+'" onchange="data['+i+'].estTransf=+this.value;upTot('+i+');saveState()" style="width:50px" id="et'+i+'"></td>'
-      +'<td style="font-family:var(--mono)"><input type="number" value="'+(p.estFull||0)+'" onchange="data['+i+'].estFull=+this.value;upTot('+i+');saveState()" style="width:50px" id="efu'+i+'"></td>'
-      +'<td id="eT'+i+'" style="text-align:right;font-family:var(--mono);font-weight:600;color:var(--accent2)">'+tot+'</td>'
-      +'<td style="font-family:var(--mono)"><input type="number" value="'+p.v7+'" onchange="data['+i+'].v7=+this.value;saveState()" style="width:48px"></td>'
-      +'<td style="font-family:var(--mono)"><input type="number" value="'+(p.v30||'')+'" placeholder="—" onchange="data['+i+'].v30=this.value?+this.value:null;saveState()" style="width:52px"></td>'
-      +'<td style="font-family:var(--mono)"><input type="number" value="'+p.vd+'" onchange="data['+i+'].vd=+this.value;saveState()" style="width:48px"></td>'
-      +'<td style="font-family:var(--mono)" title="'+(p.prazoOverride!=null?'Lead time individual (diferente do global)':'Usando lead time global: '+leadTime+'d')+'">'
-      +'<input type="number" id="prazoInp'+i+'" value="'+p.prazo+'" onchange="setProductLeadTime('+i+',+this.value)" style="width:46px;'+(p.prazoOverride!=null?'color:var(--accent2);border-bottom:1px solid var(--accent2)':'')+'"></td>'
-      +'<td style="text-align:center;white-space:nowrap"><span class="mc-badge '+mcCls+'">'+mcR+'</span></td>'
-      +'<td style="text-align:center"><span class="mc-badge '+mcCls+'">'+mcP+'</span></td>'
+      +'<td><input value="'+(p.sku||'')+'" onchange="data['+i+'].sku=this.value;saveState()" style="'+inputStyle+';color:var(--accent2);font-family:var(--mono)"></td>'
+      +'<td><input value="'+p.nome.replace(/"/g,'&quot;')+'" onchange="data['+i+'].nome=this.value;saveState()" style="'+inputStyle+';color:var(--text)"></td>'
+      +'<td><input value="'+(p.cat||'')+'" onchange="data['+i+'].cat=this.value;saveState()" style="'+inputStyle+';color:var(--text2)"></td>'
+      +'<td><input value="'+(p.forn||'')+'" onchange="data['+i+'].forn=this.value;saveState()" style="'+inputStyle+';color:var(--text2)"></td>'
+      +'<td><input type="number" step="0.01" value="'+((p.custo||0).toFixed(2))+'" onchange="data['+i+'].custo=+this.value;saveState()" style="'+inputStyle+';color:var(--teal);font-family:var(--mono)"></td>'
+      +'<td><input type="number" step="0.01" value="'+((p.precoVenda||0).toFixed(2))+'" onchange="data['+i+'].precoVenda=+this.value;saveState()" style="'+inputStyle+';color:var(--green);font-family:var(--mono)"></td>'
+      +'<td><input type="number" value="'+(p.estFisico||0)+'" onchange="data['+i+'].estFisico=+this.value;saveState()" id="ef'+i+'" style="'+inputStyle+';font-family:var(--mono)"></td>'
+      +'<td title="'+ltTitle+'"><input type="number" id="prazoInp'+i+'" value="'+p.prazo+'" onchange="setProductLeadTime('+i+',+this.value)" style="'+inputStyle+';font-family:var(--mono);'+ltStyle+'"></td>'
       +'<td><button class="btn dbtn" onclick="removeRow('+i+')" style="padding:3px 8px;font-size:11px">Remover</button></td>'
       +'</tr>';
   }).join('');
 }
+
 function upTot(i){const t=(data[i].estFisico||0)+(data[i].estTransf||0)+(data[i].estFull||0);const el=document.getElementById('eT'+i);if(el)el.textContent=t;}
 function addRow(){data.push({sku:'',nome:'Novo Produto',cat:'',forn:'Fornecedor',custo:0,estFisico:0,estTransf:0,estFull:0,v7:0,v30:null,vd:0,prazo:7});renderEditor();saveState();}
 function removeRow(i){data.splice(i,1);renderEditor();saveState();}
