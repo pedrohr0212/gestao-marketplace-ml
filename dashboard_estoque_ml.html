@@ -426,6 +426,34 @@ tbody tr:hover td{background:var(--bg3)}
   .oc-stats{grid-template-columns:repeat(2,1fr)}
   .mini-link{flex:1;text-align:center}
 }
+
+/* LEAD TIME CONFIG */
+.lead-config{display:flex;align-items:center;justify-content:space-between;gap:12px;background:var(--bg2);border:0.5px solid var(--border2);border-radius:var(--r2);padding:12px 16px;margin-bottom:14px;flex-wrap:wrap}
+.lead-config-left{display:flex;align-items:center;gap:8px;flex:1;min-width:0}
+.lead-config-label{font-size:13px;font-weight:600;color:var(--text);white-space:nowrap}
+.lead-config-desc{font-size:11px;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lead-config-right{display:flex;align-items:center;gap:8px;flex-shrink:0}
+.lead-input{width:64px;background:var(--bg3);border:0.5px solid var(--border2);border-radius:var(--r);padding:6px 10px;color:var(--text);font-family:var(--mono);font-size:14px;font-weight:600;text-align:center;outline:none}
+.lead-input:focus{border-color:var(--accent)}
+.lead-unit{font-size:12px;color:var(--text3);font-family:var(--mono)}
+.lead-hint{font-size:11px;color:var(--accent2);font-family:var(--mono);background:rgba(124,106,247,0.1);padding:3px 8px;border-radius:5px;white-space:nowrap}
+
+/* INSIGHT CARDS NA COBERTURA */
+.cov-insights{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:20px}
+.cov-ins{background:var(--bg2);border:0.5px solid var(--border);border-radius:var(--r2);padding:12px 14px;border-left:3px solid transparent;display:flex;gap:10px;align-items:flex-start}
+.cov-ins.red{border-left-color:var(--red)}.cov-ins.amber{border-left-color:var(--amber)}
+.cov-ins.green{border-left-color:var(--green)}.cov-ins.blue{border-left-color:var(--blue)}
+.cov-ins-icon{font-size:18px;flex-shrink:0;margin-top:1px}
+.cov-ins-body{}
+.cov-ins-title{font-size:12px;font-weight:600;color:var(--text);margin-bottom:3px}
+.cov-ins-text{font-size:11px;color:var(--text2);line-height:1.6}
+.cov-ins-val{font-family:var(--mono);font-weight:600}
+
+@media(max-width:768px){
+  .lead-config{flex-direction:column;align-items:flex-start}
+  .lead-config-desc{display:none}
+  .cov-insights{grid-template-columns:1fr}
+}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -452,15 +480,12 @@ tbody tr:hover td{background:var(--bg3)}
   </div>
   <div class="app-switch" aria-label="Módulos do sistema">
     <a class="app-tab" href="vendas_marketplace.html#faturamento" onclick="goModule('vendas_marketplace.html','faturamento');return false;" title="Vendas"><span>Vendas</span></a>
-    <a class="app-tab active" href="dashboard_estoque_ml.html#dashboard" onclick="showPage('dashboard',document.querySelector('.ni[onclick*=dashboard]'));return false;" title="Estoque"><span>Estoque</span></a>
+    <a class="app-tab active" href="dashboard_estoque_ml.html#financeiro" onclick="showPage('financeiro',document.querySelector('.ni[onclick*=financeiro]'));return false;" title="Estoque"><span>Estoque</span></a>
   </div>
   <nav class="nav">
-    <div class="nav-sec">Visão geral</div>
-    <div class="ni active" onclick="showPage('dashboard',this)">
-      <div class="ni-icon"><svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg></div><span class="ni-label">Dashboard</span><span class="ni-tip">Dashboard</span>
-    </div>
-    <div class="ni" onclick="showPage('financeiro',this)">
-      <div class="ni-icon"><svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" viewBox="0 0 24 24"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div><span class="ni-label">Financeiro</span><span class="ni-tip">Financeiro</span>
+    <div class="nav-sec">Inventário</div>
+    <div class="ni active" onclick="showPage('financeiro',this)">
+      <div class="ni-icon"><svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" viewBox="0 0 24 24"><path d="M3 3h18v4H3zM3 10h18v4H3zM3 17h18v4H3z"/></svg></div><span class="ni-label">Gestão de Estoque</span><span class="ni-tip">Gestão de Estoque</span>
     </div>
     <div class="nav-sec">Operacional</div>
     <div class="ni" onclick="showPage('movimentacao',this)">
@@ -469,14 +494,8 @@ tbody tr:hover td{background:var(--bg3)}
     <div class="ni" onclick="showPage('full',this)">
       <div class="ni-icon"><svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg></div><span class="ni-label">Envios Full</span><span class="ni-tip">Envios Full</span>
     </div>
-    <div class="ni" onclick="showPage('pedidos',this)">
-      <div class="ni-icon"><svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div><span class="ni-label">Pedidos urgentes</span><span class="ni-tip">Pedidos urgentes</span>
-    </div>
     <div class="ni" onclick="showPage('cobertura',this)">
       <div class="ni-icon"><svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div><span class="ni-label">Cobertura</span><span class="ni-tip">Cobertura</span>
-    </div>
-    <div class="ni" onclick="showPage('projecoes',this)">
-      <div class="ni-icon"><svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" viewBox="0 0 24 24"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg></div><span class="ni-label">Projeções 30d</span><span class="ni-tip">Projeções 30d</span>
     </div>
     <div class="ni" onclick="showPage('insights',this)">
       <div class="ni-icon"><svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></div><span class="ni-label">Insights</span><span class="ni-tip">Insights</span>
@@ -517,7 +536,7 @@ tbody tr:hover td{background:var(--bg3)}
 </div>
 
 <!-- DASHBOARD -->
-<div class="page active" id="page-dashboard">
+<div class="page" id="page-dashboard">
   <div style="height:18px"></div>
   <div class="page-intro">
     <div>
@@ -548,20 +567,49 @@ tbody tr:hover td{background:var(--bg3)}
   <div id="dashTop"></div>
 </div>
 
-<!-- FINANCEIRO -->
-<div class="page" id="page-financeiro">
+<!-- GESTÃO DE ESTOQUE -->
+<div class="page active" id="page-financeiro">
   <div style="height:18px"></div>
-  <div class="g5" id="finTopCards"></div>
-  <div class="ch2">
-    <div class="cc" style="margin-bottom:0"><div class="sec" style="margin-bottom:10px">Capital por fornecedor</div><div class="fch"><canvas id="finFornChart" role="img" aria-label="Capital por fornecedor"></canvas></div></div>
-    <div class="cc" style="margin-bottom:0"><div class="sec" style="margin-bottom:10px">Distribuição por status</div><div class="fch"><canvas id="finStatusChart" role="img" aria-label="Capital por status"></canvas></div></div>
+
+  <!-- KPIs topo -->
+  <div class="g4" id="finTopCards"></div>
+
+  <!-- Painel de configuração Lead Time -->
+  <div class="lead-config" id="leadConfigPanel">
+    <div class="lead-config-left">
+      <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      <span class="lead-config-label">Lead Time global</span>
+      <span class="lead-config-desc">Dias para reposição de estoque (tempo do pedido até chegada no armazém)</span>
+    </div>
+    <div class="lead-config-right">
+      <input type="number" id="leadTimeInput" class="lead-input" min="1" max="180" value="7" oninput="setLeadTime(+this.value)">
+      <span class="lead-unit">dias</span>
+      <span class="lead-hint" id="leadHint"></span>
+    </div>
   </div>
-  <div class="sec">Detalhe por produto</div>
+
+  <!-- Tabela de inventário -->
   <div class="fbar" id="finFilters"></div>
   <div class="tw">
-    <table>
-      <thead><tr><th>SKU</th><th>Produto</th><th>Fornecedor</th><th style="text-align:right">Custo</th><th style="text-align:right">Pr. Venda</th><th style="text-align:right">Margem R$</th><th style="text-align:right">Margem %</th><th style="text-align:right">Físico</th><th style="text-align:right">Transf.</th><th style="text-align:right">Full ML</th><th style="text-align:right">Total un.</th><th style="text-align:right">Valor total</th><th style="text-align:right">%</th><th style="text-align:right">Cobertura</th><th>Status</th></tr></thead>
-      <tbody id="finTBody"></tbody><tfoot id="finTFoot"></tfoot>
+    <table id="invTable">
+      <thead>
+        <tr>
+          <th>SKU / Produto</th>
+          <th style="text-align:right">Físico</th>
+          <th style="text-align:right">Transf.</th>
+          <th style="text-align:right">Full ML</th>
+          <th style="text-align:right">Total</th>
+          <th style="text-align:right">Custo Unit.</th>
+          <th style="text-align:right">Capital Total</th>
+          <th style="text-align:right">Vendas 30d</th>
+          <th style="text-align:right">Média/dia</th>
+          <th style="text-align:right">Proj. 45d</th>
+          <th style="text-align:right">Dias Ruptura</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody id="finTBody"></tbody>
+      <tfoot id="finTFoot"></tfoot>
     </table>
   </div>
 </div>
@@ -688,8 +736,10 @@ tbody tr:hover td{background:var(--bg3)}
 <!-- COBERTURA -->
 <div class="page" id="page-cobertura">
   <div style="height:18px"></div>
-  <div class="sec">Tabela de estoques mínimos</div>
-  <div class="tw"><table><thead><tr><th>SKU</th><th>Produto</th><th>Fornecedor</th><th style="text-align:right">Físico</th><th style="text-align:right">Transf.</th><th style="text-align:right">Full ML</th><th style="text-align:right">A chegar</th><th style="text-align:right">Total</th><th style="text-align:right">Giro/d</th><th style="text-align:right">Proj.30d</th><th style="text-align:right">Mín 15d</th><th style="text-align:right">Mín 30d</th><th style="text-align:right">Mín 45d</th><th style="text-align:right">Mín 60d</th><th style="text-align:right">Cobertura</th><th style="text-align:right">Ruptura</th><th style="text-align:right">Comprar até</th><th>Status</th></tr></thead><tbody id="covTBody"></tbody></table></div>
+  <!-- Insights de tomada de decisão -->
+  <div class="cov-insights" id="covInsights"></div>
+  <div class="sec">Tabela de cobertura — todos os produtos</div>
+  <div class="tw"><table><thead><tr><th>SKU</th><th>Produto</th><th style="text-align:right">Físico</th><th style="text-align:right">Transf.</th><th style="text-align:right">Full ML</th><th style="text-align:right">A chegar</th><th style="text-align:right">Total</th><th style="text-align:right">Giro/d</th><th style="text-align:right">Proj.45d</th><th style="text-align:right">Est. Seg.</th><th style="text-align:right">Cobertura</th><th style="text-align:right">Ruptura em</th><th style="text-align:right">Comprar até</th><th>Status</th></tr></thead><tbody id="covTBody"></tbody></table></div>
 </div>
 
 <!-- PROJEÇÕES -->
@@ -800,7 +850,7 @@ const STORE_KEY='estoqueML_v1';
 
 function saveState(){
   try{
-    localStorage.setItem(STORE_KEY,JSON.stringify({data,pedidos,historico,enviosFull,impostoGlobal}));
+    localStorage.setItem(STORE_KEY,JSON.stringify({data,pedidos,historico,enviosFull,impostoGlobal,leadTime}));
     const ind=document.getElementById('saveIndicator');
     if(ind){ind.textContent='● Salvo';ind.style.color='var(--green)';clearTimeout(ind._t);ind._t=setTimeout(()=>{ind.textContent='● Dados salvos localmente';},2000);}
   }catch(e){
@@ -860,7 +910,9 @@ let pedidos=_saved&&_saved.pedidos?_saved.pedidos:[];
 let historico=_saved&&_saved.historico?_saved.historico:[];
 let enviosFull=_saved&&_saved.enviosFull?_saved.enviosFull:[];
 let dashFilter='todos',finFilter='todos';
+let leadTime=7; // dias para reposição (lead time global)
 let impostoGlobal=_saved&&_saved.impostoGlobal!=null?_saved.impostoGlobal:6; // % imposto global
+leadTime=_saved&&_saved.leadTime!=null?_saved.leadTime:7;
 let covChart=null,finFC=null,finSC=null;
 
 // PAGINAÇÃO
@@ -926,9 +978,8 @@ function renderAll(){saveState();
   renderCovChart(prods,dashFilter);
   renderDashTop(prods);
   renderFinanceiro(prods);
-  renderOrderCards(prods);
   renderCovTable(prods);
-  renderProjGrid(prods);
+  renderCovInsights(prods);
   renderInsights(prods);
   renderEditor();
   const now=new Date();
@@ -1002,39 +1053,95 @@ function buildEbd(p){
   s+='</div>';return s;
 }
 
+function setLeadTime(v){
+  leadTime=Math.max(1,v||1);
+  const hint=document.getElementById('leadHint');
+  if(hint)hint.textContent='Estoque segurança = média/dia × '+leadTime+'d';
+  const prods=data.map(calcProd).sort((a,b)=>PO[a.status]-PO[b.status]);
+  renderFinanceiro(prods);
+  renderCovTable(prods);
+  renderCovInsights(prods);
+  saveState();
+}
+
 function renderFinanceiro(prods){
   const tv=prods.reduce((s,p)=>s+p.valorTotal,0);
   const tu=prods.reduce((s,p)=>s+p.estBase,0);
-  const vR=prods.filter(p=>p.status==='ruptura'||p.status==='urgente').reduce((s,p)=>s+p.valorTotal,0);
-  const vO=prods.filter(p=>p.diasRup>60).reduce((s,p)=>s+p.valorTotal,0);
-  const maior=[...prods].sort((a,b)=>b.valorTotal-a.valorTotal)[0];
+  const vRup=prods.filter(p=>p.status==='ruptura').length;
+  const vUrg=prods.filter(p=>p.status==='urgente').length;
+  const vCrit=prods.filter(p=>p.status==='critico').length;
+  const vOk=prods.filter(p=>p.status==='ok').length;
+
+  // KPI cards topo
   document.getElementById('finTopCards').innerHTML=[
-    {l:'Capital em estoque',v:BRL(tv),cls:'teal',sub:tu+' unidades'},
-    {l:'Total de SKUs',v:prods.length,cls:'info',sub:'no portfólio'},
-    {l:'Capital em risco',v:BRL(vR),cls:'danger',sub:'ruptura+urgentes'},
-    {l:'Capital imobilizado',v:BRL(vO),cls:'warn',sub:'cobertura >60d'},
-    {l:'Maior investimento',v:maior?maior.sku:'—',cls:'purple',sub:maior?BRL(maior.valorTotal):''},
-  ].map(c=>'<div class="tc '+c.cls+'"><div class="tc-label">'+c.l+'</div><div class="tc-val" style="font-size:'+(c.v.toString().length>11?'14px':c.v.toString().length>8?'17px':'22px')+'">'+c.v+'</div><div class="tc-sub">'+c.sub+'</div></div>').join('');
+    {l:'Capital em Estoque',v:BRL(tv),cls:'teal',sub:tu+' unidades totais'},
+    {l:'Ruptura / Urgente',v:vRup+vUrg,cls:vRup+vUrg>0?'danger':'ok',sub:vRup>0?vRup+' em ruptura':'nenhuma ruptura'},
+    {l:'Críticos (8-14d)',v:vCrit,cls:vCrit>0?'warn':'ok',sub:'precisam de atenção'},
+    {l:'Saudáveis',v:vOk,cls:'ok',sub:'cobertura >30 dias'},
+  ].map(c=>'<div class="tc '+c.cls+'"><div class="tc-label">'+c.l+'</div><div class="tc-val" style="font-size:22px">'+c.v+'</div><div class="tc-sub">'+c.sub+'</div></div>').join('');
 
-  const fm={};prods.forEach(p=>{if(!fm[p.forn])fm[p.forn]=0;fm[p.forn]+=p.valorTotal;});
-  const fl=Object.keys(fm),fv=Object.values(fm);
-  const FC=['#7c6af7','#34d399','#60a5fa','#f59e0b','#f05252','#2dd4bf','#a78bfa','#fb7185'];
-  if(finFC){finFC.destroy();}
-  finFC=new Chart(document.getElementById('finFornChart'),{type:'doughnut',data:{labels:fl,datasets:[{data:fv.map(v=>Math.round(v)),backgroundColor:FC,borderWidth:0,hoverOffset:5}]},options:{responsive:true,maintainAspectRatio:false,cutout:'60%',plugins:{legend:{position:'bottom',labels:{color:'#9a9ea8',font:{size:10},boxWidth:9,padding:8}},tooltip:{callbacks:{label:ctx=>ctx.label+': '+BRL(ctx.raw)},bodyColor:'#f0f0f0',backgroundColor:'#16181c',borderColor:'rgba(255,255,255,0.1)',borderWidth:1}}}});
+  // Atualizar hint do lead time
+  const hint=document.getElementById('leadHint');
+  if(hint)hint.textContent='Estoque segurança = média/dia × '+leadTime+'d';
 
-  const sm={};prods.forEach(p=>{if(!sm[p.status])sm[p.status]=0;sm[p.status]+=p.valorTotal;});
-  const sc2={ruptura:'#f05252',urgente:'#f87171',critico:'#f59e0b',atencao:'#d97706',ok:'#34d399'};
-  const sk2=Object.keys(sm).filter(k=>sm[k]>0);
-  if(finSC){finSC.destroy();}
-  finSC=new Chart(document.getElementById('finStatusChart'),{type:'doughnut',data:{labels:sk2.map(k=>SL[k]),datasets:[{data:sk2.map(k=>Math.round(sm[k])),backgroundColor:sk2.map(k=>sc2[k]),borderWidth:0,hoverOffset:5}]},options:{responsive:true,maintainAspectRatio:false,cutout:'60%',plugins:{legend:{position:'bottom',labels:{color:'#9a9ea8',font:{size:10},boxWidth:9,padding:8}},tooltip:{callbacks:{label:ctx=>ctx.label+': '+BRL(ctx.raw)},bodyColor:'#f0f0f0',backgroundColor:'#16181c',borderColor:'rgba(255,255,255,0.1)',borderWidth:1}}}});
-
-  // filter bar
+  // Filter bar
   const forns=[...new Set(prods.map(p=>p.forn))];
-  let fh='<span class="fl">Ordenar:</span><button class="fb'+(finFilter==='valor'?' active':'')+'" onclick="setFF(\'valor\')">Maior valor</button><button class="fb'+(finFilter==='cob'?' active':'')+'" onclick="setFF(\'cob\')">Menor cobertura</button><button class="fb'+(finFilter==='todos'?' active':'')+'" onclick="setFF(\'todos\')">Padrão</button><span class="fl" style="margin-left:6px">Fornecedor:</span>';
-  forns.forEach(f=>fh+='<button class="fb'+(finFilter===f?' active':'')+'" onclick="setFF(\''+encodeURIComponent(f)+'\')">'+f+'</button>');
+  let fh='<span class="fl">Status:</span>';
+  [{k:'todos',l:'Todos'},{k:'ruptura',l:'Ruptura'},{k:'urgente',l:'Urgente'},{k:'critico',l:'Crítico'},{k:'atencao',l:'Atenção'},{k:'ok',l:'Saudável'}].forEach(o=>fh+='<button class="fb'+(finFilter===o.k?' active':'')+'" onclick="setFF(''+o.k+'')">'+o.l+'</button>');
+  fh+='<span class="fl" style="margin-left:6px">Ordenar:</span>';
+  fh+='<button class="fb'+(finFilter==='valor'?' active':'')+'" onclick="setFF('valor')">Maior capital</button>';
+  fh+='<button class="fb'+(finFilter==='cob'?' active':'')+'" onclick="setFF('cob')">Menor cobertura</button>';
   document.getElementById('finFilters').innerHTML=fh;
-  renderFinTable(prods,finFilter);
+  renderInvTable(prods,finFilter);
 }
+
+function setFF(k){finFilter=decodeURIComponent(k);const prods=data.map(calcProd).sort((a,b)=>PO[a.status]-PO[b.status]);renderFinanceiro(prods);}
+
+function renderInvTable(prods,filter){
+  let rows=[...prods];
+  if(filter==='valor')rows.sort((a,b)=>b.valorTotal-a.valorTotal);
+  else if(filter==='cob')rows.sort((a,b)=>a.diasRup-b.diasRup);
+  else if(!['todos','valor','cob','ruptura','urgente','critico','atencao','ok'].includes(filter))rows=rows.filter(p=>p.forn===filter);
+  else if(['ruptura','urgente','critico','atencao','ok'].includes(filter))rows=rows.filter(p=>p.status===filter);
+  const tv=prods.reduce((s,p)=>s+p.valorTotal,0);
+
+  document.getElementById('finTBody').innerHTML=rows.map(p=>{
+    const estSeg=Math.round(p.vdEf*leadTime);
+    const proj45=Math.round(p.vdEf*45);
+    const v30=p.v30||Math.round(p.vdEf*30);
+    const dias=p.diasRup>=999?'90+':p.diasRup;
+    const dCor=p.diasRup<=7?'var(--red)':p.diasRup<=14?'var(--amber)':p.diasRup<=30?'#d97706':'var(--green)';
+    return '<tr>'+
+      '<td><div style="font-family:var(--mono);color:var(--accent2);font-size:10px">'+p.sku+'</div><div style="color:var(--text);font-weight:500;font-size:12px;margin-top:1px">'+p.nome+'</div></td>'+
+      '<td style="text-align:right;font-family:var(--mono)">'+p.estFisico+'</td>'+
+      '<td style="text-align:right;font-family:var(--mono);color:'+(p.estTransf>0?'var(--amber)':'var(--text2)')+'">'+p.estTransf+'</td>'+
+      '<td style="text-align:right;font-family:var(--mono);color:var(--blue)">'+p.estFull+'</td>'+
+      '<td style="text-align:right;font-family:var(--mono);font-weight:600;color:var(--text)">'+p.estBase+'</td>'+
+      '<td style="text-align:right;font-family:var(--mono)">'+BRL(p.custo||0)+'</td>'+
+      '<td style="text-align:right;font-family:var(--mono);font-weight:600;color:var(--teal)">'+BRL(p.valorTotal)+'</td>'+
+      '<td style="text-align:right;font-family:var(--mono)">'+v30+'</td>'+
+      '<td style="text-align:right;font-family:var(--mono)">'+p.vdEf.toFixed(1)+'</td>'+
+      '<td style="text-align:right;font-family:var(--mono);color:var(--purple)">'+proj45+'</td>'+
+      '<td style="text-align:right;font-family:var(--mono);font-weight:600;color:'+dCor+'">'+dias+'d</td>'+
+      '<td><span class="badge '+p.status+'" style="font-size:10px">'+SL[p.status]+'</span></td>'+
+      '</tr>';
+  }).join('');
+
+  const totU=rows.reduce((s,p)=>s+p.estBase,0);
+  const totV=rows.reduce((s,p)=>s+p.valorTotal,0);
+  const tot30=rows.reduce((s,p)=>s+(p.v30||Math.round(p.vdEf*30)),0);
+  document.getElementById('finTFoot').innerHTML=
+    '<tr style="background:var(--bg3)">'+
+    '<td style="padding:8px 10px;font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase">Total ('+rows.length+' produtos)</td>'+
+    '<td colspan="3" style="padding:8px 10px"></td>'+
+    '<td style="text-align:right;padding:8px 10px;font-family:var(--mono);font-weight:600;color:var(--text)">'+totU+'</td>'+
+    '<td style="padding:8px 10px"></td>'+
+    '<td style="text-align:right;padding:8px 10px;font-family:var(--mono);font-weight:600;color:var(--teal)">'+BRL(totV)+'</td>'+
+    '<td style="text-align:right;padding:8px 10px;font-family:var(--mono);color:var(--text2)">'+tot30+'</td>'+
+    '<td colspan="4" style="padding:8px 10px"></td>'+
+    '</tr>';
+}
+
 
 function setFF(k){finFilter=decodeURIComponent(k);const prods=data.map(calcProd).sort((a,b)=>PO[a.status]-PO[b.status]);const forns=[...new Set(prods.map(p=>p.forn))];let fh='<span class="fl">Ordenar:</span><button class="fb'+(finFilter==='valor'?' active':'')+'" onclick="setFF(\'valor\')">Maior valor</button><button class="fb'+(finFilter==='cob'?' active':'')+'" onclick="setFF(\'cob\')">Menor cobertura</button><button class="fb'+(finFilter==='todos'?' active':'')+'" onclick="setFF(\'todos\')">Padrão</button><span class="fl" style="margin-left:6px">Fornecedor:</span>';forns.forEach(f=>fh+='<button class="fb'+(finFilter===f?' active':'')+'" onclick="setFF(\''+encodeURIComponent(f)+'\')">'+f+'</button>');document.getElementById('finFilters').innerHTML=fh;renderFinTable(prods,finFilter);}
 
@@ -1064,8 +1171,72 @@ function renderOrderCards(prods){
 }
 
 function renderCovTable(prods){
-  document.getElementById('covTBody').innerHTML=prods.map(p=>'<tr><td style="font-family:var(--mono);color:var(--accent2);font-size:11px">'+p.sku+'</td><td style="color:var(--text);font-weight:500;font-size:12px">'+p.nome+'</td><td style="color:var(--text3);font-size:11px">'+p.forn+'</td><td style="text-align:right;font-family:var(--mono)">'+p.estFisico+'</td><td style="text-align:right;font-family:var(--mono);color:'+(p.estTransf>0?'var(--amber)':'var(--text2)')+'">'+p.estTransf+'</td><td style="text-align:right;font-family:var(--mono);color:var(--blue)">'+p.estFull+'</td><td style="text-align:right;font-family:var(--mono);color:var(--purple)">'+(p.estPed>0?p.estPed:0)+'</td><td style="text-align:right;font-family:var(--mono);font-weight:600;color:var(--text)">'+p.est+'</td><td style="text-align:right;font-family:var(--mono)">'+p.vdEf.toFixed(1)+'</td><td style="text-align:right;font-family:var(--mono)">'+p.proj30+'</td><td style="text-align:right;font-family:var(--mono)">'+p.min15+'</td><td style="text-align:right;font-family:var(--mono)">'+p.min30+'</td><td style="text-align:right;font-family:var(--mono)">'+p.min45+'</td><td style="text-align:right;font-family:var(--mono)">'+p.min60+'</td><td style="text-align:right;font-family:var(--mono);font-weight:500;color:'+sCols[p.status]+'">'+(p.diasRup>=999?'90+':p.diasRup)+'d</td><td style="text-align:right;font-family:var(--mono)">'+(p.diasRup>=999?'—':fmt(p.dataRup))+'</td><td style="text-align:right;font-family:var(--mono)">'+(p.diasRup>=999?'—':fmt(p.dataComp))+'</td><td><span class="badge '+p.status+'" style="font-size:10px">'+SL[p.status]+'</span></td></tr>').join('');
+  document.getElementById('covTBody').innerHTML=prods.map(p=>{
+    const estSeg=Math.round(p.vdEf*leadTime);
+    const proj45=Math.round(p.vdEf*45);
+    const dias=p.diasRup>=999?'90+':p.diasRup;
+    const dCor=p.diasRup<=7?'var(--red)':p.diasRup<=14?'var(--amber)':p.diasRup<=30?'#d97706':'var(--green)';
+    const alertaSeg=p.estBase<estSeg;
+    return '<tr>'+
+      '<td style="font-family:var(--mono);color:var(--accent2);font-size:11px">'+p.sku+'</td>'+
+      '<td style="color:var(--text);font-weight:500;font-size:12px">'+p.nome+'</td>'+
+      '<td style="text-align:right;font-family:var(--mono)">'+p.estFisico+'</td>'+
+      '<td style="text-align:right;font-family:var(--mono);color:'+(p.estTransf>0?'var(--amber)':'var(--text2)')+'">'+p.estTransf+'</td>'+
+      '<td style="text-align:right;font-family:var(--mono);color:var(--blue)">'+p.estFull+'</td>'+
+      '<td style="text-align:right;font-family:var(--mono);color:var(--purple)">'+(p.estPed>0?p.estPed:0)+'</td>'+
+      '<td style="text-align:right;font-family:var(--mono);font-weight:600;color:var(--text)">'+p.est+'</td>'+
+      '<td style="text-align:right;font-family:var(--mono)">'+p.vdEf.toFixed(1)+'</td>'+
+      '<td style="text-align:right;font-family:var(--mono);color:var(--purple)">'+proj45+'</td>'+
+      '<td style="text-align:right;font-family:var(--mono);color:'+(alertaSeg?'var(--red)':'var(--text2)')+'">'+estSeg+(alertaSeg?' ⚠':'')+'</td>'+
+      '<td style="text-align:right;font-family:var(--mono);font-weight:600;color:'+dCor+'">'+dias+'d</td>'+
+      '<td style="text-align:right;font-family:var(--mono)">'+(p.diasRup>=999?'—':p.dataRup.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}))+'</td>'+
+      '<td style="text-align:right;font-family:var(--mono)">'+(p.diasRup>=999?'—':p.dataComp.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}))+'</td>'+
+      '<td><span class="badge '+p.status+'" style="font-size:10px">'+SL[p.status]+'</span></td>'+
+      '</tr>';
+  }).join('');
 }
+
+function renderCovInsights(prods){
+  const el=document.getElementById('covInsights');
+  if(!el)return;
+  const rup=prods.filter(p=>p.status==='ruptura');
+  const urg=prods.filter(p=>p.status==='urgente');
+  const crit=prods.filter(p=>p.status==='critico');
+  const ocioso=prods.filter(p=>p.diasRup>60).sort((a,b)=>b.valorTotal-a.valorTotal);
+  const tv=prods.reduce((s,p)=>s+p.valorTotal,0);
+  const vOcioso=ocioso.reduce((s,p)=>s+p.valorTotal,0);
+  const abaixoSeg=prods.filter(p=>p.estBase<Math.round(p.vdEf*leadTime)&&p.status!=='ruptura');
+
+  const ins=[];
+
+  // Ruptura
+  if(rup.length>0){
+    ins.push({cls:'red',icon:'🚨',title:rup.length+' produto'+(rup.length>1?'s':'')+' em ruptura',text:'<span class="cov-ins-val">'+rup.map(p=>p.sku).join(', ')+'</span> — estoque zerado. Ruptura penaliza posicionamento no ML. Acione pedido ao fornecedor imediatamente.'});
+  }
+  // Urgente
+  if(urg.length>0){
+    ins.push({cls:'red',icon:'⚠️',title:urg.length+' produto'+(urg.length>1?'s':'')+' com cobertura ≤7 dias',text:'<span class="cov-ins-val">'+urg.map(p=>p.sku+' ('+p.diasRup+'d)').join(', ')+'</span> — considerando lead time de '+leadTime+'d, o pedido já deveria ter sido feito.'});
+  }
+  // Crítico
+  if(crit.length>0){
+    ins.push({cls:'amber',icon:'📦',title:crit.length+' produto'+(crit.length>1?'s':'')+' críticos (8–14 dias)',text:'<span class="cov-ins-val">'+crit.map(p=>p.sku+' ('+p.diasRup+'d)').join(', ')+'</span> — faça o pedido esta semana para não entrar em zona de risco.'});
+  }
+  // Abaixo do estoque de segurança
+  if(abaixoSeg.length>0){
+    ins.push({cls:'amber',icon:'🔔',title:abaixoSeg.length+' produto'+(abaixoSeg.length>1?'s':'')+' abaixo do estoque de segurança',text:'Estoque de segurança = média/dia × lead time ('+leadTime+'d). <span class="cov-ins-val">'+abaixoSeg.map(p=>p.sku).join(', ')+'</span> estão abaixo do nível mínimo seguro.'});
+  }
+  // Capital ocioso
+  if(ocioso.length>0&&vOcioso>0){
+    ins.push({cls:'blue',icon:'💰',title:'Capital imobilizado: '+BRL(vOcioso)+' em estoque excessivo',text:'<span class="cov-ins-val">'+ocioso.slice(0,3).map(p=>p.sku+' ('+( p.diasRup>=999?'90+':p.diasRup)+'d)').join(', ')+'</span> com cobertura >60 dias — '+(vOcioso/tv*100).toFixed(0)+'% do capital total. Considere promoção ou pausar reposição.'});
+  }
+  // Tudo ok
+  if(rup.length===0&&urg.length===0){
+    ins.push({cls:'green',icon:'✅',title:'Operação saudável — nenhuma ruptura ou urgência',text:'Todos os produtos estão com cobertura acima do lead time configurado ('+leadTime+' dias). Continue monitorando os críticos.'});
+  }
+
+  el.innerHTML=ins.map(i=>'<div class="cov-ins '+i.cls+'"><div class="cov-ins-icon">'+i.icon+'</div><div class="cov-ins-body"><div class="cov-ins-title">'+i.title+'</div><div class="cov-ins-text">'+i.text+'</div></div></div>').join('');
+}
+
 
 function renderProjGrid(prods){
   document.getElementById('projGrid').innerHTML=prods.map(p=>{
@@ -1565,9 +1736,12 @@ window.addEventListener('resize',function(){
   }
 });
 
-const PAGE_TITLES={dashboard:'Gestão de Estoque',financeiro:'Financeiro de Estoque',movimentacao:'Movimentação',full:'Envios Full',pedidos:'Pedidos urgentes',cobertura:'Cobertura de estoque',projecoes:'Projeções 30d',insights:'Insights',relatorios:'Relatórios',editor:'Editar dados'};
+const PAGE_TITLES={financeiro:'Gestão de Estoque',movimentacao:'Movimentação',full:'Envios Full',cobertura:'Cobertura de Estoque',insights:'Insights',relatorios:'Relatórios',editor:'Editar dados'};
 function goModule(file,page){window.location=file+(page?'#'+page:'');}
 function showPage(name,el){
+  // Redirecionar páginas removidas para equivalentes
+  if(name==='dashboard')name='financeiro';
+  if(name==='pedidos'||name==='projecoes')name='cobertura';
   const page=document.getElementById('page-'+name);
   if(!page)return;
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
@@ -1923,6 +2097,9 @@ function toggleSidebarCollapse(){
 })();
 // ── TOOLTIP positioning ─────────────────────────────────────
 document.addEventListener('DOMContentLoaded',function(){
+  // Inicializar input de lead time
+  const ltInput=document.getElementById('leadTimeInput');
+  if(ltInput){ltInput.value=leadTime;const hint=document.getElementById('leadHint');if(hint)hint.textContent='Estoque segurança = média/dia × '+leadTime+'d';}
   document.querySelectorAll('.ni').forEach(function(ni){
     var tip=ni.querySelector('.ni-tip');
     if(!tip)return;
