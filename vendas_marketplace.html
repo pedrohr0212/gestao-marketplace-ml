@@ -1643,6 +1643,7 @@ function renderDRE(){
 
   rh+=sec('RECEITAS');
   rh+=rp('Receita Bruta',d.fat,'pos');
+  if(d.receitasExtra>0)rh+=rp('(+) Outras Receitas',d.receitasExtra,'pos',d.fat);
   if(d.cancelamentos>0)rh+=rp('(-) Cancelamentos',d.cancelamentos,'neg',d.fat);
   if(d.devolucoes>0)rh+=rp('(-) Devoluções',d.devolucoes,'neg',d.fat);
   rh+=div;rh+=rp('= Receita Líquida',d.recLiq,'pos',null,true);
