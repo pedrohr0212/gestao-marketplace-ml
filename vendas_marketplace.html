@@ -456,10 +456,10 @@ tbody tr:hover td{background:var(--bg3)}
 @media(max-width:768px){.dre-layout{grid-template-columns:1fr}.lanc-input{width:80px}}
 
 /* MODAL GERENCIAR LANÇAMENTOS */
-.ger-modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:500;display:none;align-items:flex-end;justify-content:center;padding:0}
+.ger-modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:500;display:none;align-items:center;justify-content:center;padding:16px}
 .ger-modal-overlay.open{display:flex}
-.ger-modal{background:var(--bg2);border:0.5px solid var(--border2);border-radius:20px 20px 0 0;width:100%;max-width:560px;max-height:85vh;display:flex;flex-direction:column;animation:slideUp .22s ease}
-@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.ger-modal{background:var(--bg2);border:0.5px solid var(--border2);border-radius:16px;width:100%;max-width:560px;max-height:80vh;display:flex;flex-direction:column;animation:fadeScale .18s ease}
+@keyframes fadeScale{from{opacity:0;transform:scale(.95)}to{opacity:1;transform:scale(1)}}
 .ger-modal-hdr{display:flex;align-items:flex-start;justify-content:space-between;padding:16px 18px 10px}
 .ger-modal-title{font-size:16px;font-weight:600;color:var(--text)}
 .ger-modal-sub{font-size:12px;color:var(--text3);margin-top:2px}
@@ -1451,8 +1451,8 @@ const GER_TITLES={
   cmvExtra:'Custos Adicionais de Produto',
   tarifasExtra:'Tarifas e Comissões Extras',
   estruturaExtra:'Estrutura e Operacional',
-  pessoal:'Pessoal',
-  adminServicos:'Administrativo e Serviços',
+  pessoalExtra:'Pessoal',
+  adminExtra:'Administrativo e Serviços',
 };
 function openGerModal(arr,titleIgnored,sub){
   _gerArr=arr;_gerEditIdx=null;
@@ -1529,16 +1529,17 @@ function renderDRE(){
   const editInp=(field,val,step,w)=>'<input class="lanc-field-inp" type="number" step="'+(step||'0.01')+'" value="'+(+(val)||0)+'" onchange="setLancVal(\''+field+'\',+this.value)"'+(w?' style="max-width:'+w+'px"':'')+' >';
   const fld=(lbl,inputHtml,api)=>'<div class="lanc-field-block"><div class="lanc-field-lbl">'+lbl+(api?API:'')+' </div>'+inputHtml+'</div>';
   const addLink=(arr,label)=>'<button class="lanc-add-link" onclick="openGerModal(\''+arr+'\',\'\',\'\')"><svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg> '+label+'</button>';
+  // extraItems retorna só os blocos internos (sem wrapper) para entrar no grid existente
   const extraItems=(arr)=>{
     const items=l[arr]||[];
     if(!items.length)return '';
-    return '<div class="lanc-grid" style="margin-top:6px">'+items.map((t,i)=>
+    return items.map((t,i)=>
       '<div class="lanc-field-block"><div class="lanc-field-lbl" style="display:flex;justify-content:space-between;align-items:center">'+
-      '<input style="background:transparent;border:none;color:var(--text2);font-size:10px;outline:none;width:80px;padding:0" value="'+t.nome+'" onchange="setLancItemNome(\''+arr+'\','+i+',this.value)">'+
-      '<button style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:12px;padding:0 2px;line-height:1" onclick="delLancItem(\''+arr+'\','+i+')">×</button></div>'+
+      '<input style="background:transparent;border:none;color:var(--text2);font-size:10px;outline:none;width:calc(100% - 18px);padding:0;font-family:var(--font)" value="'+t.nome+'" onchange="setLancItemNome(\''+arr+'\','+i+',this.value)">'+
+      '<button style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:13px;padding:0 1px;line-height:1;flex-shrink:0" onclick="delLancItem(\''+arr+'\','+i+')">×</button></div>'+
       '<input class="lanc-field-inp" type="number" step="0.01" value="'+(+(t.valor)||0)+'" onchange="setLancItem(\''+arr+'\','+i+',+this.value)">'+
       '</div>'
-    ).join('')+'</div>';
+    ).join('');
   };
 
   let html='';
@@ -1550,8 +1551,8 @@ function renderDRE(){
   html+=fld('Faturamento Bruto',apiInp(l.fat,'Faturamento bruto — API Marketplace'),true);
   html+=fld('(-) Cancelamentos',apiInp(l.cancelamentos,'Cancelamentos — API Marketplace'),true);
   html+=fld('(-) Devoluções',editInp('devolucoes',l.devolucoes));
-  html+='</div>';
   html+=extraItems('receitasExtra');
+  html+='</div>';
   html+='<div style="margin-top:6px">'+addLink('receitasExtra','Adicionar receita')+'</div>';
   html+='</div>';
 
@@ -1561,8 +1562,8 @@ function renderDRE(){
   html+='<div class="lanc-grid">';
   html+=fld('CMV — Custo de Mercadoria Vendida',apiInp(l.cmv,'CMV — calculado automaticamente pelos produtos cadastrados'),true);
   html+=fld('Embalagem',editInp('embalagem',l.embalagem));
-  html+='</div>';
   html+=extraItems('cmvExtra');
+  html+='</div>';
   html+='<div style="margin-top:6px">'+addLink('cmvExtra','Adicionar custo')+'</div>';
   html+='</div>';
 
@@ -1576,8 +1577,8 @@ function renderDRE(){
   html+=fld('Publicidade ML',apiInp(l.adsMeli,'Publicidade Ads — API Mercado Livre'),true);
   html+=fld('Publicidade Shopee',editInp('shopeeAds',l.shopeeAds));
   html+=fld('Publicidade TikTok Shop',editInp('tiktokAds',l.tiktokAds));
-  html+='</div>';
   html+=extraItems('tarifasExtra');
+  html+='</div>';
   html+='<div style="margin-top:6px">'+addLink('tarifasExtra','Adicionar despesa')+'</div>';
   html+='</div>';
 
@@ -1594,6 +1595,7 @@ function renderDRE(){
   html+=fld('Frete Coleta Full',editInp('freteColetaFull',l.freteColetaFull));
   html+='</div>';
   html+=extraItems('estruturaExtra');
+  html+='</div>';
   html+='<div style="margin-top:6px">'+addLink('estruturaExtra','Adicionar despesa')+'</div>';
   html+='</div>';
 
@@ -1603,8 +1605,8 @@ function renderDRE(){
   html+='<div class="lanc-grid">';
   html+=fld('Salário Pedro',editInp('salarioPedro',l.salarioPedro));
   html+=fld('Salário Freelancer',editInp('salarioFreelancer',l.salarioFreelancer));
-  html+='</div>';
   html+=extraItems('pessoalExtra');
+  html+='</div>';
   html+='<div style="margin-top:6px">'+addLink('pessoalExtra','Adicionar despesa')+'</div>';
   html+='</div>';
 
@@ -1619,6 +1621,7 @@ function renderDRE(){
   html+=fld('Cartão Mercado Pago (Primp)',editInp('cartaoMercadoPago',l.cartaoMercadoPago));
   html+='</div>';
   html+=extraItems('adminExtra');
+  html+='</div>';
   html+='<div style="margin-top:6px">'+addLink('adminExtra','Adicionar despesa')+'</div>';
   html+='</div>';
 
@@ -1718,6 +1721,12 @@ function renderDRE(){
     if(spec==='lucro'){
       if(val<0){cls='negativo';icon='🔴';text='Negativo';}
       else{cls='otimo';icon='✓';text='Positivo';}
+    } else if(spec==='tacos'){
+      // TACOS: menor é melhor — escala invertida
+      if(val>8){cls='critico';icon='🔴';text='Crítico';}
+      else if(val>5){cls='atencao';icon='⚠️';text='Atenção';}
+      else if(val>3.5){cls='saudavel';icon='✓';text='Saudável';}
+      else{cls='otimo';icon='✓';text='Ótimo';}
     } else {
       const [t1,t2,t3]=spec;
       if(val<t1){cls='critico';icon='🔴';text='Crítico';}
@@ -1725,13 +1734,16 @@ function renderDRE(){
       else if(val<t3){cls='saudavel';icon='✓';text='Saudável';}
       else{cls='otimo';icon='✓';text='Ótimo';}
     }
-    return '<div class="score-row"><span class="score-label">'+lbl+'</span><span class="score-badge '+cls+'">'+icon+' '+text+'</span></div>';
+    return '<div class="score-row"><span class="score-label">'+lbl+'<span style="font-size:10px;font-family:var(--mono);color:var(--text3);margin-left:4px">'+val.toFixed(1)+'%</span></span><span class="score-badge '+cls+'">'+icon+' '+text+'</span></div>';
   };
+  // TACOS = Publicidade ADS / Receita Líquida x 100 (invertido: menor é melhor)
+  const tacos=d.recLiq>0?d.pubTotal/d.recLiq*100:0;
   document.getElementById('dreScoreCard').innerHTML=
     '<div class="score-title">🎯 Score Financeiro</div>'+
-    score('Margem Líquida',d.margem,[3,6,15])+
-    score('Margem Bruta',d.margemBruta,[10,15,20])+
-    score('Lucro Líquido',d.lucLiq,'lucro');
+    score('Margem Bruta',d.margemBruta,[40,45,55])+
+    score('Publicidade (TACOS)',tacos,'tacos')+
+    score('Margem de Contribuição',d.mcPct,[10,15,20])+
+    score('Margem Líquida',d.margem,[3,6,12]);
 }
 
 function renderDREAnual(){
