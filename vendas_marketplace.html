@@ -1310,7 +1310,16 @@ function buildYearSel(elId,selected,fn){
 
 function getLanc(m,y){
   const key=y+'-'+String(m+1).padStart(2,'0');
-  return lancamentos[key]||getDefaultLanc();
+  const base=getDefaultLanc();
+  const saved=lancamentos[key];
+  if(!saved)return base;
+  // Mesclar para garantir que campos novos existam em dados antigos
+  const merged=Object.assign({},base,saved);
+  // Garantir que todos os arrays existam
+  ['receitasExtra','cmvExtra','tarifasExtra','estruturaExtra','pessoalExtra','adminExtra'].forEach(function(k){
+    if(!Array.isArray(merged[k]))merged[k]=[];
+  });
+  return merged;
 }
 
 function getDefaultLanc(){
@@ -1488,6 +1497,8 @@ function saveGerItem(){
   if(!nome){alert('Informe o nome.');return;}
   ensureLanc();
   const l=lancamentos[lancKey()];
+  // Garantir que o array existe (caso seja campo novo não presente em dados antigos)
+  if(!Array.isArray(l[_gerArr]))l[_gerArr]=[];
   if(_gerEditIdx!=null){
     l[_gerArr][_gerEditIdx]={nome,valor};
   } else {
