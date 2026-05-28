@@ -503,24 +503,21 @@ tbody tr:hover td{background:var(--bg3)}
 /* NAV GROUPS */
 .nav-group{margin-bottom:2px}
 .nav-group-hdr{
-  display:flex;align-items:center;justify-content:space-between;gap:6px;
-  padding:6px 8px;border-radius:7px;cursor:pointer;
-  transition:background .15s;user-select:none;
+  display:flex;align-items:center;gap:6px;
+  padding:6px 8px;border-radius:7px;
+  user-select:none;
 }
-.nav-group-hdr:hover{background:var(--bg3)}
+
 .nav-group-hdr.open .nav-group-lbl{color:var(--accent2)}
 .nav-group-lbl{
   font-size:9px;font-weight:700;text-transform:uppercase;
   letter-spacing:.09em;color:var(--text3);
   transition:color .15s;white-space:nowrap;flex:1;
 }
-.nav-group-arrow{
-  width:12px;height:12px;display:flex;align-items:center;justify-content:center;
-  color:var(--text3);transition:transform .2s cubic-bezier(.4,0,.2,1),color .15s;flex-shrink:0;
-}
-.nav-group-hdr.open .nav-group-arrow{transform:rotate(90deg);color:var(--accent2)}
-.nav-group-body{overflow:hidden;max-height:0;transition:max-height .25s cubic-bezier(.4,0,.2,1)}
-.nav-group-body.open{max-height:500px}
+.nav-group-arrow{display:none}
+
+.nav-group-body{overflow:visible;max-height:none;}
+.nav-group-body.open{max-height:none;}
 
 
 
@@ -561,7 +558,7 @@ tbody tr:hover td{background:var(--bg3)}
   
   <nav class="nav">
   <div class="nav-group" id="grp-vendas">
-    <div class="nav-group-hdr open" onclick="toggleGroup('vendas')">
+    <div class="nav-group-hdr open">
       
       <span class="nav-group-lbl">Vendas</span>
       <span class="nav-group-arrow"><svg width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg></span>
@@ -578,12 +575,12 @@ tbody tr:hover td{background:var(--bg3)}
     </div>
   </div>
   <div class="nav-group" id="grp-financeiro">
-    <div class="nav-group-hdr" onclick="toggleGroup('financeiro')">
+    <div class="nav-group-hdr open">
       
       <span class="nav-group-lbl">Financeiro</span>
       <span class="nav-group-arrow"><svg width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg></span>
     </div>
-    <div class="nav-group-body">
+    <div class="nav-group-body open">
     <div class="ni" onclick="showPage('pagamentos',this);return false;">
       <div class="ni-icon"><svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg></div>
       <span class="ni-label">Pagamentos</span>
@@ -595,12 +592,12 @@ tbody tr:hover td{background:var(--bg3)}
     </div>
   </div>
   <div class="nav-group" id="grp-inventario">
-    <div class="nav-group-hdr" onclick="toggleGroup('inventario')">
+    <div class="nav-group-hdr open">
       
       <span class="nav-group-lbl">Inventário</span>
       <span class="nav-group-arrow"><svg width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg></span>
     </div>
-    <div class="nav-group-body">
+    <div class="nav-group-body open">
     <div class="ni" onclick="showPage('financeiro',this);return false;">
       <div class="ni-icon"><svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" viewBox="0 0 24 24"><path d="M3 3h18v4H3zM3 10h18v4H3zM3 17h18v4H3z"/></svg></div>
       <span class="ni-label">Estoque</span>
@@ -608,12 +605,12 @@ tbody tr:hover td{background:var(--bg3)}
     </div>
   </div>
   <div class="nav-group" id="grp-operacional">
-    <div class="nav-group-hdr" onclick="toggleGroup('operacional')">
+    <div class="nav-group-hdr open">
       
       <span class="nav-group-lbl">Operacional</span>
       <span class="nav-group-arrow"><svg width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg></span>
     </div>
-    <div class="nav-group-body">
+    <div class="nav-group-body open">
     <div class="ni" onclick="showPage('movimentacao',this);return false;">
       <div class="ni-icon"><svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" viewBox="0 0 24 24"><path d="M7 16V4m0 0L3 8m4-4l4 4M17 8v12m0 0l4-4m-4 4l-4-4"/></svg></div>
       <span class="ni-label">Movimentação</span>
@@ -629,12 +626,12 @@ tbody tr:hover td{background:var(--bg3)}
     </div>
   </div>
   <div class="nav-group" id="grp-gerencial">
-    <div class="nav-group-hdr" onclick="toggleGroup('gerencial')">
+    <div class="nav-group-hdr open">
       
       <span class="nav-group-lbl">Gerencial</span>
       <span class="nav-group-arrow"><svg width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg></span>
     </div>
-    <div class="nav-group-body">
+    <div class="nav-group-body open">
     <div class="ni" onclick="showPage('insights',this);return false;">
       <div class="ni-icon"><svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></div>
       <span class="ni-label">Insights</span>
@@ -646,12 +643,12 @@ tbody tr:hover td{background:var(--bg3)}
     </div>
   </div>
   <div class="nav-group" id="grp-configuracoes">
-    <div class="nav-group-hdr" onclick="toggleGroup('configuracoes')">
+    <div class="nav-group-hdr open">
       
       <span class="nav-group-lbl">Configurações</span>
       <span class="nav-group-arrow"><svg width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg></span>
     </div>
-    <div class="nav-group-body">
+    <div class="nav-group-body open">
     <div class="ni" onclick="showPage('marketplaces',this);return false;">
       <div class="ni-icon"><svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8"/><path d="M7.5 4.21l4.5 2.6 4.5-2.6M7.5 19.79V14.6L3 12M21 12l-4.5 2.6v5.19M3.27 6.96L12 12.01l8.73-5.05"/></svg></div>
       <span class="ni-label">Integrações de Lojas</span>
@@ -2358,28 +2355,6 @@ function reconectarML(){
 const PAGE_TITLES={faturamento:'Faturamento',publicidade:'Publicidade',dre:'DRE — Demonstração do Resultado',marketplaces:'Marketplaces'};
 
 // ── NAV GROUPS ────────────────────────────────────────────
-function toggleGroup(key){
-  const hdr=document.getElementById('grp-'+key).querySelector('.nav-group-hdr');
-  const body=document.getElementById('grp-'+key).querySelector('.nav-group-body');
-  const isOpen=hdr.classList.toggle('open');
-  body.classList.toggle('open',isOpen);
-}
-// Restaurar grupos abertos do localStorage
-(function(){
-  try{
-    const saved=JSON.parse(localStorage.getItem('nav_groups')||'{}');
-    Object.keys(saved).forEach(function(k){
-      if(saved[k]){
-        const grp=document.getElementById('grp-'+k);
-        if(grp){
-          grp.querySelector('.nav-group-hdr').classList.add('open');
-          grp.querySelector('.nav-group-body').classList.add('open');
-        }
-      }
-    });
-  }catch(e){}
-})();
-
 function goModule(file,page){window.location=file+(page?'#'+page:'');}
 // Mapa: página → grupo
 const PAGE_GROUP={faturamento:'vendas',publicidade:'vendas',pagamentos:'financeiro',dre:'financeiro',financeiro:'inventario',movimentacao:'operacional',full:'operacional',cobertura:'operacional',insights:'gerencial',relatorios:'gerencial',marketplaces:'configuracoes',editor:'configuracoes'};
@@ -3397,22 +3372,6 @@ window.addEventListener('resize',function(){
 
 
 // ── NAV GROUPS ────────────────────────────────────────────
-// Restaurar grupos abertos do localStorage
-(function(){
-  try{
-    const saved=JSON.parse(localStorage.getItem('nav_groups')||'{}');
-    Object.keys(saved).forEach(function(k){
-      if(saved[k]){
-        const grp=document.getElementById('grp-'+k);
-        if(grp){
-          grp.querySelector('.nav-group-hdr').classList.add('open');
-          grp.querySelector('.nav-group-body').classList.add('open');
-        }
-      }
-    });
-  }catch(e){}
-})();
-
 ;
 window.addEventListener('hashchange',openInitialPage);
 
