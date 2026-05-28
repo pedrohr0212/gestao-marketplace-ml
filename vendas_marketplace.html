@@ -486,6 +486,21 @@ tbody tr:hover td{background:var(--bg3)}
 .ger-save-btn{padding:7px 14px;border:none;background:var(--accent);color:#fff;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;font-family:var(--font)}
 .ger-cancel-btn{padding:7px 12px;border:0.5px solid var(--border2);background:transparent;color:var(--text2);border-radius:7px;font-size:12px;cursor:pointer;font-family:var(--font)}
 .readonly-tag{font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;padding:2px 6px;border-radius:4px;background:var(--bg4);color:var(--text3);margin-left:6px}
+
+/* LANC GRID LAYOUT */
+.lanc-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:4px}
+.lanc-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:4px}
+.lanc-field-block{display:flex;flex-direction:column;gap:3px}
+.lanc-field-lbl{font-size:10px;color:var(--text3);font-weight:500}
+.lanc-field-inp{background:var(--bg3);border:0.5px solid var(--border2);border-radius:7px;padding:7px 10px;color:var(--text);font-family:var(--mono);font-size:13px;font-weight:500;outline:none;width:100%;transition:border-color .15s}
+.lanc-field-inp:focus{border-color:var(--accent);background:var(--bg4)}
+.lanc-field-inp.readonly{color:var(--text3);background:var(--bg2);cursor:not-allowed;border-style:dashed}
+.lanc-field-inp.api{border-color:rgba(96,165,250,0.3);background:var(--bg2);cursor:not-allowed;color:var(--text2)}
+.lanc-add-link{display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--accent2);cursor:pointer;background:none;border:none;font-family:var(--font);padding:4px 0;transition:opacity .15s}
+.lanc-add-link:hover{opacity:.7}
+.lanc-section-divider{height:0.5px;background:var(--border);margin:8px 0}
+@media(max-width:768px){.lanc-grid{grid-template-columns:1fr 1fr}.lanc-grid-2{grid-template-columns:1fr}}
+@media(max-width:480px){.lanc-grid{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -1299,46 +1314,68 @@ function getLanc(m,y){
 
 function getDefaultLanc(){
   return{
-    // Campos que virão da API ML (por enquanto manuais)
-    fat:0, cancelamentos:0, taxasMl:0, freteVendas:0, ads:0,
-    // Campos manuais editáveis
-    cmv:0, impostosPct:4,
-    // Extras via modal Gerenciar
+    // API ML (readonly — preenchidos automaticamente pela integração)
+    fat:0, cancelamentos:0, taxasMl:0, freteVendas:0, adsMeli:0,
+    // Manuais editáveis — Receitas
+    devolucoes:0,
     receitasExtra:[],
-    estrutura:[{nome:'Aluguel',valor:0},{nome:'Energia Elétrica',valor:0},{nome:'Internet e Telefone',valor:0}],
+    // Manuais editáveis — Custo dos Produtos
+    cmv:0,
+    cmvExtra:[],
+    // Manuais editáveis — Tarifas e Comissões (outros canais e extras)
+    tarifaMinhaPagina:0, shopeeAds:0, tiktokAds:0,
+    tarifasExtra:[],
+    // Manuais editáveis — Estrutura e Operacional
+    aluguel:0, energia:0, internet:0,
     estruturaExtra:[],
+    // Manuais editáveis — Pessoal
+    pessoal:[],
+    // Manuais editáveis — Administrativo e Serviços
+    adminServicos:[],
+    // Impostos
+    impostosPct:4,
   };
 }
 
 function getDREData(m,y){
   const l=getLanc(m,y);
-  // Dados da API (quando disponíveis via integração ML)
-  // Por enquanto, campos readonly são lidos dos lançamentos; 
-  // futuramente serão injetados automaticamente pela API
+  // API (readonly)
   const fat=+(l.fat||0);
   const cancelamentos=+(l.cancelamentos||0);
-  const receitasExtra=(l.receitasExtra||[]).reduce((s,t)=>s+(+t.valor||0),0);
-  const recLiq=Math.max(0,fat-cancelamentos+receitasExtra);
-  const cmv=+(l.cmv||0);
-  const lucBruto=recLiq-cmv;
-  // Tarifas da API
   const taxasMl=+(l.taxasMl||0);
   const freteVendas=+(l.freteVendas||0);
-  const ads=+(l.ads||0);
-  // Despesas fixas manuais
-  const todasEstrutura=[...(l.estrutura||[]),...(l.estruturaExtra||[])];
-  const despTotal=todasEstrutura.reduce((s,t)=>s+(+t.valor||0),0);
-  const resultOp=lucBruto-taxasMl-freteVendas-ads-despTotal;
+  const adsMeli=+(l.adsMeli||0);
+  // Receitas manuais
+  const devolucoes=+(l.devolucoes||0);
+  const receitasExtra=(l.receitasExtra||[]).reduce((s,t)=>s+(+t.valor||0),0);
+  const recLiq=Math.max(0,fat-cancelamentos-devolucoes+receitasExtra);
+  // CMV
+  const cmv=+(l.cmv||0);
+  const cmvExtra=(l.cmvExtra||[]).reduce((s,t)=>s+(+t.valor||0),0);
+  const cmvTotal=cmv+cmvExtra;
+  const lucBruto=recLiq-cmvTotal;
+  // Tarifas manuais (outros canais)
+  const tarifaExtra=(l.tarifaMinhaPagina||0)+(l.shopeeAds||0)+(l.tiktokAds||0)
+    +(l.tarifasExtra||[]).reduce((s,t)=>s+(+t.valor||0),0);
+  const totalTarifas=taxasMl+freteVendas+adsMeli+tarifaExtra;
+  // Despesas por categoria
+  const desp_estrutura=(l.aluguel||0)+(l.energia||0)+(l.internet||0)
+    +(l.estruturaExtra||[]).reduce((s,t)=>s+(+t.valor||0),0);
+  const desp_pessoal=(l.pessoal||[]).reduce((s,t)=>s+(+t.valor||0),0);
+  const desp_admin=(l.adminServicos||[]).reduce((s,t)=>s+(+t.valor||0),0);
+  const despTotal=desp_estrutura+desp_pessoal+desp_admin;
+  const resultOp=lucBruto-totalTarifas-despTotal;
   const impostosPct=+(l.impostosPct||4);
   const impostos=+(recLiq*(impostosPct/100)).toFixed(2);
   const lucLiq=resultOp-impostos;
   const margem=fat>0?lucLiq/fat*100:0;
   const margemBruta=fat>0?lucBruto/fat*100:0;
-  const cmvPct=fat>0?cmv/fat*100:0;
-  return{fat,cancelamentos,receitasExtra,recLiq,cmv,cmvPct,lucBruto,margemBruta,
-    taxasMl,freteVendas,ads,todasEstrutura,
-    despTotal,resultOp,impostos,impostosPct,
-    lucLiq,margem};
+  const cmvPct=fat>0?cmvTotal/fat*100:0;
+  return{fat,cancelamentos,devolucoes,receitasExtra,recLiq,
+    cmv,cmvTotal,cmvPct,lucBruto,margemBruta,
+    taxasMl,freteVendas,adsMeli,tarifaExtra,totalTarifas,
+    desp_estrutura,desp_pessoal,desp_admin,despTotal,
+    resultOp,impostos,impostosPct,lucLiq,margem};
 }
 
 function dreNav(dir){
@@ -1381,8 +1418,17 @@ function resetMes(){if(!confirm('Resetar lançamentos de '+MESES[dreMonth]+' '+d
 
 // ── MODAL GERENCIAR ────────────────────────────────────────
 let _gerArr=null,_gerEditIdx=null;
-function openGerModal(arr,title,sub){
+const GER_TITLES={
+  receitasExtra:'Receitas Adicionais',
+  cmvExtra:'Custos Adicionais de Produto',
+  tarifasExtra:'Tarifas e Comissões Extras',
+  estruturaExtra:'Estrutura e Operacional',
+  pessoal:'Pessoal',
+  adminServicos:'Administrativo e Serviços',
+};
+function openGerModal(arr,titleIgnored,sub){
   _gerArr=arr;_gerEditIdx=null;
+  const title=GER_TITLES[arr]||titleIgnored||arr;
   document.getElementById('gerModalTitle').textContent=title;
   document.getElementById('gerModalSub').textContent=sub||'';
   closeGerAddForm();
@@ -1449,97 +1495,128 @@ function renderDRE(){
   const d=getDREData(dreMonth,dreYear);
   const l=getLanc(dreMonth,dreYear);
 
-  // Helper: campo somente leitura (dados da API)
-  const roField=(label,val,pct)=>
-    '<div class="lanc-field-row">'+
-    '<div class="lanc-field-label">'+label+'<span class="readonly-tag">API</span></div>'+
-    '<div style="display:flex;align-items:center;gap:6px">'+
-    (pct!=null?'<span style="font-size:10px;font-family:var(--mono);color:var(--text3);background:var(--bg3);padding:1px 5px;border-radius:3px">'+pct.toFixed(1)+'%</span>':'')+
-    '<span class="lanc-field-val neg">- '+BRL(val)+'</span>'+
-    '</div></div>';
-
-  // Helper: campo editável
-  const inpTop=(field,val)=>'<input class="lanc-input" type="number" step="0.01" value="'+(+val||0)+'" onchange="setLancVal(\''+field+'\',+this.value)">';
-  const totRow=(lbl,val,cls)=>'<div class="lanc-field-row"><div class="lanc-field-label" style="font-weight:600;color:var(--text)">'+lbl+'</div><div class="lanc-field-val '+(cls||'pos')+'">'+BRL(val)+'</div></div>';
-  const gerBtn=(arr,title)=>'<button class="gerenciar-btn" onclick="openGerModal(\''+arr+'\',\''+title+'\',\'\')">Gerenciar</button>';
+  // Helpers
+  const apiInp=(val)=>'<input class="lanc-field-inp api" type="text" value="'+BRL(+val||0)+'" readonly title="Preenchido automaticamente pela API do Marketplace">';
+  const editInp=(field,val,step)=>'<input class="lanc-field-inp" type="number" step="'+(step||'0.01')+'" value="'+(+val||0)+'" onchange="setLancVal(\''+field+'\',+this.value)">';
+  const fld=(lbl,inputHtml)=>'<div class="lanc-field-block"><div class="lanc-field-lbl">'+lbl+'</div>'+inputHtml+'</div>';
+  const addLink=(arr,nome,label)=>'<button class="lanc-add-link" onclick="openGerModal(\''+arr+'\',\''+label+'\',\'\')">+ '+label+'</button>';
+  const extraItems=(arr)=>(l[arr]||[]).map((t,i)=>
+    '<div class="lanc-field-block"><div class="lanc-field-lbl" style="display:flex;justify-content:space-between">'+t.nome+'<button style="background:none;border:none;color:var(--red);cursor:pointer;font-size:11px" onclick="delLancItem(\''+arr+'\','+i+')">×</button></div>'+
+    '<input class="lanc-field-inp" type="number" step="0.01" value="'+(+t.valor||0)+'" onchange="setLancItem(\''+arr+'\','+i+',+this.value)">'+
+    '</div>'
+  ).join('');
 
   let html='';
 
   // ── RECEITAS
   html+='<div class="lanc-section">';
-  html+='<div class="lanc-section-hdr"><div class="lanc-section-title"><span class="lanc-icon">🟢</span><span style="color:var(--green)">Receita</span></div>'+gerBtn('receitasExtra','Receitas adicionais')+'</div>';
-  html+='<div class="lanc-field-row"><div class="lanc-field-label">Faturamento Bruto<span class="readonly-tag">API</span></div><div class="lanc-field-val pos">'+BRL(d.fat)+'</div></div>';
-  html+='<div class="lanc-field-row"><div class="lanc-field-label">(-) Cancelamentos<span class="readonly-tag">API</span></div><div class="lanc-field-val neg">- '+BRL(d.cancelamentos)+'</div></div>';
-  (l.receitasExtra||[]).forEach((t)=>{ html+='<div class="lanc-field-row"><div class="lanc-field-label">'+t.nome+'</div><div class="lanc-field-val pos">+ '+BRL(+t.valor||0)+'</div></div>'; });
-  html+=totRow('= Receita Líquida',d.recLiq,'pos');
+  html+='<div class="lanc-section-hdr"><div class="lanc-section-title"><span class="lanc-icon">🟢</span><span style="color:var(--green)">Receitas</span></div></div>';
+  html+='<div class="lanc-grid-2" style="margin-bottom:8px">';
+  html+=fld('Faturamento Bruto',apiInp(l.fat));
+  html+=fld('(-) Devoluções',editInp('devolucoes',l.devolucoes));
+  html+='</div>';
+  if((l.receitasExtra||[]).length>0){
+    html+='<div class="lanc-grid">'+extraItems('receitasExtra')+'</div>';
+  }
+  html+=addLink('receitasExtra','receitasExtra','Adicionar receita');
   html+='</div>';
 
   // ── CUSTO DOS PRODUTOS
   html+='<div class="lanc-section">';
-  html+='<div class="lanc-section-hdr"><div class="lanc-section-title"><span class="lanc-icon">📦</span><span style="color:var(--amber)">Custos dos Produtos</span></div></div>';
-  html+='<div class="lanc-field-row"><div class="lanc-field-label">(-) Custo dos Produtos (CMV)</div><div style="display:flex;align-items:center;gap:6px">'+
-    (d.fat>0?'<span style="font-size:10px;font-family:var(--mono);color:var(--text3);background:var(--bg3);padding:1px 5px;border-radius:3px">'+d.cmvPct.toFixed(1)+'%</span>':'')+
-    inpTop('cmv',l.cmv)+'</div></div>';
-  html+=totRow('= Lucro Bruto',d.lucBruto,d.lucBruto>=0?'pos':'neg');
+  html+='<div class="lanc-section-hdr"><div class="lanc-section-title"><span class="lanc-icon">📦</span><span style="color:var(--amber)">Custo dos Produtos</span></div></div>';
+  html+='<div class="lanc-grid-2" style="margin-bottom:8px">';
+  html+=fld('CMV — Custo de Mercadoria Vendida',editInp('cmv',l.cmv));
+  html+='</div>';
+  if((l.cmvExtra||[]).length>0){
+    html+='<div class="lanc-grid">'+extraItems('cmvExtra')+'</div>';
+  }
+  html+=addLink('cmvExtra','cmvExtra','Adicionar custo');
   html+='</div>';
 
-  // ── DESPESAS OPERACIONAIS
+  // ── TARIFAS E COMISSÕES
   html+='<div class="lanc-section">';
-  html+='<div class="lanc-section-hdr"><div class="lanc-section-title"><span class="lanc-icon">🛒</span><span style="color:var(--blue)">Despesas Operacionais</span></div>'+gerBtn('estruturaExtra','Despesas Fixas')+'</div>';
-  // API readonly
-  if(d.fat>0){
-    html+=roField('(-) Taxas do Marketplace',d.taxasMl,d.taxasMl/d.fat*100);
-    html+=roField('(-) Frete de Vendas',d.freteVendas||0,(d.freteVendas||0)/d.fat*100);
-    html+=roField('(-) Publicidade (ADS)',d.ads,d.ads/d.fat*100);
-  } else {
-    html+=roField('(-) Taxas do Marketplace',d.taxasMl,null);
-    html+=roField('(-) Frete de Vendas',d.freteVendas||0,null);
-    html+=roField('(-) Publicidade (ADS)',d.ads,null);
+  html+='<div class="lanc-section-hdr"><div class="lanc-section-title"><span class="lanc-icon">🛒</span><span style="color:var(--blue)">Tarifas e Comissões Marketplace</span></div></div>';
+  html+='<div class="lanc-grid" style="margin-bottom:8px">';
+  html+=fld('Tarifa de Vendas — Marketplace',apiInp(l.taxasMl));
+  html+=fld('Frete de Vendas — Marketplace',apiInp(l.freteVendas));
+  html+=fld('Publicidade Ads MELI',apiInp(l.adsMeli));
+  html+=fld('Tarifa Minha Página',editInp('tarifaMinhaPagina',l.tarifaMinhaPagina));
+  html+=fld('Shopee Ads',editInp('shopeeAds',l.shopeeAds));
+  html+=fld('Publicidade TikTok Shops',editInp('tiktokAds',l.tiktokAds));
+  html+='</div>';
+  if((l.tarifasExtra||[]).length>0){
+    html+='<div class="lanc-grid">'+extraItems('tarifasExtra')+'</div>';
   }
-  // Despesas fixas manuais
-  if((l.estrutura||[]).some(t=>+t.valor>0)||(l.estruturaExtra||[]).length>0){
-    html+='<div class="lanc-field-row" style="margin-top:3px"><div class="lanc-field-label" style="color:var(--text3);font-size:11px;text-transform:uppercase;letter-spacing:.06em">(-) Despesas Fixas</div><div class="lanc-field-val neg">- '+BRL(d.despTotal)+'</div></div>';
-    [...(l.estrutura||[]),...(l.estruturaExtra||[])].filter(t=>+t.valor>0).forEach(t=>{
-      html+='<div style="padding:3px 0 3px 12px;border-bottom:0.5px solid var(--border);display:flex;justify-content:space-between;align-items:center"><div style="font-size:11px;color:var(--text3)">↳ '+t.nome+'</div><div style="font-family:var(--mono);font-size:11px;color:var(--text3)">- '+BRL(+t.valor||0)+'</div></div>';
-    });
+  html+=addLink('tarifasExtra','tarifasExtra','Adicionar tarifa extra');
+  html+='</div>';
+
+  // ── ESTRUTURA E OPERACIONAL
+  html+='<div class="lanc-section">';
+  html+='<div class="lanc-section-hdr"><div class="lanc-section-title"><span class="lanc-icon">🏢</span><span style="color:var(--purple)">Estrutura e Operacional</span></div></div>';
+  html+='<div class="lanc-grid" style="margin-bottom:8px">';
+  html+=fld('Aluguel',editInp('aluguel',l.aluguel));
+  html+=fld('Energia Elétrica',editInp('energia',l.energia));
+  html+=fld('Internet e Telefone',editInp('internet',l.internet));
+  html+='</div>';
+  if((l.estruturaExtra||[]).length>0){
+    html+='<div class="lanc-grid">'+extraItems('estruturaExtra')+'</div>';
   }
-  html+=totRow('= Resultado Operacional',d.resultOp,d.resultOp>=0?'pos':'neg');
+  html+=addLink('estruturaExtra','estruturaExtra','Adicionar despesa de estrutura');
+  html+='</div>';
+
+  // ── PESSOAL
+  html+='<div class="lanc-section">';
+  html+='<div class="lanc-section-hdr"><div class="lanc-section-title"><span class="lanc-icon">👥</span><span style="color:var(--teal)">Pessoal</span></div></div>';
+  if((l.pessoal||[]).length>0){
+    html+='<div class="lanc-grid" style="margin-bottom:8px">'+extraItems('pessoal')+'</div>';
+  }
+  html+=addLink('pessoal','pessoal','Adicionar lançamento de pessoal');
+  html+='</div>';
+
+  // ── ADMINISTRATIVO E SERVIÇOS
+  html+='<div class="lanc-section">';
+  html+='<div class="lanc-section-hdr"><div class="lanc-section-title"><span class="lanc-icon">📁</span><span style="color:var(--text2)">Administrativo e Serviços</span></div></div>';
+  if((l.adminServicos||[]).length>0){
+    html+='<div class="lanc-grid" style="margin-bottom:8px">'+extraItems('adminServicos')+'</div>';
+  }
+  html+=addLink('adminServicos','adminServicos','Adicionar lançamento administrativo');
   html+='</div>';
 
   // ── IMPOSTOS
   html+='<div class="lanc-section">';
-  html+='<div class="lanc-section-hdr"><div class="lanc-section-title"><span class="lanc-icon">📋</span><span style="color:var(--text2)">Resultado Final</span></div></div>';
-  html+='<div class="lanc-field-row"><div class="lanc-field-label">(-) Impostos</div><div style="display:flex;align-items:center;gap:6px">'+
-    (d.fat>0?'<span style="font-size:10px;font-family:var(--mono);color:var(--text3);background:var(--bg3);padding:1px 5px;border-radius:3px">'+d.impostosPct.toFixed(1)+'%</span>':'')+
-    '<input class="lanc-input" type="number" step="0.1" value="'+(+(l.impostosPct||4))+'" onchange="ensureLanc();lancamentos[lancKey()].impostosPct=+this.value;saveLanc();renderDRE()" style="width:56px"> <span style="font-size:11px;color:var(--text3)">%</span>'+
-    '<span class="lanc-field-val neg" style="margin-left:4px">- '+BRL(d.impostos)+'</span>'+
-    '</div></div>';
-  html+='</div>';
+  html+='<div class="lanc-section-hdr"><div class="lanc-section-title"><span class="lanc-icon">📋</span><span style="color:var(--text2)">Impostos</span></div></div>';
+  html+='<div class="lanc-grid-2"><div class="lanc-field-block"><div class="lanc-field-lbl">% sobre Receita Líquida</div>';
+  html+='<div style="display:flex;align-items:center;gap:6px"><input class="lanc-field-inp" type="number" step="0.1" value="'+(+(l.impostosPct||4))+'" onchange="ensureLanc();lancamentos[lancKey()].impostosPct=+this.value;saveLanc();renderDRE()" style="max-width:80px"><span style="font-size:12px;color:var(--text3)">%</span><span style="font-family:var(--mono);font-size:12px;color:var(--red)">= - '+BRL(d.impostos)+'</span></div>';
+  html+='</div></div></div>';
 
   document.getElementById('dreLancamentos').innerHTML=html;
 
-  // ── PAINEL RESULTADOS (estrutura igual ao print)
+  // ── PAINEL RESULTADOS
   const rp=(lbl,val,cls,pct,bold)=>{
     const pctHtml=pct!=null?'<span style="font-size:10px;font-family:var(--mono);color:var(--text3);background:var(--bg3);padding:1px 5px;border-radius:3px;margin-right:5px">'+pct.toFixed(1)+'%</span>':'';
     return '<div class="dre-rp-row'+(bold?' bold':'')+'"><span class="dre-rp-label">'+lbl+'</span><div style="display:flex;align-items:center">'+pctHtml+'<span class="dre-rp-val '+cls+'">'+val+'</span></div></div>';
   };
+  const bar=(pct,color)=>'<div style="height:3px;background:var(--bg4);border-radius:2px;margin:3px 0 1px"><div style="width:'+Math.min(100,Math.max(0,pct))+'%;height:3px;border-radius:2px;background:'+color+'"></div></div><div style="font-size:11px;font-family:var(--mono);color:'+color+';margin-bottom:4px">'+pct.toFixed(1)+'%</div>';
+
   let rpHtml='';
   rpHtml+=rp('Receita Bruta',BRL(d.fat),'pos');
-  rpHtml+=rp('(-) Cancelamentos',d.cancelamentos>0?'- '+BRL(d.cancelamentos):'R$ 0,00',d.cancelamentos>0?'neg':'pos');
+  if(d.cancelamentos>0)rpHtml+=rp('(-) Cancelamentos','- '+BRL(d.cancelamentos),'neg',d.fat>0?d.cancelamentos/d.fat*100:null);
   rpHtml+='<div class="dre-rp-divider"></div>';
   rpHtml+=rp('= Receita Líquida',BRL(d.recLiq),'pos',null,true);
-  rpHtml+=rp('(-) Custo dos Produtos (CMV)','- '+BRL(d.cmv),'neg',d.fat>0?d.cmvPct:null);
+  rpHtml+=rp('(-) CMV','- '+BRL(d.cmvTotal),'neg',d.fat>0?d.cmvPct:null);
   rpHtml+='<div class="dre-rp-divider"></div>';
-  rpHtml+='<div class="dre-rp-row bold"><span class="dre-rp-label">= Lucro Bruto</span><span class="dre-rp-val '+(d.lucBruto>=0?'pos':'neg')+'">'+BRL(d.lucBruto)+'</span></div>';
-  rpHtml+='<div style="margin-bottom:4px"><div style="height:3px;background:var(--bg4);border-radius:2px"><div style="width:'+Math.min(100,Math.max(0,d.margemBruta))+'%;height:3px;border-radius:2px;background:var(--green)"></div></div><div style="font-size:11px;font-family:var(--mono);color:var(--green);margin-top:2px">'+d.margemBruta.toFixed(1)+'%</div></div>';
+  rpHtml+=rp('= Lucro Bruto',BRL(d.lucBruto),d.lucBruto>=0?'pos':'neg',null,true);
+  rpHtml+=bar(d.margemBruta,'var(--green)');
   rpHtml+=rp('(-) Taxas do Marketplace','- '+BRL(d.taxasMl),'neg',d.fat>0?d.taxasMl/d.fat*100:null);
-  rpHtml+=rp('(-) Frete','- '+BRL(d.freteVendas||0),'neg',d.fat>0?(d.freteVendas||0)/d.fat*100:null);
-  rpHtml+=rp('(-) Publicidade (ADS)','- '+BRL(d.ads),'neg',d.fat>0?d.ads/d.fat*100:null);
-  if(d.despTotal>0)rpHtml+=rp('(-) Despesas Fixas','- '+BRL(d.despTotal),'neg',d.fat>0?d.despTotal/d.fat*100:null);
+  rpHtml+=rp('(-) Frete','- '+BRL(d.freteVendas),'neg',d.fat>0?d.freteVendas/d.fat*100:null);
+  rpHtml+=rp('(-) Publicidade (ADS)','- '+BRL(d.adsMeli),'neg',d.fat>0?d.adsMeli/d.fat*100:null);
+  if(d.tarifaExtra>0)rpHtml+=rp('(-) Outras Tarifas','- '+BRL(d.tarifaExtra),'neg',d.fat>0?d.tarifaExtra/d.fat*100:null);
+  if(d.desp_estrutura>0)rpHtml+=rp('(-) Estrutura e Operacional','- '+BRL(d.desp_estrutura),'neg',d.fat>0?d.desp_estrutura/d.fat*100:null);
+  if(d.desp_pessoal>0)rpHtml+=rp('(-) Pessoal','- '+BRL(d.desp_pessoal),'neg',d.fat>0?d.desp_pessoal/d.fat*100:null);
+  if(d.desp_admin>0)rpHtml+=rp('(-) Administrativo e Serviços','- '+BRL(d.desp_admin),'neg',d.fat>0?d.desp_admin/d.fat*100:null);
   rpHtml+='<div class="dre-rp-divider"></div>';
-  rpHtml+='<div class="dre-rp-row bold"><span class="dre-rp-label">= Resultado Operacional</span><span class="dre-rp-val '+(d.resultOp>=0?'pos':'neg')+'">'+BRL(d.resultOp)+'</span></div>';
-  rpHtml+='<div style="margin-bottom:4px"><div style="height:3px;background:var(--bg4);border-radius:2px"><div style="width:'+Math.min(100,Math.max(0,d.fat>0?d.resultOp/d.fat*100:0))+'%;height:3px;border-radius:2px;background:var(--teal)"></div></div><div style="font-size:11px;font-family:var(--mono);color:var(--teal);margin-top:2px">'+(d.fat>0?(d.resultOp/d.fat*100).toFixed(1):0)+'%</div></div>';
-  rpHtml+='<div class="dre-rp-divider"></div>';
+  rpHtml+=rp('= Resultado Operacional',BRL(d.resultOp),d.resultOp>=0?'pos':'neg',null,true);
+  rpHtml+=bar(d.fat>0?d.resultOp/d.fat*100:0,'var(--teal)');
   rpHtml+=rp('(-) Impostos','- '+BRL(d.impostos),'neg',d.fat>0?d.impostosPct:null);
 
   document.getElementById('dreResultPanel').innerHTML=
@@ -1549,10 +1626,10 @@ function renderDRE(){
   document.getElementById('dreLucroPanel').innerHTML=
     '<div style="display:flex;align-items:center;gap:6px;margin-bottom:5px"><span style="font-size:14px">📈</span><span style="font-size:12px;font-weight:600;color:var(--green)">Lucro Líquido</span></div>'+
     '<div class="dre-lucro-val" style="font-size:24px">'+BRL(d.lucLiq)+'</div>'+
-    '<div style="height:3px;background:var(--bg4);border-radius:2px;margin-top:6px"><div style="width:'+Math.min(100,Math.max(0,d.margem))+'%;height:3px;border-radius:2px;background:var(--green)"></div></div>'+
-    '<div class="dre-lucro-pct">Margem '+d.margem.toFixed(1)+'%</div>';
+    '<div style="height:3px;background:var(--bg4);border-radius:2px;margin-top:6px"><div style="width:'+Math.min(100,Math.max(0,d.margem))+'%;height:3px;border-radius:2px;background:'+(d.lucLiq>=0?'var(--green)':'var(--red)')+'"></div></div>'+
+    '<div class="dre-lucro-pct" style="color:'+(d.lucLiq>=0?'var(--green)':'var(--red)')+'">Margem '+d.margem.toFixed(1)+'%</div>';
 
-  // SCORE FINANCEIRO — thresholds corrigidos
+  // SCORE FINANCEIRO
   const score=(lbl,val,spec)=>{
     let cls,icon,text;
     if(spec==='lucro'){
@@ -1581,12 +1658,15 @@ function renderDREAnual(){
     {lbl:'Receita Bruta',fn:d=>d.fat,cls:''},
     {lbl:'(-) Cancelamentos',fn:d=>-d.cancelamentos,cls:'neg'},
     {lbl:'= Receita Líquida',fn:d=>d.recLiq,cls:'bold'},
-    {lbl:'(-) CMV',fn:d=>-d.cmv,cls:'neg'},
+    {lbl:'(-) CMV',fn:d=>-d.cmvTotal,cls:'neg'},
     {lbl:'= Lucro Bruto',fn:d=>d.lucBruto,cls:'bold'},
     {lbl:'(-) Taxas Marketplace',fn:d=>-d.taxasMl,cls:'neg'},
-    {lbl:'(-) Frete',fn:d=>-(d.freteVendas||0),cls:'neg'},
-    {lbl:'(-) Publicidade ADS',fn:d=>-d.ads,cls:'neg'},
-    {lbl:'(-) Despesas Fixas',fn:d=>-d.despTotal,cls:'neg'},
+    {lbl:'(-) Frete',fn:d=>-d.freteVendas,cls:'neg'},
+    {lbl:'(-) Publicidade ADS',fn:d=>-d.adsMeli,cls:'neg'},
+    {lbl:'(-) Outras Tarifas',fn:d=>-d.tarifaExtra,cls:'neg'},
+    {lbl:'(-) Estrutura e Op.',fn:d=>-d.desp_estrutura,cls:'neg'},
+    {lbl:'(-) Pessoal',fn:d=>-d.desp_pessoal,cls:'neg'},
+    {lbl:'(-) Adm. e Serviços',fn:d=>-d.desp_admin,cls:'neg'},
     {lbl:'= Resultado Operacional',fn:d=>d.resultOp,cls:'bold'},
     {lbl:'(-) Impostos',fn:d=>-d.impostos,cls:'neg'},
     {lbl:'= Lucro Líquido',fn:d=>d.lucLiq,cls:'lucro'},
