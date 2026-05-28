@@ -1097,7 +1097,7 @@ tbody tr:hover td{background:var(--bg3)}
       <span class="nav-group-arrow"><svg width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg></span>
     </div>
     <div class="nav-group-body">
-    <div class="ni" onclick="goModule('dashboard_estoque_ml.html','financeiro');return false;">
+    <div class="ni" onclick="showPage('financeiro',this);return false;">
       <div class="ni-icon"><svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" viewBox="0 0 24 24"><path d="M3 3h18v4H3zM3 10h18v4H3zM3 17h18v4H3z"/></svg></div>
       <span class="ni-label">Estoque</span>
       <span class="ni-tip">Estoque</span>
@@ -1111,17 +1111,17 @@ tbody tr:hover td{background:var(--bg3)}
       <span class="nav-group-arrow"><svg width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg></span>
     </div>
     <div class="nav-group-body">
-    <div class="ni" onclick="goModule('dashboard_estoque_ml.html','movimentacao');return false;">
+    <div class="ni" onclick="showPage('movimentacao',this);return false;">
       <div class="ni-icon"><svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" viewBox="0 0 24 24"><path d="M7 16V4m0 0L3 8m4-4l4 4M17 8v12m0 0l4-4m-4 4l-4-4"/></svg></div>
       <span class="ni-label">Movimentação</span>
       <span class="ni-tip">Movimentação</span>
     </div>
-    <div class="ni" onclick="goModule('dashboard_estoque_ml.html','full');return false;">
+    <div class="ni" onclick="showPage('full',this);return false;">
       <div class="ni-icon"><svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg></div>
       <span class="ni-label">Envios Full</span>
       <span class="ni-tip">Envios Full</span>
     </div>
-    <div class="ni" onclick="goModule('dashboard_estoque_ml.html','cobertura');return false;">
+    <div class="ni" onclick="showPage('cobertura',this);return false;">
       <div class="ni-icon"><svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>
       <span class="ni-label">Cobertura</span>
       <span class="ni-tip">Cobertura</span>
@@ -1135,12 +1135,12 @@ tbody tr:hover td{background:var(--bg3)}
       <span class="nav-group-arrow"><svg width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg></span>
     </div>
     <div class="nav-group-body">
-    <div class="ni" onclick="goModule('dashboard_estoque_ml.html','insights');return false;">
+    <div class="ni" onclick="showPage('insights',this);return false;">
       <div class="ni-icon"><svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></div>
       <span class="ni-label">Insights</span>
       <span class="ni-tip">Insights</span>
     </div>
-    <div class="ni" onclick="goModule('dashboard_estoque_ml.html','relatorios');return false;">
+    <div class="ni" onclick="showPage('relatorios',this);return false;">
       <div class="ni-icon"><svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></div>
       <span class="ni-label">Relatórios</span>
       <span class="ni-tip">Relatórios</span>
@@ -1159,7 +1159,7 @@ tbody tr:hover td{background:var(--bg3)}
       <span class="ni-label">Integrações de Lojas</span>
       <span class="ni-tip">Integrações de Lojas</span>
     </div>
-    <div class="ni" onclick="goModule('dashboard_estoque_ml.html','editor');return false;">
+    <div class="ni" onclick="showPage('editor',this);return false;">
       <div class="ni-icon"><svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></div>
       <span class="ni-label">Editar dados</span>
       <span class="ni-tip">Editar dados</span>
@@ -1177,12 +1177,12 @@ tbody tr:hover td{background:var(--bg3)}
 </aside>
 
 <main class="main">
-<div class="hdr"><div><div class="hdr-kicker"><span class="status-dot"></span>Workspace VPATACADISTA · Plano Pro</div><div class="hdr-title" id="pageTitle">Faturamento</div><div class="hdr-sub">Mercado Livre · Vendas, anúncios e resultado financeiro</div></div><div class="hdr-actions"><a class="quick-link" href="dashboard_estoque_ml.html#pedidos">Pedidos urgentes</a><a class="quick-link" href="dashboard_estoque_ml.html#dashboard">Abrir estoque</a><div class="theme-btn" id="themeBtn" onclick="toggleTheme()" title="Alternar tema"></div></div></div>
+<div class="hdr"><div><div class="hdr-kicker"><span class="status-dot"></span>Workspace VPATACADISTA · Plano Pro</div><div class="hdr-title" id="pageTitle">Faturamento</div><div class="hdr-sub">Mercado Livre · Vendas, anúncios e resultado financeiro</div></div><div class="hdr-actions"><a class="quick-link" href="#" onclick="showPage('pedidos',this);return false;">Pedidos urgentes</a><a class="quick-link" href="#" onclick="showPage('dashboard',this);return false;">Abrir estoque</a><div class="theme-btn" id="themeBtn" onclick="toggleTheme()" title="Alternar tema"></div></div></div>
 
 <!-- FATURAMENTO -->
 
 
-<div class="hdr"><div><div class="hdr-kicker"><span class="status-dot"></span>Workspace VPATACADISTA · Plano Pro</div><div class="hdr-title" id="pageTitle">Faturamento</div><div class="hdr-sub">Mercado Livre · Vendas, anúncios e resultado financeiro</div></div><div class="hdr-actions"><a class="quick-link" href="dashboard_estoque_ml.html#pedidos">Pedidos urgentes</a><a class="quick-link" href="dashboard_estoque_ml.html#dashboard">Abrir estoque</a><div class="theme-btn" id="themeBtn" onclick="toggleTheme()" title="Alternar tema"></div></div></div>
+<div class="hdr"><div><div class="hdr-kicker"><span class="status-dot"></span>Workspace VPATACADISTA · Plano Pro</div><div class="hdr-title" id="pageTitle">Faturamento</div><div class="hdr-sub">Mercado Livre · Vendas, anúncios e resultado financeiro</div></div><div class="hdr-actions"><a class="quick-link" href="#" onclick="showPage('pedidos',this);return false;">Pedidos urgentes</a><a class="quick-link" href="#" onclick="showPage('dashboard',this);return false;">Abrir estoque</a><div class="theme-btn" id="themeBtn" onclick="toggleTheme()" title="Alternar tema"></div></div></div>
 
 <!-- FATURAMENTO -->
 <div class="page active" id="page-faturamento">
@@ -1193,8 +1193,8 @@ tbody tr:hover td{background:var(--bg3)}
       <div class="page-intro-sub">Acompanhe faturamento, margem, ADS e acesse reposição sem sair do fluxo de decisão.</div>
     </div>
     <div class="intro-actions">
-      <a class="mini-link" href="dashboard_estoque_ml.html#pedidos">Ver pedidos urgentes</a>
-      <a class="mini-link" href="dashboard_estoque_ml.html#projecoes">Projeções 30d</a>
+      <a class="mini-link" href="#" onclick="showPage('pedidos',this);return false;">Ver pedidos urgentes</a>
+      <a class="mini-link" href="#" onclick="showPage('projecoes',this);return false;">Projeções 30d</a>
     </div>
   </div>
   <div class="period-bar" id="periodBar"></div>
@@ -1488,8 +1488,8 @@ tbody tr:hover td{background:var(--bg3)}
       <div class="page-intro-sub">Priorize compras pelo risco de ruptura, valor parado e impacto nas vendas do Mercado Livre.</div>
     </div>
     <div class="intro-actions">
-      <a class="mini-link" href="vendas_marketplace.html#faturamento">Ver faturamento</a>
-      <a class="mini-link" href="vendas_marketplace.html#dre">Abrir DRE</a>
+      <a class="mini-link" href="#" onclick="showPage('faturamento',this);return false;">Ver faturamento</a>
+      <a class="mini-link" href="#" onclick="showPage('dre',this);return false;">Abrir DRE</a>
     </div>
   </div>
   <div class="g4" id="topCards"></div>
@@ -3038,6 +3038,9 @@ function loadState(){
 
 
 /* ── ESTOQUE ──────────────────────────────────────────────── */
+// Constantes do módulo de estoque
+const PO={ruptura:0,urgente:1,critico:2,atencao:3,ok:4};
+const SL={ruptura:'Em ruptura',urgente:'Urgente',critico:'Crítico',atencao:'Atenção',ok:'Saudável'};
 
 
 const DEFAULT_DATA=[
