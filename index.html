@@ -273,7 +273,7 @@
     const userId  = localStorage.getItem('ml_user_id');
     if (token && userId) {
       // Já logado — redireciona direto para o sistema
-      window.location.href = 'vendas_marketplace.html';
+      window.location.href = 'sellerhub.html';
     }
   })();
 
@@ -287,7 +287,7 @@
       localStorage.setItem('ml_token',   token);
       localStorage.setItem('ml_user_id', userId);
       if (nickname) localStorage.setItem('ml_nickname', nickname);
-      window.location.href = 'vendas_marketplace.html';
+      window.location.href = 'sellerhub.html';
     }
   })();
 
