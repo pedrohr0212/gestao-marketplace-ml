@@ -445,13 +445,47 @@ tbody tr:hover td{background:var(--bg3)}
 .score-row:last-child{border-bottom:none}
 .score-label{font-size:12px;color:var(--text2)}
 .score-badge{padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;font-family:var(--mono);display:flex;align-items:center;gap:4px;white-space:nowrap}
+.score-badge.negativo{background:rgba(240,82,82,0.15);color:var(--red)}
 .score-badge.critico{background:rgba(240,82,82,0.15);color:var(--red)}
 .score-badge.atencao{background:rgba(245,158,11,0.15);color:var(--amber)}
 .score-badge.saudavel{background:rgba(52,211,153,0.12);color:var(--green)}
+.score-badge.otimo{background:rgba(45,212,191,0.15);color:var(--teal)}
 .score-badge.positivo{background:rgba(45,212,191,0.12);color:var(--teal)}
 
 @media(max-width:1080px){.dre-layout{grid-template-columns:1fr}.dre-panel-right{position:static}}
 @media(max-width:768px){.dre-layout{grid-template-columns:1fr}.lanc-input{width:80px}}
+
+/* MODAL GERENCIAR LANÇAMENTOS */
+.ger-modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:500;display:none;align-items:flex-end;justify-content:center;padding:0}
+.ger-modal-overlay.open{display:flex}
+.ger-modal{background:var(--bg2);border:0.5px solid var(--border2);border-radius:20px 20px 0 0;width:100%;max-width:560px;max-height:85vh;display:flex;flex-direction:column;animation:slideUp .22s ease}
+@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.ger-modal-hdr{display:flex;align-items:flex-start;justify-content:space-between;padding:16px 18px 10px}
+.ger-modal-title{font-size:16px;font-weight:600;color:var(--text)}
+.ger-modal-sub{font-size:12px;color:var(--text3);margin-top:2px}
+.ger-modal-close{background:var(--bg4);border:none;border-radius:50%;width:30px;height:30px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--text2);font-size:16px;flex-shrink:0;transition:all .15s}
+.ger-modal-close:hover{background:var(--red-bg);color:var(--red)}
+.ger-modal-add{display:flex;align-items:center;gap:7px;padding:7px 14px;border:none;border-radius:20px;background:var(--green);color:#0a2e20;font-size:12px;font-weight:600;cursor:pointer;font-family:var(--font);transition:all .15s}
+.ger-modal-add:hover{background:var(--teal)}
+.ger-modal-body{padding:8px 18px 16px;overflow-y:auto;flex:1}
+.ger-item{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:0.5px solid var(--border)}
+.ger-item:last-child{border-bottom:none}
+.ger-item-nome{font-size:13px;font-weight:500;color:var(--text)}
+.ger-item-val{font-family:var(--mono);font-size:13px;font-weight:500;color:var(--text2)}
+.ger-item-actions{display:flex;align-items:center;gap:6px;margin-left:10px}
+.ger-item-edit,.ger-item-del{background:transparent;border:none;cursor:pointer;padding:3px 5px;border-radius:5px;font-size:14px;color:var(--text3);transition:all .15s}
+.ger-item-edit:hover{background:var(--blue-bg);color:var(--blue)}
+.ger-item-del:hover{background:var(--red-bg);color:var(--red)}
+.ger-empty{text-align:center;padding:24px;font-size:13px;color:var(--text3)}
+.ger-add-form{background:var(--bg3);border:0.5px solid var(--border2);border-radius:var(--r2);padding:12px;margin-bottom:10px;display:none}
+.ger-add-form.open{display:block}
+.ger-add-row{display:grid;grid-template-columns:1fr 120px;gap:8px;margin-bottom:8px}
+.ger-add-inp{background:var(--bg2);border:0.5px solid var(--border2);border-radius:7px;padding:8px 10px;color:var(--text);font-family:var(--font);font-size:13px;outline:none;width:100%}
+.ger-add-inp:focus{border-color:var(--accent)}
+.ger-add-btns{display:flex;gap:6px;justify-content:flex-end}
+.ger-save-btn{padding:7px 14px;border:none;background:var(--accent);color:#fff;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;font-family:var(--font)}
+.ger-cancel-btn{padding:7px 12px;border:0.5px solid var(--border2);background:transparent;color:var(--text2);border-radius:7px;font-size:12px;cursor:pointer;font-family:var(--font)}
+.readonly-tag{font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;padding:2px 6px;border-radius:4px;background:var(--bg4);color:var(--text3);margin-left:6px}
 </style>
 </head>
 <body>
@@ -1265,46 +1299,46 @@ function getLanc(m,y){
 
 function getDefaultLanc(){
   return{
-    fat:0, devolucoes:0, cmv:0,
-    tarifas:[{nome:'Tarifa de Vendas - Marketplace',valor:0},{nome:'Frete de Vendas - Marketplace',valor:0}],
-    tarifasExtra:[],
+    // Campos que virão da API ML (por enquanto manuais)
+    fat:0, cancelamentos:0, taxasMl:0, freteVendas:0, ads:0,
+    // Campos manuais editáveis
+    cmv:0, impostosPct:4,
+    // Extras via modal Gerenciar
+    receitasExtra:[],
     estrutura:[{nome:'Aluguel',valor:0},{nome:'Energia Elétrica',valor:0},{nome:'Internet e Telefone',valor:0}],
     estruturaExtra:[],
-    outros:[]
   };
 }
 
 function getDREData(m,y){
   const l=getLanc(m,y);
+  // Dados da API (quando disponíveis via integração ML)
+  // Por enquanto, campos readonly são lidos dos lançamentos; 
+  // futuramente serão injetados automaticamente pela API
   const fat=+(l.fat||0);
-  const devolucoes=+(l.devolucoes||0);
-  const cancelamentos=devolucoes; // devolucoes = cancelamentos no DRE
-  const recLiq=Math.max(0,fat-devolucoes);
+  const cancelamentos=+(l.cancelamentos||0);
+  const receitasExtra=(l.receitasExtra||[]).reduce((s,t)=>s+(+t.valor||0),0);
+  const recLiq=Math.max(0,fat-cancelamentos+receitasExtra);
   const cmv=+(l.cmv||0);
   const lucBruto=recLiq-cmv;
-  // Tarifas marketplace (fixas + extras)
-  const todasTarifas=[...(l.tarifas||[]),...(l.tarifasExtra||[])];
-  const taxasMl=todasTarifas.reduce((s,t)=>s+(+t.valor||0),0);
-  // Frete e ADS vêm do dashboard de vendas (lidos de lancamentos ou zerados)
-  const frete=0; // já está dentro de tarifas
+  // Tarifas da API
+  const taxasMl=+(l.taxasMl||0);
+  const freteVendas=+(l.freteVendas||0);
   const ads=+(l.ads||0);
-  // Estrutura e Operacional
+  // Despesas fixas manuais
   const todasEstrutura=[...(l.estrutura||[]),...(l.estruturaExtra||[])];
-  const custoEstrutura=todasEstrutura.reduce((s,t)=>s+(+t.valor||0),0);
-  // Outros custos
-  const outros=(l.outros||[]);
-  const outrosTotal=outros.reduce((s,d)=>s+(+d.valor||0),0);
-  const despTotal=custoEstrutura+outrosTotal;
-  const resultOp=lucBruto-taxasMl-ads-despTotal;
-  const impostos=+(recLiq*(+(l.impostosPct||4)/100)).toFixed(2);
+  const despTotal=todasEstrutura.reduce((s,t)=>s+(+t.valor||0),0);
+  const resultOp=lucBruto-taxasMl-freteVendas-ads-despTotal;
+  const impostosPct=+(l.impostosPct||4);
+  const impostos=+(recLiq*(impostosPct/100)).toFixed(2);
   const lucLiq=resultOp-impostos;
   const margem=fat>0?lucLiq/fat*100:0;
   const margemBruta=fat>0?lucBruto/fat*100:0;
-  const pontEquil=fat>0&&(fat-cmv)>0?custoEstrutura/((fat-cmv)/fat):0;
-  return{fat,devolucoes,cancelamentos,recLiq,cmv,cmvPct:fat>0?cmv/fat*100:0,lucBruto,margemBruta,
-    taxasMl,frete,ads,todasTarifas,todasEstrutura,outros,
-    despTotal,resultOp,impostos,impostosPct:+(l.impostosPct||4),
-    lucLiq,margem,pontEquil};
+  const cmvPct=fat>0?cmv/fat*100:0;
+  return{fat,cancelamentos,receitasExtra,recLiq,cmv,cmvPct,lucBruto,margemBruta,
+    taxasMl,freteVendas,ads,todasEstrutura,
+    despTotal,resultOp,impostos,impostosPct,
+    lucLiq,margem};
 }
 
 function dreNav(dir){
@@ -1345,104 +1379,199 @@ function addLancItem(arr,nome){ensureLanc();lancamentos[lancKey()][arr].push({no
 function delLancItem(arr,idx){ensureLanc();lancamentos[lancKey()][arr].splice(idx,1);saveLanc();renderDRE();}
 function resetMes(){if(!confirm('Resetar lançamentos de '+MESES[dreMonth]+' '+dreYear+'?'))return;delete lancamentos[lancKey()];saveLanc();renderDRE();}
 
+// ── MODAL GERENCIAR ────────────────────────────────────────
+let _gerArr=null,_gerEditIdx=null;
+function openGerModal(arr,title,sub){
+  _gerArr=arr;_gerEditIdx=null;
+  document.getElementById('gerModalTitle').textContent=title;
+  document.getElementById('gerModalSub').textContent=sub||'';
+  closeGerAddForm();
+  renderGerBody();
+  document.getElementById('gerModal').className='ger-modal-overlay open';
+}
+function closeGerModal(){document.getElementById('gerModal').className='ger-modal-overlay';_gerArr=null;}
+function openGerAddForm(idx){
+  _gerEditIdx=idx!=null?idx:null;
+  const form=document.getElementById('gerAddForm');
+  form.className='ger-add-form open';
+  if(idx!=null){
+    const l=getLanc(dreMonth,dreYear);
+    document.getElementById('gerAddNome').value=l[_gerArr][idx].nome;
+    document.getElementById('gerAddValor').value=+(l[_gerArr][idx].valor)||0;
+  } else {
+    document.getElementById('gerAddNome').value='';
+    document.getElementById('gerAddValor').value='';
+  }
+  document.getElementById('gerAddNome').focus();
+}
+function closeGerAddForm(){
+  document.getElementById('gerAddForm').className='ger-add-form';
+  _gerEditIdx=null;
+}
+function saveGerItem(){
+  const nome=document.getElementById('gerAddNome').value.trim();
+  const valor=+(document.getElementById('gerAddValor').value)||0;
+  if(!nome){alert('Informe o nome.');return;}
+  ensureLanc();
+  const l=lancamentos[lancKey()];
+  if(_gerEditIdx!=null){
+    l[_gerArr][_gerEditIdx]={nome,valor};
+  } else {
+    l[_gerArr].push({nome,valor});
+  }
+  saveLanc();renderDRE();renderGerBody();closeGerAddForm();
+}
+function delGerItem(idx){
+  ensureLanc();
+  lancamentos[lancKey()][_gerArr].splice(idx,1);
+  saveLanc();renderDRE();renderGerBody();
+}
+function renderGerBody(){
+  const l=getLanc(dreMonth,dreYear);
+  const items=l[_gerArr]||[];
+  const total=items.reduce((s,i)=>s+(+i.valor||0),0);
+  document.getElementById('gerModalSub').textContent=MESES[dreMonth]+' '+dreYear+' · Total: '+BRL(total);
+  document.getElementById('gerModalBody').innerHTML=items.length?items.map((item,i)=>
+    '<div class="ger-item">'+
+    '<div class="ger-item-nome">'+item.nome+'</div>'+
+    '<div style="display:flex;align-items:center">'+
+    '<span class="ger-item-val">'+BRL(+item.valor||0)+'</span>'+
+    '<div class="ger-item-actions">'+
+    '<button class="ger-item-edit" onclick="openGerAddForm('+i+')" title="Editar">✏️</button>'+
+    '<button class="ger-item-del" onclick="delGerItem('+i+')" title="Remover">🗑️</button>'+
+    '</div></div></div>'
+  ).join(''):'<div class="ger-empty">Nenhum lançamento cadastrado.</div>';
+}
+
 function renderDRE(){
   buildYearSel('dreYearSel',dreYear,y=>{dreYear=y;renderDRE();});
   document.getElementById('dreMonthLabel').textContent=MESES[dreMonth]+' de '+dreYear;
   const d=getDREData(dreMonth,dreYear);
   const l=getLanc(dreMonth,dreYear);
 
-  const inp=(arr,i,ph)=>'<input class="lanc-input" type="number" step="0.01" value="'+(+(l[arr][i].valor)||0)+'" placeholder="'+ph+'" onchange="setLancItem(\''+arr+'\','+i+',+this.value)">';
-  const inpNome=(arr,i,v)=>'<input style="background:transparent;border:none;color:var(--text2);font-size:12px;outline:none;width:100%;min-width:0" value="'+v+'" onchange="setLancItemNome(\''+arr+'\','+i+',this.value)">';
+  // Helper: campo somente leitura (dados da API)
+  const roField=(label,val,pct)=>
+    '<div class="lanc-field-row">'+
+    '<div class="lanc-field-label">'+label+'<span class="readonly-tag">API</span></div>'+
+    '<div style="display:flex;align-items:center;gap:6px">'+
+    (pct!=null?'<span style="font-size:10px;font-family:var(--mono);color:var(--text3);background:var(--bg3);padding:1px 5px;border-radius:3px">'+pct.toFixed(1)+'%</span>':'')+
+    '<span class="lanc-field-val neg">- '+BRL(val)+'</span>'+
+    '</div></div>';
+
+  // Helper: campo editável
   const inpTop=(field,val)=>'<input class="lanc-input" type="number" step="0.01" value="'+(+val||0)+'" onchange="setLancVal(\''+field+'\',+this.value)">';
-  const fieldRow=(label,inputHtml,delHtml)=>'<div class="lanc-field-row"><div class="lanc-field-label">'+label+'</div><div style="display:flex;align-items:center;gap:4px">'+inputHtml+(delHtml||'')+'</div></div>';
-  const delBtn=(arr,i)=>'<button class="lanc-del" onclick="delLancItem(\''+arr+'\','+i+')">×</button>';
   const totRow=(lbl,val,cls)=>'<div class="lanc-field-row"><div class="lanc-field-label" style="font-weight:600;color:var(--text)">'+lbl+'</div><div class="lanc-field-val '+(cls||'pos')+'">'+BRL(val)+'</div></div>';
+  const gerBtn=(arr,title)=>'<button class="gerenciar-btn" onclick="openGerModal(\''+arr+'\',\''+title+'\',\'\')">Gerenciar</button>';
 
   let html='';
 
-  // RECEITAS
+  // ── RECEITAS
   html+='<div class="lanc-section">';
-  html+='<div class="lanc-section-hdr"><div class="lanc-section-title"><span class="lanc-icon">🟢</span><span style="color:var(--green)">Receitas</span></div></div>';
-  html+=fieldRow('Faturamento Bruto',inpTop('fat',l.fat));
-  html+=fieldRow('(-) Devoluções',inpTop('devolucoes',l.devolucoes));
+  html+='<div class="lanc-section-hdr"><div class="lanc-section-title"><span class="lanc-icon">🟢</span><span style="color:var(--green)">Receita</span></div>'+gerBtn('receitasExtra','Receitas adicionais')+'</div>';
+  html+='<div class="lanc-field-row"><div class="lanc-field-label">Faturamento Bruto<span class="readonly-tag">API</span></div><div class="lanc-field-val pos">'+BRL(d.fat)+'</div></div>';
+  html+='<div class="lanc-field-row"><div class="lanc-field-label">(-) Cancelamentos<span class="readonly-tag">API</span></div><div class="lanc-field-val neg">- '+BRL(d.cancelamentos)+'</div></div>';
+  (l.receitasExtra||[]).forEach((t)=>{ html+='<div class="lanc-field-row"><div class="lanc-field-label">'+t.nome+'</div><div class="lanc-field-val pos">+ '+BRL(+t.valor||0)+'</div></div>'; });
   html+=totRow('= Receita Líquida',d.recLiq,'pos');
   html+='</div>';
 
-  // CUSTO DOS PRODUTOS
+  // ── CUSTO DOS PRODUTOS
   html+='<div class="lanc-section">';
-  html+='<div class="lanc-section-hdr"><div class="lanc-section-title"><span class="lanc-icon">📦</span><span style="color:var(--amber)">Custo dos Produtos</span></div></div>';
-  html+=fieldRow('CMV — Custo de Mercadoria Vendida',inpTop('cmv',l.cmv));
+  html+='<div class="lanc-section-hdr"><div class="lanc-section-title"><span class="lanc-icon">📦</span><span style="color:var(--amber)">Custos dos Produtos</span></div></div>';
+  html+='<div class="lanc-field-row"><div class="lanc-field-label">(-) Custo dos Produtos (CMV)</div><div style="display:flex;align-items:center;gap:6px">'+
+    (d.fat>0?'<span style="font-size:10px;font-family:var(--mono);color:var(--text3);background:var(--bg3);padding:1px 5px;border-radius:3px">'+d.cmvPct.toFixed(1)+'%</span>':'')+
+    inpTop('cmv',l.cmv)+'</div></div>';
   html+=totRow('= Lucro Bruto',d.lucBruto,d.lucBruto>=0?'pos':'neg');
   html+='</div>';
 
-  // TARIFAS E COMISSÕES
+  // ── DESPESAS OPERACIONAIS
   html+='<div class="lanc-section">';
-  html+='<div class="lanc-section-hdr"><div class="lanc-section-title"><span class="lanc-icon">🛒</span><span style="color:var(--blue)">Tarifas e Comissões Marketplace</span></div><button class="lanc-add-btn" onclick="addLancItem(\'tarifasExtra\',\'Nova tarifa\')">+ Adicionar</button></div>';
-  (l.tarifas||[]).forEach((t,i)=>{ html+=fieldRow(t.nome,inp('tarifas',i,'0,00')); });
-  (l.tarifasExtra||[]).forEach((t,i)=>{ html+=fieldRow(inpNome('tarifasExtra',i,t.nome),inp('tarifasExtra',i,'0,00'),delBtn('tarifasExtra',i)); });
-  html+=fieldRow('Publicidade Ads',inpTop('ads',l.ads||0));
+  html+='<div class="lanc-section-hdr"><div class="lanc-section-title"><span class="lanc-icon">🛒</span><span style="color:var(--blue)">Despesas Operacionais</span></div>'+gerBtn('estruturaExtra','Despesas Fixas')+'</div>';
+  // API readonly
+  if(d.fat>0){
+    html+=roField('(-) Taxas do Marketplace',d.taxasMl,d.taxasMl/d.fat*100);
+    html+=roField('(-) Frete de Vendas',d.freteVendas||0,(d.freteVendas||0)/d.fat*100);
+    html+=roField('(-) Publicidade (ADS)',d.ads,d.ads/d.fat*100);
+  } else {
+    html+=roField('(-) Taxas do Marketplace',d.taxasMl,null);
+    html+=roField('(-) Frete de Vendas',d.freteVendas||0,null);
+    html+=roField('(-) Publicidade (ADS)',d.ads,null);
+  }
+  // Despesas fixas manuais
+  if((l.estrutura||[]).some(t=>+t.valor>0)||(l.estruturaExtra||[]).length>0){
+    html+='<div class="lanc-field-row" style="margin-top:3px"><div class="lanc-field-label" style="color:var(--text3);font-size:11px;text-transform:uppercase;letter-spacing:.06em">(-) Despesas Fixas</div><div class="lanc-field-val neg">- '+BRL(d.despTotal)+'</div></div>';
+    [...(l.estrutura||[]),...(l.estruturaExtra||[])].filter(t=>+t.valor>0).forEach(t=>{
+      html+='<div style="padding:3px 0 3px 12px;border-bottom:0.5px solid var(--border);display:flex;justify-content:space-between;align-items:center"><div style="font-size:11px;color:var(--text3)">↳ '+t.nome+'</div><div style="font-family:var(--mono);font-size:11px;color:var(--text3)">- '+BRL(+t.valor||0)+'</div></div>';
+    });
+  }
+  html+=totRow('= Resultado Operacional',d.resultOp,d.resultOp>=0?'pos':'neg');
   html+='</div>';
 
-  // ESTRUTURA E OPERACIONAL
+  // ── IMPOSTOS
   html+='<div class="lanc-section">';
-  html+='<div class="lanc-section-hdr"><div class="lanc-section-title"><span class="lanc-icon">🏢</span><span style="color:var(--purple)">Estrutura e Operacional</span></div><button class="lanc-add-btn" onclick="addLancItem(\'estruturaExtra\',\'Nova despesa\')">+ Adicionar</button></div>';
-  (l.estrutura||[]).forEach((t,i)=>{ html+=fieldRow(t.nome,inp('estrutura',i,'0,00')); });
-  (l.estruturaExtra||[]).forEach((t,i)=>{ html+=fieldRow(inpNome('estruturaExtra',i,t.nome),inp('estruturaExtra',i,'0,00'),delBtn('estruturaExtra',i)); });
-  html+='</div>';
-
-  // IMPOSTOS
-  html+='<div class="lanc-section">';
-  html+='<div class="lanc-section-hdr"><div class="lanc-section-title"><span class="lanc-icon">📋</span><span style="color:var(--text2)">Impostos</span></div></div>';
-  html+='<div class="lanc-field-row"><div class="lanc-field-label">% sobre Receita Líquida</div><div style="display:flex;align-items:center;gap:6px"><input class="lanc-input" type="number" step="0.1" value="'+(+(l.impostosPct||4))+'" onchange="ensureLanc();lancamentos[lancKey()].impostosPct=+this.value;saveLanc();renderDRE()" style="width:60px"><span style="font-size:11px;color:var(--text3)">%</span></div></div>';
-  html+='<div class="lanc-field-row"><div class="lanc-field-label" style="color:var(--text3);font-style:italic">Valor calculado</div><div class="lanc-field-val neg">- '+BRL(d.impostos)+'</div></div>';
+  html+='<div class="lanc-section-hdr"><div class="lanc-section-title"><span class="lanc-icon">📋</span><span style="color:var(--text2)">Resultado Final</span></div></div>';
+  html+='<div class="lanc-field-row"><div class="lanc-field-label">(-) Impostos</div><div style="display:flex;align-items:center;gap:6px">'+
+    (d.fat>0?'<span style="font-size:10px;font-family:var(--mono);color:var(--text3);background:var(--bg3);padding:1px 5px;border-radius:3px">'+d.impostosPct.toFixed(1)+'%</span>':'')+
+    '<input class="lanc-input" type="number" step="0.1" value="'+(+(l.impostosPct||4))+'" onchange="ensureLanc();lancamentos[lancKey()].impostosPct=+this.value;saveLanc();renderDRE()" style="width:56px"> <span style="font-size:11px;color:var(--text3)">%</span>'+
+    '<span class="lanc-field-val neg" style="margin-left:4px">- '+BRL(d.impostos)+'</span>'+
+    '</div></div>';
   html+='</div>';
 
   document.getElementById('dreLancamentos').innerHTML=html;
 
-  // PAINEL RESULTADOS
-  const rp=(lbl,val,cls,bold)=>'<div class="dre-rp-row'+(bold?' bold':'')+'"><span class="dre-rp-label">'+lbl+'</span><span class="dre-rp-val '+cls+'">'+val+'</span></div>';
+  // ── PAINEL RESULTADOS (estrutura igual ao print)
+  const rp=(lbl,val,cls,pct,bold)=>{
+    const pctHtml=pct!=null?'<span style="font-size:10px;font-family:var(--mono);color:var(--text3);background:var(--bg3);padding:1px 5px;border-radius:3px;margin-right:5px">'+pct.toFixed(1)+'%</span>':'';
+    return '<div class="dre-rp-row'+(bold?' bold':'')+'"><span class="dre-rp-label">'+lbl+'</span><div style="display:flex;align-items:center">'+pctHtml+'<span class="dre-rp-val '+cls+'">'+val+'</span></div></div>';
+  };
   let rpHtml='';
   rpHtml+=rp('Receita Bruta',BRL(d.fat),'pos');
-  rpHtml+=rp('(-) Deduções',d.devolucoes>0?'- '+BRL(d.devolucoes):'R$ 0,00',d.devolucoes>0?'neg':'pos');
-  rpHtml+=rp('(-) Impostos s/ Vendas','- '+BRL(d.impostos),'neg');
+  rpHtml+=rp('(-) Cancelamentos',d.cancelamentos>0?'- '+BRL(d.cancelamentos):'R$ 0,00',d.cancelamentos>0?'neg':'pos');
   rpHtml+='<div class="dre-rp-divider"></div>';
-  rpHtml+=rp('Receita Líquida',BRL(d.recLiq),'pos',true);
-  rpHtml+=rp('(-) CMV','- '+BRL(d.cmv),'neg');
+  rpHtml+=rp('= Receita Líquida',BRL(d.recLiq),'pos',null,true);
+  rpHtml+=rp('(-) Custo dos Produtos (CMV)','- '+BRL(d.cmv),'neg',d.fat>0?d.cmvPct:null);
   rpHtml+='<div class="dre-rp-divider"></div>';
-  rpHtml+=rp('Lucro Bruto',BRL(d.lucBruto),d.lucBruto>=0?'pos':'neg',true);
-  rpHtml+='<div style="font-size:10px;font-family:var(--mono);color:var(--text3);text-align:right;padding-bottom:3px">Margem Bruta: '+d.margemBruta.toFixed(1)+'%</div>';
-  rpHtml+=rp('(-) Custos Variáveis','- '+BRL(d.taxasMl+d.ads),'neg');
-  rpHtml+=rp('Margem de Contribuição',BRL(d.lucBruto-d.taxasMl-d.ads),d.lucBruto-d.taxasMl-d.ads>=0?'pos':'neg');
-  rpHtml+=rp('(-) Custos Fixos','- '+BRL(d.despTotal),'neg');
+  rpHtml+='<div class="dre-rp-row bold"><span class="dre-rp-label">= Lucro Bruto</span><span class="dre-rp-val '+(d.lucBruto>=0?'pos':'neg')+'">'+BRL(d.lucBruto)+'</span></div>';
+  rpHtml+='<div style="margin-bottom:4px"><div style="height:3px;background:var(--bg4);border-radius:2px"><div style="width:'+Math.min(100,Math.max(0,d.margemBruta))+'%;height:3px;border-radius:2px;background:var(--green)"></div></div><div style="font-size:11px;font-family:var(--mono);color:var(--green);margin-top:2px">'+d.margemBruta.toFixed(1)+'%</div></div>';
+  rpHtml+=rp('(-) Taxas do Marketplace','- '+BRL(d.taxasMl),'neg',d.fat>0?d.taxasMl/d.fat*100:null);
+  rpHtml+=rp('(-) Frete','- '+BRL(d.freteVendas||0),'neg',d.fat>0?(d.freteVendas||0)/d.fat*100:null);
+  rpHtml+=rp('(-) Publicidade (ADS)','- '+BRL(d.ads),'neg',d.fat>0?d.ads/d.fat*100:null);
+  if(d.despTotal>0)rpHtml+=rp('(-) Despesas Fixas','- '+BRL(d.despTotal),'neg',d.fat>0?d.despTotal/d.fat*100:null);
   rpHtml+='<div class="dre-rp-divider"></div>';
-  rpHtml+=rp('Lucro Líquido',BRL(d.lucLiq),'green',true);
-  rpHtml+='<div style="font-size:10px;font-family:var(--mono);color:var(--teal);text-align:right;padding-top:2px">Margem Líquida: '+d.margem.toFixed(1)+'%</div>';
-  if(d.pontEquil>0)rpHtml+=rp('Ponto de Equilíbrio',BRL(d.pontEquil),'pos');
+  rpHtml+='<div class="dre-rp-row bold"><span class="dre-rp-label">= Resultado Operacional</span><span class="dre-rp-val '+(d.resultOp>=0?'pos':'neg')+'">'+BRL(d.resultOp)+'</span></div>';
+  rpHtml+='<div style="margin-bottom:4px"><div style="height:3px;background:var(--bg4);border-radius:2px"><div style="width:'+Math.min(100,Math.max(0,d.fat>0?d.resultOp/d.fat*100:0))+'%;height:3px;border-radius:2px;background:var(--teal)"></div></div><div style="font-size:11px;font-family:var(--mono);color:var(--teal);margin-top:2px">'+(d.fat>0?(d.resultOp/d.fat*100).toFixed(1):0)+'%</div></div>';
+  rpHtml+='<div class="dre-rp-divider"></div>';
+  rpHtml+=rp('(-) Impostos','- '+BRL(d.impostos),'neg',d.fat>0?d.impostosPct:null);
+
   document.getElementById('dreResultPanel').innerHTML=
     '<div class="dre-rp-title">📊 Resultados<span style="font-size:10px;color:var(--text3);font-weight:400;margin-left:6px">'+MESES[dreMonth]+' de '+dreYear+'</span></div>'+rpHtml;
 
   // LUCRO PANEL
   document.getElementById('dreLucroPanel').innerHTML=
-    '<div class="dre-lucro-label">💰 Lucro Líquido</div>'+
-    '<div class="dre-lucro-val">'+BRL(d.lucLiq)+'</div>'+
-    '<div class="dre-lucro-pct">Margem Líquida: '+d.margem.toFixed(1)+'%</div>'+
-    (d.pontEquil>0?'<div class="dre-ponto">Ponto de Equilíbrio: '+BRL(d.pontEquil)+'</div>':'')+
-    '<div style="height:3px;background:var(--bg4);border-radius:2px;margin-top:8px"><div style="width:'+Math.min(100,Math.max(0,d.margem))+'%;height:3px;border-radius:2px;background:var(--green)"></div></div>';
+    '<div style="display:flex;align-items:center;gap:6px;margin-bottom:5px"><span style="font-size:14px">📈</span><span style="font-size:12px;font-weight:600;color:var(--green)">Lucro Líquido</span></div>'+
+    '<div class="dre-lucro-val" style="font-size:24px">'+BRL(d.lucLiq)+'</div>'+
+    '<div style="height:3px;background:var(--bg4);border-radius:2px;margin-top:6px"><div style="width:'+Math.min(100,Math.max(0,d.margem))+'%;height:3px;border-radius:2px;background:var(--green)"></div></div>'+
+    '<div class="dre-lucro-pct">Margem '+d.margem.toFixed(1)+'%</div>';
 
-  // SCORE FINANCEIRO
-  const score=(lbl,val,ranges)=>{
+  // SCORE FINANCEIRO — thresholds corrigidos
+  const score=(lbl,val,spec)=>{
     let cls,icon,text;
-    if(val<ranges[0]){cls='critico';icon='🔴';text='Crítico';}
-    else if(val<ranges[1]){cls='atencao';icon='⚠️';text='Atenção';}
-    else if(val<ranges[2]){cls='saudavel';icon='✓';text='Saudável';}
-    else{cls='positivo';icon='✓';text='Positivo';}
+    if(spec==='lucro'){
+      if(val<0){cls='negativo';icon='🔴';text='Negativo';}
+      else{cls='otimo';icon='✓';text='Positivo';}
+    } else {
+      const [t1,t2,t3]=spec;
+      if(val<t1){cls='critico';icon='🔴';text='Crítico';}
+      else if(val<t2){cls='atencao';icon='⚠️';text='Atenção';}
+      else if(val<t3){cls='saudavel';icon='✓';text='Saudável';}
+      else{cls='otimo';icon='✓';text='Ótimo';}
+    }
     return '<div class="score-row"><span class="score-label">'+lbl+'</span><span class="score-badge '+cls+'">'+icon+' '+text+'</span></div>';
   };
   document.getElementById('dreScoreCard').innerHTML=
     '<div class="score-title">🎯 Score Financeiro</div>'+
-    score('Margem Líquida',d.margem,[0,5,15])+
-    score('Margem Bruta',d.margemBruta,[0,30,50])+
-    score('Lucro Líquido',d.lucLiq<0?-1:d.margem,[0,3,8]);
+    score('Margem Líquida',d.margem,[3,6,15])+
+    score('Margem Bruta',d.margemBruta,[10,15,20])+
+    score('Lucro Líquido',d.lucLiq,'lucro');
 }
 
 function renderDREAnual(){
@@ -1450,13 +1579,15 @@ function renderDREAnual(){
   const meses=MESES.map((n,i)=>({n:n.slice(0,3),d:getDREData(i,dreAnualYear)}));
   const linhas=[
     {lbl:'Receita Bruta',fn:d=>d.fat,cls:''},
-    {lbl:'(-) Devoluções',fn:d=>-d.devolucoes,cls:'neg'},
+    {lbl:'(-) Cancelamentos',fn:d=>-d.cancelamentos,cls:'neg'},
     {lbl:'= Receita Líquida',fn:d=>d.recLiq,cls:'bold'},
     {lbl:'(-) CMV',fn:d=>-d.cmv,cls:'neg'},
     {lbl:'= Lucro Bruto',fn:d=>d.lucBruto,cls:'bold'},
-    {lbl:'(-) Tarifas/Comissões',fn:d=>-d.taxasMl,cls:'neg'},
-    {lbl:'(-) Publicidade Ads',fn:d=>-d.ads,cls:'neg'},
-    {lbl:'(-) Custos Fixos',fn:d=>-d.despTotal,cls:'neg'},
+    {lbl:'(-) Taxas Marketplace',fn:d=>-d.taxasMl,cls:'neg'},
+    {lbl:'(-) Frete',fn:d=>-(d.freteVendas||0),cls:'neg'},
+    {lbl:'(-) Publicidade ADS',fn:d=>-d.ads,cls:'neg'},
+    {lbl:'(-) Despesas Fixas',fn:d=>-d.despTotal,cls:'neg'},
+    {lbl:'= Resultado Operacional',fn:d=>d.resultOp,cls:'bold'},
     {lbl:'(-) Impostos',fn:d=>-d.impostos,cls:'neg'},
     {lbl:'= Lucro Líquido',fn:d=>d.lucLiq,cls:'lucro'},
     {lbl:'Margem Líquida %',fn:d=>d.margem,cls:'lucro',pct:true},
@@ -1718,5 +1849,37 @@ openInitialPage();
 document.querySelectorAll('.tw').forEach(makeDraggable);
 // DRE anual drag applied when view switches (handled inside setDreView above)
 </script>
+
+<!-- MODAL GERENCIAR LANÇAMENTOS -->
+<div class="ger-modal-overlay" id="gerModal">
+  <div class="ger-modal">
+    <div class="ger-modal-hdr">
+      <div>
+        <div class="ger-modal-title" id="gerModalTitle">Gerenciar</div>
+        <div class="ger-modal-sub" id="gerModalSub"></div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <button class="ger-modal-add" id="gerModalAddBtn" onclick="openGerAddForm()">
+          <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+          Adicionar
+        </button>
+        <button class="ger-modal-close" onclick="closeGerModal()">×</button>
+      </div>
+    </div>
+    <div class="ger-modal-body">
+      <div class="ger-add-form" id="gerAddForm">
+        <div class="ger-add-row">
+          <input class="ger-add-inp" id="gerAddNome" placeholder="Nome do lançamento" type="text">
+          <input class="ger-add-inp" id="gerAddValor" placeholder="Valor R$" type="number" step="0.01">
+        </div>
+        <div class="ger-add-btns">
+          <button class="ger-cancel-btn" onclick="closeGerAddForm()">Cancelar</button>
+          <button class="ger-save-btn" onclick="saveGerItem()">Salvar</button>
+        </div>
+      </div>
+      <div id="gerModalBody"></div>
+    </div>
+  </div>
+</div>
 </body>
 </html>
