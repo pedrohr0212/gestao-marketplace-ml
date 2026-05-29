@@ -2983,7 +2983,6 @@ if(_initToken){
   setDemoBanner(true,'sem_token');
   renderFaturamento();
 }
-openInitialPage();
 // drag-to-scroll on all .tw elements
 document.querySelectorAll('.tw').forEach(makeDraggable);
 // DRE anual drag applied when view switches (handled inside setDreView above)
@@ -3067,21 +3066,20 @@ function showToast(msg,type='ok'){
   t._timer=setTimeout(()=>t.style.opacity='0',3500);
 }
 
-// STATE
-const _saved=loadState();
-var data=_saved&&_saved.data?_saved.data:JSON.parse(JSON.stringify(DEFAULT_DATA));
+// STATE — declarar vars com defaults, loadState() preenche do localStorage
+var data=JSON.parse(JSON.stringify(DEFAULT_DATA));
+var pedidos=[];
+var historico=[];
+var enviosFull=[];
+var dashFilter='todos',finFilter='todos';
+var leadTime=7;
+var impostoGlobal=6;
+loadState(); // preenche data, pedidos, historico, enviosFull, leadTime, impostoGlobal do localStorage
 // Garantir prazoOverride e prazo inicializados
-data.forEach(p=>{
+data.forEach(function(p){
   if(p.prazoOverride===undefined)p.prazoOverride=null;
   if(p.prazo==null||p.prazo===undefined)p.prazo=leadTime;
 });
-var pedidos=_saved&&_saved.pedidos?_saved.pedidos:[];
-var historico=_saved&&_saved.historico?_saved.historico:[];
-var enviosFull=_saved&&_saved.enviosFull?_saved.enviosFull:[];
-var dashFilter='todos',finFilter='todos';
-var leadTime=7; // dias para reposição (lead time global)
-var impostoGlobal=_saved&&_saved.impostoGlobal!=null?_saved.impostoGlobal:6; // % imposto global
-leadTime=_saved&&_saved.leadTime!=null?_saved.leadTime:7;
 var covChart=null,finFC=null,finSC=null;
 
 // PAGINAÇÃO
