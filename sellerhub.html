@@ -2930,6 +2930,18 @@ function showPage(name,el){
   if(name==='insights'){const prods=data.map(calcProd).sort((a,b)=>PO[a.status]-PO[b.status]);renderInsights(prods);}
   if(name==='editor'){renderEditor();}
   if(name==='marketplaces')initMarketplaces();
+  if(name==='dashboard'){
+    const prods=data.map(calcProd).sort((a,b)=>PO[a.status]-PO[b.status]);
+    renderTopCards(prods);renderDashFilters(prods);renderCovChart(prods,dashFilter);renderDashTop(prods);buildEbd(prods);
+  }
+  if(name==='pedidos'){
+    const prods=data.map(calcProd).sort((a,b)=>PO[a.status]-PO[b.status]);
+    renderOrderCards(prods);
+  }
+  if(name==='projecoes'){
+    const prods=data.map(calcProd).sort((a,b)=>PO[a.status]-PO[b.status]);
+    renderProjGrid(prods);
+  }
 }
 function openInitialPage(){
   const hash=(location.hash||'#faturamento').slice(1);
@@ -3142,7 +3154,7 @@ function renderAll(){saveState();
   renderInsights(prods);
   renderEditor();
   const now=new Date();
-  document.getElementById('lastUpdated').textContent=fmt(now);
+  const luEl=document.getElementById('lastUpdated');if(luEl)luEl.textContent=fmt(now);
   document.getElementById('headerDate').textContent=now.toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'2-digit',year:'numeric'});
 }
 
