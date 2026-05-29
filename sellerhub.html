@@ -2908,41 +2908,6 @@ function openGroupForPage(name){
   var body=grp.querySelector('.nav-group-body');
   if(hdr&&!hdr.classList.contains('open')){hdr.classList.add('open');body.classList.add('open');}
 }
-function showPage(name,el){
-  const page=document.getElementById('page-'+name);
-  if(!page)return;
-  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
-  document.querySelectorAll('.ni').forEach(n=>n.classList.remove('active'));
-  page.classList.add('active');
-  if(el)el.classList.add('active');
-  document.getElementById('pageTitle').textContent=PAGE_TITLES[name]||name;
-  if(location.hash.slice(1)!==name)history.replaceState(null,'','#'+name);
-  openGroupForPage(name);
-  closeSidebar();
-  if(name==='publicidade')renderPublicidade();
-  if(name==='dre'){renderDRE();setDreView('mensal');}
-  // Estoque
-  if(name==='financeiro'){const prods=data.map(calcProd).sort((a,b)=>PO[a.status]-PO[b.status]);renderFinanceiro(prods);}
-  if(name==='cobertura'){const prods=data.map(calcProd).sort((a,b)=>PO[a.status]-PO[b.status]);renderCovTable(prods);renderCovInsights(prods);}
-  if(name==='movimentacao'){renderMovTopCards();renderHM();renderHP();}
-  if(name==='full'){renderFullTopCards();renderHF();}
-  if(name==='relatorios'){renderRelTopCards();initRelDates();}
-  if(name==='insights'){const prods=data.map(calcProd).sort((a,b)=>PO[a.status]-PO[b.status]);renderInsights(prods);}
-  if(name==='editor'){renderEditor();}
-  if(name==='marketplaces')initMarketplaces();
-  if(name==='dashboard'){
-    const prods=data.map(calcProd).sort((a,b)=>PO[a.status]-PO[b.status]);
-    renderTopCards(prods);renderDashFilters(prods);renderCovChart(prods,dashFilter);renderDashTop(prods);buildEbd(prods);
-  }
-  if(name==='pedidos'){
-    const prods=data.map(calcProd).sort((a,b)=>PO[a.status]-PO[b.status]);
-    renderOrderCards(prods);
-  }
-  if(name==='projecoes'){
-    const prods=data.map(calcProd).sort((a,b)=>PO[a.status]-PO[b.status]);
-    renderProjGrid(prods);
-  }
-}
 function openInitialPage(){
   const hash=(location.hash||'#faturamento').slice(1);
   const target=[...document.querySelectorAll('.ni')].find(n=>(n.getAttribute('onclick')||'').includes("showPage('"+hash+"'"));
@@ -3023,8 +2988,49 @@ function loadState(){
 
 /* ── ESTOQUE ──────────────────────────────────────────────── */
 
+function showPage(name,el){
+  var page=document.getElementById('page-'+name);
+  if(!page)return;
+  document.querySelectorAll('.page').forEach(function(p){p.classList.remove('active');});
+  document.querySelectorAll('.ni').forEach(function(n){n.classList.remove('active');});
+  page.classList.add('active');
+  if(el)el.classList.add('active');
+  var titleEl=document.getElementById('pageTitle');
+  if(titleEl)titleEl.textContent=PAGE_TITLES[name]||name;
+  if(location.hash.slice(1)!==name)history.replaceState(null,'','#'+name);
+  closeSidebar();
+  if(name==='publicidade')renderPublicidade();
+  if(name==='dre'){renderDRE();setDreView('mensal');}
+  if(name==='movimentacao'){renderMovTopCards();renderHM();renderHP();}
+  if(name==='full'){renderFullTopCards();renderHF();}
+  if(name==='relatorios'){renderRelTopCards();initRelDates();}
+  if(name==='financeiro'||name==='cobertura'||name==='insights'){
+    var prods=data.map(calcProd).sort(function(a,b){return PO[a.status]-PO[b.status];});
+    if(name==='financeiro')renderFinanceiro(prods);
+    if(name==='cobertura'){renderCovTable(prods);renderCovInsights(prods);}
+    if(name==='insights')renderInsights(prods);
+  }
+  if(name==='editor')renderEditor();
+  if(name==='dashboard'){
+    var prods=data.map(calcProd).sort(function(a,b){return PO[a.status]-PO[b.status];});
+    renderTopCards(prods);renderDashFilters(prods);renderCovChart(prods,dashFilter);renderDashTop(prods);buildEbd(prods);
+  }
+  if(name==='pedidos'){
+    var prods=data.map(calcProd).sort(function(a,b){return PO[a.status]-PO[b.status];});
+    renderOrderCards(prods);
+  }
+  if(name==='projecoes'){
+    var prods=data.map(calcProd).sort(function(a,b){return PO[a.status]-PO[b.status];});
+    renderProjGrid(prods);
+  }
+  if(name==='marketplaces')initMarketplaces();
+}
 
-const DEFAULT_DATA=[
+
+/* ── ESTOQUE ── */
+
+
+var DEFAULT_DATA=[
   {sku:'MLK-001',nome:'Porta Talher c/ Tampa',cat:'Catálogo Genérico',forn:'Keita',custo:18.50,precoVenda:59.90,comissao:14,taxaPlat:5.00,taxaFrete:0,estFisico:0,estTransf:0,estFull:0,v7:30,v30:null,vd:4,prazo:7,prazoOverride:null},
   {sku:'MLK-002',nome:'Porta Pão Transparente',cat:'Anúncio Novo',forn:'Keita',custo:24.00,precoVenda:79.90,comissao:14,taxaPlat:5.00,taxaFrete:0,estFisico:10,estTransf:0,estFull:10,v7:30,v30:null,vd:4,prazo:7},
   {sku:'MLB-003',nome:'Kit 2 Fita Mágica 3M',cat:'',forn:'Balato Balato',custo:9.80,precoVenda:34.90,comissao:14,taxaPlat:5.00,taxaFrete:0,estFisico:20,estTransf:0,estFull:18,v7:37,v30:100,vd:5,prazo:1},
@@ -3041,7 +3047,39 @@ const DEFAULT_DATA=[
 ];
 
 // ── PERSISTÊNCIA LOCAL ───────────────────────────────────────
-const STORE_KEY='estoqueML_v1';
+var STORE_KEY='estoqueML_v1';
+
+function saveState(){
+  try{
+    localStorage.setItem(STORE_KEY,JSON.stringify({data,pedidos,historico,enviosFull,impostoGlobal,leadTime}));
+    const ind=document.getElementById('saveIndicator');
+    if(ind){ind.textContent='● Salvo';ind.style.color='var(--green)';clearTimeout(ind._t);ind._t=setTimeout(()=>{ind.textContent='● Dados salvos localmente';},2000);}
+  }catch(e){
+    console.warn('localStorage cheio ou indisponível:',e);
+    const ind=document.getElementById('saveIndicator');
+    if(ind){ind.textContent='⚠ Erro ao salvar';ind.style.color='var(--red)';}
+  }
+}
+
+function loadState(){
+  try{
+    const raw=localStorage.getItem(STORE_KEY);
+    if(!raw)return null;
+    const parsed=JSON.parse(raw);
+    // Restaurar datas que viram string no JSON
+    if(parsed.pedidos){
+      parsed.pedidos.forEach(p=>{
+        if(p.entrega)p.entrega=new Date(p.entrega);
+      });
+    }
+    if(parsed.enviosFull){
+      parsed.enviosFull.forEach(e=>{
+        if(e.coleta)e.coleta=new Date(e.coleta);
+      });
+    }
+    return parsed;
+  }catch(e){console.warn('Erro ao carregar estado:',e);return null;}
+}
 
 function clearState(){
   if(confirm('Tem certeza? Isso apagará TODOS os dados salvos (produtos, histórico, pedidos, envios) e restaurará os dados de exemplo.')){
@@ -3066,24 +3104,25 @@ function showToast(msg,type='ok'){
   t._timer=setTimeout(()=>t.style.opacity='0',3500);
 }
 
-// STATE — declarar vars com defaults, loadState() preenche do localStorage
-var data=JSON.parse(JSON.stringify(DEFAULT_DATA));
-var pedidos=[];
-var historico=[];
-var enviosFull=[];
-var dashFilter='todos',finFilter='todos';
-var leadTime=7;
-var impostoGlobal=6;
-loadState(); // preenche data, pedidos, historico, enviosFull, leadTime, impostoGlobal do localStorage
+// STATE
+var _saved=loadState();
+var data=_saved&&_saved.data?_saved.data:JSON.parse(JSON.stringify(DEFAULT_DATA));
 // Garantir prazoOverride e prazo inicializados
-data.forEach(function(p){
+data.forEach(p=>{
   if(p.prazoOverride===undefined)p.prazoOverride=null;
   if(p.prazo==null||p.prazo===undefined)p.prazo=leadTime;
 });
+var pedidos=_saved&&_saved.pedidos?_saved.pedidos:[];
+var historico=_saved&&_saved.historico?_saved.historico:[];
+var enviosFull=_saved&&_saved.enviosFull?_saved.enviosFull:[];
+var dashFilter='todos',finFilter='todos';
+var leadTime=7; // dias para reposição (lead time global)
+var impostoGlobal=_saved&&_saved.impostoGlobal!=null?_saved.impostoGlobal:6; // % imposto global
+leadTime=_saved&&_saved.leadTime!=null?_saved.leadTime:7;
 var covChart=null,finFC=null,finSC=null;
 
 // PAGINAÇÃO
-const PPG=20;
+var PPG=20;
 var hpPage=1,hpFiltro='all';
 var hmPage=1,hmFiltro='all';
 var hfPage=1,hfFiltro='all';
@@ -3124,7 +3163,9 @@ function calcProd(p){
     pedido30:Math.max(0,Math.round(vdEf*30)-est)};
 }
 
-const sCols={ruptura:'var(--red)',urgente:'var(--red)',critico:'var(--amber)',atencao:'#d97706',ok:'var(--green)'};
+var SL={ruptura:'Em ruptura',urgente:'Urgente',critico:'Crítico',atencao:'Atenção',ok:'Saudável'};
+var PO={ruptura:0,urgente:1,critico:2,atencao:3,ok:4};
+var sCols={ruptura:'var(--red)',urgente:'var(--red)',critico:'var(--amber)',atencao:'#d97706',ok:'var(--green)'};
 
 // ── RENDER ALL ────────────────────────────────────────────────
 function calcMargem(p){
@@ -3152,7 +3193,7 @@ function renderAll(){saveState();
   renderInsights(prods);
   renderEditor();
   const now=new Date();
-  const luEl=document.getElementById('lastUpdated');if(luEl)luEl.textContent=fmt(now);
+  document.getElementById('lastUpdated').textContent=fmt(now);
   document.getElementById('headerDate').textContent=now.toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'2-digit',year:'numeric'});
 }
 
@@ -3349,7 +3390,7 @@ function renderCovTable(prods){
     const dCor=p.diasRup<=7?'var(--red)':p.diasRup<=14?'var(--amber)':p.diasRup<=30?'#d97706':'var(--green)';
     const alertaSeg=p.estBase<estSeg;
     return '<tr>'+
-      '<td style="font-family:var(--mono);color:var(--accent2);font-size:11px;white-space:nowrap;text-align:center">'+p.sku+'</td>'+
+      '<td style="font-family:var(--mono);color:var(--accent2);font-size:11px">'+p.sku+'</td>'+
       '<td style="color:var(--text);font-weight:500;font-size:12px">'+p.nome+'</td>'+
       '<td style="text-align:right;font-family:var(--mono)">'+p.estFisico+'</td>'+
       '<td style="text-align:right;font-family:var(--mono);color:'+(p.estTransf>0?'var(--amber)':'var(--text2)')+'">'+p.estTransf+'</td>'+
@@ -3920,26 +3961,7 @@ window.addEventListener('resize',function(){
   }
 });
 
-
-// ── NAV GROUPS ────────────────────────────────────────────
-// Restaurar grupos abertos do localStorage
-(function(){
-  try{
-    const saved=JSON.parse(localStorage.getItem('nav_groups')||'{}');
-    Object.keys(saved).forEach(function(k){
-      if(saved[k]){
-        const grp=document.getElementById('grp-'+k);
-        if(grp){
-          grp.querySelector('.nav-group-hdr').classList.add('open');
-          grp.querySelector('.nav-group-body').classList.add('open');
-        }
-      }
-    });
-  }catch(e){}
-})();
-
-;
-window.addEventListener('hashchange',openInitialPage);
+// goModule e openInitialPage gerenciados pelo módulo vendas
 
 // ── RELATÓRIOS ───────────────────────────────────────────────
 function initRelDates(){
@@ -3992,7 +4014,7 @@ function gerarXlsx(){
     const ws=XLSX.utils.aoa_to_sheet(rows);
     // Column widths
     ws['!cols']=[{wch:10},{wch:30},{wch:16},{wch:14},{wch:14},{wch:12},{wch:10},{wch:10},{wch:10},{wch:10},{wch:14},{wch:9},{wch:9},{wch:14},{wch:12}];
-    XLSX.utils.book_append_sheet(wb,ws,'Gestão de Estoque');
+    XLSX.utils.book_append_sheet(wb,ws,'Financeiro');
   }
 
   // ABA 2: MOVIMENTAÇÕES
@@ -4040,27 +4062,6 @@ function gerarXlsx(){
     const ws=XLSX.utils.aoa_to_sheet(rows);
     ws['!cols']=[{wch:16},{wch:12},{wch:8},{wch:20},{wch:40},{wch:10},{wch:12},{wch:28}];
     XLSX.utils.book_append_sheet(wb,ws,'Envios Full');
-  }
-  if(document.getElementById('chkCov')&&document.getElementById('chkCov').checked){
-    const prods=data.map(calcProd).sort((a,b)=>PO[a.status]-PO[b.status]);
-    const rows=[['SKU','Produto','Físico','Transf.','Full ML','A Chegar','Total','Custo Unit.','Capital Total','Vendas 30d','Média/dia','Proj. 45d','Est. Segurança (lead time)','Dias Ruptura','Ruptura em','Comprar até','Status']];
-    prods.forEach(p=>{
-      const estSeg=Math.round(p.vdEf*p.ltEf);
-      const proj45=Math.round(p.vdEf*45);
-      const v30=p.v30||Math.round(p.vdEf*30);
-      rows.push([
-        p.sku||'',p.nome,
-        p.estFisico||0,p.estTransf||0,p.estFull||0,p.estPed||0,p.est,
-        +(p.custo||0).toFixed(2),+p.valorTotal.toFixed(2),
-        v30,(p.vdEf>0&&p.vdEf<1?1:Math.round(p.vdEf)),proj45,estSeg,
-        p.diasRup>=999?'90+':p.diasRup,
-        p.diasRup>=999?'—':p.dataRup.toLocaleDateString('pt-BR'),
-        p.diasRup>=999?'—':p.dataComp.toLocaleDateString('pt-BR'),
-        SL[p.status]
-      ]);
-    });
-    const ws=XLSX.utils.aoa_to_sheet(rows);
-    XLSX.utils.book_append_sheet(wb,ws,'Cobertura');
   }
 
   if(!wb.SheetNames.length){alert('Selecione ao menos uma aba para exportar.');prog.style.display='none';return;}
@@ -4272,7 +4273,7 @@ function renderRelTopCards(){
 
 // ── INIT ──────────────────────────────────────────────────────
 // Set default date for full form to today
-const td=new Date();
+var td=new Date();
 document.getElementById('fData').value=td.toISOString().split('T')[0];
 renderAll();
 renderMovTopCards();
@@ -4280,20 +4281,41 @@ renderFullTopCards();
 openInitialPage();
 
 // ── DRAG TO SCROLL (tabelas) ──────────────────────────────
+function makeDraggable(el){
+  if(!el||el._drag)return;
+  el._drag=true;
+  let isDown=false,startX,startY,scrollLeft,scrollTop;
+  const start=e=>{
+    isDown=true;
+    el.classList.add('dragging');
+    const pt=e.touches?e.touches[0]:e;
+    startX=pt.pageX-el.offsetLeft;
+    startY=pt.pageY-el.offsetTop;
+    scrollLeft=el.scrollLeft;
+    scrollTop=el.scrollTop;
+  };
+  const stop=()=>{isDown=false;el.classList.remove('dragging');};
+  const move=e=>{
+    if(!isDown)return;
+    e.preventDefault();
+    const pt=e.touches?e.touches[0]:e;
+    el.scrollLeft=scrollLeft-(pt.pageX-el.offsetLeft-startX);
+    el.scrollTop=scrollTop-(pt.pageY-el.offsetTop-startY);
+  };
+  el.addEventListener('mousedown',start);
+  el.addEventListener('touchstart',start,{passive:false});
+  el.addEventListener('mouseleave',stop);
+  el.addEventListener('mouseup',stop);
+  el.addEventListener('touchend',stop);
+  el.addEventListener('mousemove',move);
+  el.addEventListener('touchmove',move,{passive:false});
+}
+
 function initDragScrollAll(){
   document.querySelectorAll('.tw').forEach(makeDraggable);
   document.querySelectorAll('.etw').forEach(makeDraggable);
 }
 // ── SIDEBAR COLLAPSE ────────────────────────────────────────
-(function(){
-  try{
-    if(localStorage.getItem('sb_v_col')==='1'){
-      document.getElementById('sidebar').classList.add('collapsed');
-      const btn=document.getElementById('sbColBtn');
-      if(btn)btn.title='Expandir menu';
-    }
-  }catch(e){}
-})();
 // ── TOOLTIP positioning ─────────────────────────────────────
 document.addEventListener('DOMContentLoaded',function(){
   initDragScrollAll();
@@ -4312,38 +4334,6 @@ document.addEventListener('DOMContentLoaded',function(){
 });
 // ── THEME TOGGLE ─────────────────────────────────────────────
 var _isDark=true;
-(function(){
-  try{
-    var t=localStorage.getItem('sb_v_theme');
-    if(t==='light'){_isDark=false;document.body.classList.add('light');}
-  }catch(e){}
-  setThemeIcon();
-})();
-
-
-// ── INIT UNIFICADO ────────────────────────────────────────────
-(function(){
-  try{
-    if(localStorage.getItem('sb_v_col')==='1'){
-      document.getElementById('sidebar').classList.add('collapsed');
-    }
-  }catch(e){}
-  try{
-    if(localStorage.getItem('sb_v_theme')==='light'){
-      document.body.classList.add('light');
-    }
-  }catch(e){}
-  setThemeIcon();
-
-  // Inicializar lead time input
-  const ltInput=document.getElementById('leadTimeInput');
-  if(ltInput){ltInput.value=leadTime;const hint=document.getElementById('leadHint');if(hint)hint.textContent='Estoque segurança = média/dia × '+leadTime+'d';}
-
-  loadState();
-  renderAll();
-  initDragScrollAll();
-  openInitialPage();
-})();
 </script>
 </body>
 </html>
