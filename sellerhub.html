@@ -3193,7 +3193,7 @@ function renderAll(){saveState();
   renderInsights(prods);
   renderEditor();
   const now=new Date();
-  document.getElementById('lastUpdated').textContent=fmt(now);
+  var _lu=document.getElementById('lastUpdated');if(_lu)_lu.textContent=fmt(now);
   document.getElementById('headerDate').textContent=now.toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'2-digit',year:'numeric'});
 }
 
