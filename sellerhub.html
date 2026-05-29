@@ -1150,7 +1150,7 @@ tbody tr:hover td{background:var(--bg3)}
 </aside>
 
 <main class="main">
-<div class="hdr"><div><div class="hdr-kicker"><span class="status-dot"></span>Workspace VPATACADISTA · Plano Pro</div><div class="hdr-title" id="pageTitle">Faturamento</div><div class="hdr-sub">Mercado Livre · Vendas, anúncios e resultado financeiro</div></div><div class="hdr-actions"><a class="quick-link" href="#pedidos" onclick="showPage('pedidos',null);return false;">Pedidos urgentes</a><a class="quick-link" href="#dashboard" onclick="showPage('dashboard',null);return false;">Abrir estoque</a><div class="theme-btn" id="themeBtn" onclick="toggleTheme()" title="Alternar tema"></div></div></div>
+<div class="hdr"><div><div class="hdr-kicker"><span class="status-dot"></span>Workspace VPATACADISTA · Plano Pro</div><div class="hdr-title" id="pageTitle">Faturamento</div><div class="hdr-sub" id="pageSubtitle">Mercado Livre · Vendas, anúncios e resultado financeiro</div></div><div class="hdr-actions"><a class="quick-link" href="#pedidos" onclick="showPage('pedidos',null);return false;">Pedidos urgentes</a><a class="quick-link" href="#dashboard" onclick="showPage('dashboard',null);return false;">Abrir estoque</a><div class="theme-btn" id="themeBtn" onclick="toggleTheme()" title="Alternar tema"></div></div></div>
 
 <!-- FATURAMENTO -->
 
@@ -2861,7 +2861,25 @@ function reconectarML(){
   window.location.href=BASE_API+'/auth/login';
 }
 
-const PAGE_TITLES={faturamento:'Faturamento',publicidade:'Publicidade',dre:'DRE — Demonstração do Resultado',marketplaces:'Marketplaces'};
+const PAGE_TITLES={
+  faturamento:'Faturamento',
+  publicidade:'Publicidade',
+  dre:'DRE — Demonstração do Resultado',
+  marketplaces:'Marketplaces',
+  pagamentos:'Pagamentos',
+  dashboard:'Gestão de Estoque',
+  financeiro:'Financeiro',
+  movimentacao:'Movimentação',
+  full:'Envios Full',
+  pedidos:'Pedidos Urgentes',
+  cobertura:'Cobertura',
+  projecoes:'Projeções',
+  insights:'Insights',
+  relatorios:'Relatórios',
+  editor:'Editar Dados',
+  integrações:'Integrações de Lojas',
+  'integrações-de-lojas':'Integrações de Lojas'
+};
 
 // ── NAV GROUPS ────────────────────────────────────────────
 function toggleGroup(key){
@@ -2985,6 +3003,8 @@ function showPage(name,el){
   if(el)el.classList.add('active');
   var titleEl=document.getElementById('pageTitle');
   if(titleEl)titleEl.textContent=PAGE_TITLES[name]||name;
+  var subEl=document.getElementById('pageSubtitle');
+  if(subEl&&PAGE_SUBS[name])subEl.textContent=PAGE_SUBS[name];
   if(location.hash.slice(1)!==name)history.replaceState(null,'','#'+name);
   closeSidebar();
   if(name==='publicidade')renderPublicidade();
@@ -3182,7 +3202,7 @@ function renderAll(){saveState();
   renderEditor();
   const now=new Date();
   var _lu=document.getElementById('lastUpdated');if(_lu)_lu.textContent=fmt(now);
-  document.getElementById('headerDate').textContent=now.toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'2-digit',year:'numeric'});
+  var _hd=document.getElementById('headerDate');if(_hd)_hd.textContent=now.toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'2-digit',year:'numeric'});
 }
 
 function renderTopCards(prods){
