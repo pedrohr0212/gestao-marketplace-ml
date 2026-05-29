@@ -3069,26 +3069,26 @@ function showToast(msg,type='ok'){
 
 // STATE
 const _saved=loadState();
-let data=_saved&&_saved.data?_saved.data:JSON.parse(JSON.stringify(DEFAULT_DATA));
+var data=_saved&&_saved.data?_saved.data:JSON.parse(JSON.stringify(DEFAULT_DATA));
 // Garantir prazoOverride e prazo inicializados
 data.forEach(p=>{
   if(p.prazoOverride===undefined)p.prazoOverride=null;
   if(p.prazo==null||p.prazo===undefined)p.prazo=leadTime;
 });
-let pedidos=_saved&&_saved.pedidos?_saved.pedidos:[];
-let historico=_saved&&_saved.historico?_saved.historico:[];
-let enviosFull=_saved&&_saved.enviosFull?_saved.enviosFull:[];
-let dashFilter='todos',finFilter='todos';
-let leadTime=7; // dias para reposição (lead time global)
-let impostoGlobal=_saved&&_saved.impostoGlobal!=null?_saved.impostoGlobal:6; // % imposto global
+var pedidos=_saved&&_saved.pedidos?_saved.pedidos:[];
+var historico=_saved&&_saved.historico?_saved.historico:[];
+var enviosFull=_saved&&_saved.enviosFull?_saved.enviosFull:[];
+var dashFilter='todos',finFilter='todos';
+var leadTime=7; // dias para reposição (lead time global)
+var impostoGlobal=_saved&&_saved.impostoGlobal!=null?_saved.impostoGlobal:6; // % imposto global
 leadTime=_saved&&_saved.leadTime!=null?_saved.leadTime:7;
-let covChart=null,finFC=null,finSC=null;
+var covChart=null,finFC=null,finSC=null;
 
 // PAGINAÇÃO
 const PPG=20;
-let hpPage=1,hpFiltro='all';
-let hmPage=1,hmFiltro='all';
-let hfPage=1,hfFiltro='all';
+var hpPage=1,hpFiltro='all';
+var hmPage=1,hmFiltro='all';
+var hfPage=1,hfFiltro='all';
 
 // ── CALC ──────────────────────────────────────────────────────
 function getPedPend(sku){
@@ -3501,7 +3501,7 @@ function clearProductLeadTime(i){
 }
 
 // ── SEARCH DROPDOWN (shared) ──────────────────────────────────
-let _selIdx={ped:null,mov:null,full:null};
+var _selIdx={ped:null,mov:null,full:null};
 
 function fSearch(q,dropId,ctx){
   const drop=document.getElementById(dropId);
@@ -3550,8 +3550,8 @@ function selProd(idx,ctx){
 }
 
 // ── MOVIMENTAÇÃO ──────────────────────────────────────────────
-let movTipo='entrada';
-let movEst='fisico';
+var movTipo='entrada';
+var movEst='fisico';
 
 function switchST(tab){
   document.getElementById('stPed').className='stab'+(tab==='ped'?' active':'');
@@ -3678,7 +3678,7 @@ function renderMovTopCards(){
 }
 
 // ── PEDIDOS AO FORNECEDOR ─────────────────────────────────────
-let pItems=[];  // itens do pedido atual
+var pItems=[];  // itens do pedido atual
 
 function addItemPed(){
   if(_selIdx.ped===null){alert('Selecione um produto primeiro');return;}
@@ -3776,7 +3776,7 @@ function renderHP(){
 function goHPPage(p){hpPage=p;renderHP();}
 
 // ── ENVIOS FULL ────────────────────────────────────────────────
-let fItems=[];  // itens do envio atual
+var fItems=[];  // itens do envio atual
 
 function addItemFull(){
   if(_selIdx.full===null){alert('Selecione um produto primeiro');return;}
