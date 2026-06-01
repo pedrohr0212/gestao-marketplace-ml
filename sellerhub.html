@@ -2340,7 +2340,7 @@ function getDREData(m,y){
     taxasMl,freteVendas,adsMeli,shopeeAds,tiktokAds,pubTotal,
     tarifaMinhaPagina,tarifasExtra,outrasDespTotal,
     desp_estrutura,salarioPedro,salarioFreelancer,desp_pessoal,desp_admin,
-    resultOp,impostos,mc,mcPct,lucLiq,margem
+    resultOp,financeiroExtra,financeiroItems,resultFin,impostos,mc,mcPct,lucLiq,margem
   };
 }
 
@@ -2584,13 +2584,14 @@ function renderDRE(){
 
   let rh='<div class="dre-rp-title">📊 Resultados<span style="font-size:10px;color:var(--text3);font-weight:400;margin-left:6px">'+MESES[dreMonth]+' de '+dreYear+'</span></div>';
 
+  // ── RECEITAS
   rh+=sec('RECEITAS');
   rh+=rp('Receita Bruta',d.fat,'pos');
-  if(d.receitasExtra>0)rh+=rp('(+) Outras Receitas',d.receitasExtra,'pos',d.fat);
   if(d.cancelamentos>0)rh+=rp('(-) Cancelamentos',d.cancelamentos,'neg',d.fat);
   if(d.devolucoes>0)rh+=rp('(-) Devoluções',d.devolucoes,'neg',d.fat);
   rh+=div;rh+=rp('= Receita Líquida',d.recLiq,'pos',null,true);
 
+  // ── CUSTOS OPERACIONAIS
   rh+=sec('CUSTOS OPERACIONAIS');
   rh+=rp('(-) CMV',d.cmv,'neg',d.recLiq);
   rh+=rp('(-) Taxas do Marketplace',d.taxasMl,'neg',d.recLiq);
@@ -2598,21 +2599,35 @@ function renderDRE(){
   rh+=div;rh+=rp('= Lucro Bruto',d.lucBruto,d.lucBruto>=0?'pos':'neg',null,true);
   rh+=bar(d.lucBruto,d.recLiq,'var(--green)');
 
+  // ── DESPESAS OPERACIONAIS
   rh+=sec('DESPESAS OPERACIONAIS');
   rh+=rp('(-) Publicidade ADS',d.pubTotal,'neg',d.fat);
-  if(d.embalagem>0)rh+=rp('(-) Embalagem',d.embalagem,'neg',d.fat);
   if(d.outrasDespTotal>0){
     rh+=rp('(-) Outras Despesas',d.outrasDespTotal,'neg',d.fat);
     if(d.tarifaMinhaPagina>0)rh+=rp('↳ Tarifa Minha Página',d.tarifaMinhaPagina,'neg',null,false,true);
     (l.tarifasExtra||[]).filter(t=>+t.valor>0).forEach(t=>{rh+=rp('↳ '+t.nome,+t.valor,'neg',null,false,true);});
   }
+  if(d.embalagem>0)rh+=rp('(-) Embalagem',d.embalagem,'neg',d.fat);
   if(d.desp_estrutura>0)rh+=rp('(-) Estrutura e Operacional',d.desp_estrutura,'neg',d.fat);
   if(d.desp_pessoal>0)rh+=rp('(-) Salários',d.desp_pessoal,'neg',d.fat);
   if(d.desp_admin>0)rh+=rp('(-) Administrativo e Serviços',d.desp_admin,'neg',d.fat);
   rh+=div;rh+=rp('= Resultado Operacional',d.resultOp,d.resultOp>=0?'pos':'neg',null,true);
   rh+=bar(d.resultOp,d.fat,'var(--teal)');
 
-  rh+=sec('RESULTADO FINAL');
+  // ── RECEITAS / DESPESAS FINANCEIRAS
+  rh+=sec('RECEITAS / DESPESAS FINANCEIRAS');
+  if(d.financeiroItems&&d.financeiroItems.length>0){
+    d.financeiroItems.forEach(function(t){
+      var v=+t.valor||0;
+      rh+=rp((v>=0?'(+) ':'(-) ')+t.nome,Math.abs(v),v>=0?'pos':'neg',d.fat);
+    });
+  }else{
+    rh+='<div style="font-size:11px;color:var(--text3);padding:4px 0">Nenhum lançamento financeiro.</div>';
+  }
+  rh+=div;rh+=rp('= Resultado Financeiro',d.resultFin,d.resultFin>=0?'pos':'neg',null,true);
+  rh+=bar(d.resultFin,d.fat,'var(--blue)');
+
+  // ── IMPOSTOS E LUCRO LÍQUIDO
   rh+=rp('(-) Impostos',d.impostos,'neg',d.fat);
   document.getElementById('dreResultPanel').innerHTML=rh;
 
