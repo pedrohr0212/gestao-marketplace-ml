@@ -2323,6 +2323,9 @@ function getDREData(m,y){
     +(l.adminExtra||[]).reduce((s,t)=>s+(+t.valor||0),0);
 
   const resultOp=lucBruto-taxasMl-freteVendas-pubTotal-outrasDespTotal-desp_estrutura-desp_pessoal-desp_admin;
+    const financeiroItems=(l.financeiroExtra||[]);
+    const financeiroExtra=financeiroItems.reduce((s,t)=>s+(+t.valor||0),0);
+    const resultFin=resultOp+financeiroExtra;
 
   // ── Impostos (valor fixo manual)
   const impostos=+(l.impostos||0);
@@ -2331,7 +2334,7 @@ function getDREData(m,y){
   const mc=lucBruto-taxasMl-freteVendas-impostos;
   const mcPct=recLiq>0?mc/recLiq*100:0;
 
-  const lucLiq=resultOp-impostos;
+  const lucLiq=resultFin-impostos;
   const margem=fat>0?lucLiq/fat*100:0;
 
   return{
