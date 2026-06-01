@@ -2524,14 +2524,14 @@ function renderDRE(){
 
   // ── ESTRUTURA E OPERACIONAL
   html+=section('🏢','var(--purple)','Estrutura e Operacional',
-    fld('Embalagem',editInp('embalagem',l.embalagem))
-    +fld('Aluguel',editInp('aluguel',l.aluguel))
+    fld('Aluguel',editInp('aluguel',l.aluguel))
     +fld('Energia Elétrica',editInp('energia',l.energia))
     +fld('Água',editInp('agua',l.agua))
     +fld('Internet',editInp('internet',l.internet))
     +fld('Telefonia',editInp('telefonia',l.telefonia))
-    +fld('Frete Coleta',editInp('freteColeta',l.freteColeta))
-    +fld('Frete Coleta Full',editInp('freteColetaFull',l.freteColetaFull)),
+    +fld('Embalagem',editInp('embalagem',l.embalagem))
+    +fld('Frete - Coletas Particulares',editInp('freteColeta',l.freteColeta))
+    +fld('Frete - Coletas Full',editInp('freteColetaFull',l.freteColetaFull)),
     'estruturaExtra','Adicionar despesa');
 
   // ── PESSOAL
@@ -2595,12 +2595,12 @@ function renderDRE(){
   rh+=rp('(-) CMV',d.cmv,'neg',d.recLiq);
   rh+=rp('(-) Taxas do Marketplace',d.taxasMl,'neg',d.recLiq);
   rh+=rp('(-) Frete de Vendas',d.freteVendas,'neg',d.recLiq);
-  if(d.embalagem>0)rh+=rp('(-) Embalagem',d.embalagem,'neg',d.recLiq);
   rh+=div;rh+=rp('= Lucro Bruto',d.lucBruto,d.lucBruto>=0?'pos':'neg',null,true);
   rh+=bar(d.lucBruto,d.recLiq,'var(--green)');
 
   rh+=sec('DESPESAS OPERACIONAIS');
   rh+=rp('(-) Publicidade ADS',d.pubTotal,'neg',d.fat);
+  if(d.embalagem>0)rh+=rp('(-) Embalagem',d.embalagem,'neg',d.fat);
   if(d.outrasDespTotal>0){
     rh+=rp('(-) Outras Despesas',d.outrasDespTotal,'neg',d.fat);
     if(d.tarifaMinhaPagina>0)rh+=rp('↳ Tarifa Minha Página',d.tarifaMinhaPagina,'neg',null,false,true);
