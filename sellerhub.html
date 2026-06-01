@@ -2323,9 +2323,6 @@ function getDREData(m,y){
     +(l.adminExtra||[]).reduce((s,t)=>s+(+t.valor||0),0);
 
   const resultOp=lucBruto-taxasMl-freteVendas-pubTotal-outrasDespTotal-desp_estrutura-desp_pessoal-desp_admin;
-    const financeiroItems=(l.financeiroExtra||[]);
-    const financeiroExtra=financeiroItems.reduce((s,t)=>s+(+t.valor||0),0);
-    const resultFin=resultOp+financeiroExtra;
 
   // ── Impostos (valor fixo manual)
   const impostos=+(l.impostos||0);
@@ -2334,7 +2331,7 @@ function getDREData(m,y){
   const mc=lucBruto-taxasMl-freteVendas-impostos;
   const mcPct=recLiq>0?mc/recLiq*100:0;
 
-  const lucLiq=resultFin-impostos;
+  const lucLiq=resultOp-impostos;
   const margem=fat>0?lucLiq/fat*100:0;
 
   return{
@@ -2507,7 +2504,7 @@ function renderDRE(){
   html+=section('🟢','var(--green)','Receitas',
     fld('Faturamento Bruto',apiInp(l.fat,'Faturamento bruto — API Marketplace'),true)
     +fld('(-) Cancelamentos',apiInp(l.cancelamentos,'Cancelamentos — API Marketplace'),true)
-    +fld('(-) Devoluções',editInp('devolucoes',l.devolucoes)),
+    +fld('(-) Devoluções',apiInp(l.devolucoes,'Devoluções — API Marketplace'),true),
     'receitasExtra','Adicionar receita');
 
   // ── CUSTO DOS PRODUTOS
@@ -2564,7 +2561,7 @@ function renderDRE(){
     +'<div class="lanc-field-block"><div class="lanc-field-lbl">Valor dos Impostos</div>'
     +'<input class="lanc-field-inp" type="number" step="0.01" value="'+(+(l.impostos||0))+'" onchange="ensureLanc();lancamentos[lancKey()].impostos=+this.value;saveLanc();renderDRE()"></div>'
     +'<div class="lanc-field-block"><div class="lanc-field-lbl">% sobre Faturamento Bruto</div>'
-    +'<div style="font-family:var(--mono);font-size:18px;font-weight:600;color:var(--red);padding:6px 0">'+(d.fat>0?((+(l.impostos||0))/d.fat*100).toFixed(1):'0.0')+'%</div></div>'
+    +'<div style="font-family:var(--mono);font-size:18px;font-weight:600;color:var(--red);padding:6px 0">'+(d.recLiq>0?((+(l.impostos||0))/d.recLiq*100).toFixed(1):(d.fat>0?((+(l.impostos||0))/d.fat*100).toFixed(1):'0.0'))+'%</div></div>'
     +'</div></div>';
 
   document.getElementById('dreLancamentos').innerHTML=html;
@@ -2590,6 +2587,7 @@ function renderDRE(){
   // ── RECEITAS
   rh+=sec('RECEITAS');
   rh+=rp('Receita Bruta',d.fat,'pos');
+  if(d.receitasExtra>0)rh+=rp('(+) Outras Receitas',d.receitasExtra,'pos',d.fat);
   if(d.cancelamentos>0)rh+=rp('(-) Cancelamentos',d.cancelamentos,'neg',d.fat);
   if(d.devolucoes>0)rh+=rp('(-) Devoluções',d.devolucoes,'neg',d.fat);
   rh+=div;rh+=rp('= Receita Líquida',d.recLiq,'pos',null,true);
@@ -2614,7 +2612,7 @@ function renderDRE(){
   if(d.desp_estrutura>0)rh+=rp('(-) Estrutura e Operacional',d.desp_estrutura,'neg',d.fat);
   if(d.desp_pessoal>0)rh+=rp('(-) Salários',d.desp_pessoal,'neg',d.fat);
   if(d.desp_admin>0)rh+=rp('(-) Administrativo e Serviços',d.desp_admin,'neg',d.fat);
-  rh+=div;rh+=rp('= Resultado Operacional',d.resultOp,d.resultOp>=0?'pos':'neg',null,true);
+  rh+=div;rh+=rp('= Resultado Operacional',d.resultOp,d.resultOp>=0?'pos':'neg',d.fat,true);
   rh+=bar(d.resultOp,d.fat,'var(--teal)');
 
   // ── RECEITAS / DESPESAS FINANCEIRAS
@@ -2627,11 +2625,11 @@ function renderDRE(){
   }else{
     rh+='<div style="font-size:11px;color:var(--text3);padding:4px 0">Nenhum lançamento financeiro.</div>';
   }
-  rh+=div;rh+=rp('= Resultado Financeiro',d.resultFin,d.resultFin>=0?'pos':'neg',null,true);
+  rh+=div;rh+=rp('= Resultado Financeiro',d.resultFin,d.resultFin>=0?'pos':'neg',d.fat,true);
   rh+=bar(d.resultFin,d.fat,'var(--blue)');
 
   // ── IMPOSTOS E LUCRO LÍQUIDO
-  rh+=rp('(-) Impostos',d.impostos,'neg',d.fat);
+  rh+=rp('(-) Impostos ('+( d.recLiq>0?(d.impostos/d.recLiq*100).toFixed(1):(d.fat>0?(d.impostos/d.fat*100).toFixed(1):'0.0') )+'%)',d.impostos,'neg',d.fat);
   document.getElementById('dreResultPanel').innerHTML=rh;
 
   // CARD MC
