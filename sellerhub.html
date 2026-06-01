@@ -2509,8 +2509,7 @@ function renderDRE(){
 
   // ── CUSTO DOS PRODUTOS
   html+=section('📦','var(--amber)','Custos Operacionais',
-    fld('CMV — Custo de Mercadoria Vendida',apiInp(l.cmv,'CMV — calculado automaticamente pelos produtos cadastrados'),true)
-    +fld('Embalagem',editInp('embalagem',l.embalagem)),
+    fld('CMV — Custo de Mercadoria Vendida',apiInp(l.cmv,'CMV — calculado automaticamente pelos produtos cadastrados'),true),
     'cmvExtra','Adicionar custo');
 
   // ── TARIFAS E COMISSÕES
@@ -2525,7 +2524,8 @@ function renderDRE(){
 
   // ── ESTRUTURA E OPERACIONAL
   html+=section('🏢','var(--purple)','Estrutura e Operacional',
-    fld('Aluguel',editInp('aluguel',l.aluguel))
+    fld('Embalagem',editInp('embalagem',l.embalagem))
+    +fld('Aluguel',editInp('aluguel',l.aluguel))
     +fld('Energia Elétrica',editInp('energia',l.energia))
     +fld('Água',editInp('agua',l.agua))
     +fld('Internet',editInp('internet',l.internet))
@@ -2591,15 +2591,15 @@ function renderDRE(){
   if(d.devolucoes>0)rh+=rp('(-) Devoluções',d.devolucoes,'neg',d.fat);
   rh+=div;rh+=rp('= Receita Líquida',d.recLiq,'pos',null,true);
 
-  rh+=sec('CUSTO DOS PRODUTOS');
+  rh+=sec('CUSTOS OPERACIONAIS');
   rh+=rp('(-) CMV',d.cmv,'neg',d.recLiq);
+  rh+=rp('(-) Taxas do Marketplace',d.taxasMl,'neg',d.recLiq);
+  rh+=rp('(-) Frete de Vendas',d.freteVendas,'neg',d.recLiq);
   if(d.embalagem>0)rh+=rp('(-) Embalagem',d.embalagem,'neg',d.recLiq);
   rh+=div;rh+=rp('= Lucro Bruto',d.lucBruto,d.lucBruto>=0?'pos':'neg',null,true);
   rh+=bar(d.lucBruto,d.recLiq,'var(--green)');
 
   rh+=sec('DESPESAS OPERACIONAIS');
-  rh+=rp('(-) Taxas do Marketplace',d.taxasMl,'neg',d.fat);
-  rh+=rp('(-) Frete de Vendas',d.freteVendas,'neg',d.fat);
   rh+=rp('(-) Publicidade ADS',d.pubTotal,'neg',d.fat);
   if(d.outrasDespTotal>0){
     rh+=rp('(-) Outras Despesas',d.outrasDespTotal,'neg',d.fat);
