@@ -2323,6 +2323,12 @@ function getDREData(m,y){
     +(l.adminExtra||[]).reduce((s,t)=>s+(+t.valor||0),0);
 
   const resultOp=lucBruto-taxasMl-freteVendas-pubTotal-outrasDespTotal-desp_estrutura-desp_pessoal-desp_admin;
+  const financeiroItems=(l.financeiroExtra||[]);
+  const financeiroExtra=financeiroItems.reduce((s,t)=>s+(+t.valor||0),0);
+  const resultFin=resultOp+financeiroExtra;
+  const financeiroItems=(l.financeiroExtra||[]);
+  const financeiroExtra=financeiroItems.reduce((s,t)=>s+(+t.valor||0),0);
+  const resultFin=resultOp+financeiroExtra;
 
   // ── Impostos (valor fixo manual)
   const impostos=+(l.impostos||0);
@@ -2331,7 +2337,7 @@ function getDREData(m,y){
   const mc=lucBruto-taxasMl-freteVendas-impostos;
   const mcPct=recLiq>0?mc/recLiq*100:0;
 
-  const lucLiq=resultOp-impostos;
+  const lucLiq=resultFin-impostos;
   const margem=fat>0?lucLiq/fat*100:0;
 
   return{
@@ -2612,7 +2618,7 @@ function renderDRE(){
   if(d.desp_estrutura>0)rh+=rp('(-) Estrutura e Operacional',d.desp_estrutura,'neg',d.fat);
   if(d.desp_pessoal>0)rh+=rp('(-) Salários',d.desp_pessoal,'neg',d.fat);
   if(d.desp_admin>0)rh+=rp('(-) Administrativo e Serviços',d.desp_admin,'neg',d.fat);
-  rh+=div;rh+=rp('= Resultado Operacional',d.resultOp,d.resultOp>=0?'pos':'neg',d.fat,true);
+  rh+=div;rh+=rp('= Resultado Operacional',d.resultOp,d.resultOp>=0?'pos':'neg',d.recLiq,true);
   rh+=bar(d.resultOp,d.fat,'var(--teal)');
 
   // ── RECEITAS / DESPESAS FINANCEIRAS
@@ -2625,11 +2631,11 @@ function renderDRE(){
   }else{
     rh+='<div style="font-size:11px;color:var(--text3);padding:4px 0">Nenhum lançamento financeiro.</div>';
   }
-  rh+=div;rh+=rp('= Resultado Financeiro',d.resultFin,d.resultFin>=0?'pos':'neg',d.fat,true);
+  rh+=div;rh+=rp('= Resultado Financeiro',d.resultFin,d.resultFin>=0?'pos':'neg',d.recLiq,true);
   rh+=bar(d.resultFin,d.fat,'var(--blue)');
 
   // ── IMPOSTOS E LUCRO LÍQUIDO
-  rh+=rp('(-) Impostos ('+( d.recLiq>0?(d.impostos/d.recLiq*100).toFixed(1):(d.fat>0?(d.impostos/d.fat*100).toFixed(1):'0.0') )+'%)',d.impostos,'neg',d.fat);
+  rh+=rp('(-) Impostos ('+( d.recLiq>0?(d.impostos/d.recLiq*100).toFixed(1):'0.0' )+'%)',d.impostos,'neg',d.fat);
   document.getElementById('dreResultPanel').innerHTML=rh;
 
   // CARD MC
