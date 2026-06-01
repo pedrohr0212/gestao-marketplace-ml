@@ -2605,7 +2605,7 @@ function renderDRE(){
 
   // ── DESPESAS OPERACIONAIS
   rh+=sec('DESPESAS OPERACIONAIS');
-  rh+=rp('(-) Publicidade ADS',d.pubTotal,'neg',d.fat,false,false);
+  rh+=rp('(-) Publicidade ADS',d.pubTotal,'neg',d.fat);
   if(d.outrasDespTotal>0){
     rh+=rp('(-) Outras Despesas',d.outrasDespTotal,'neg',d.fat);
     if(d.tarifaMinhaPagina>0)rh+=rp('↳ Tarifa Minha Página',d.tarifaMinhaPagina,'neg',null,false,true);
@@ -2684,36 +2684,43 @@ function renderDREAnual(){
   buildYearSel('dreAnualYearSel',dreAnualYear,y=>{dreAnualYear=y;renderDREAnual();});
   const meses=MESES.map((n,i)=>({n:n.slice(0,3),d:getDREData(i,dreAnualYear)}));
   const linhas=[
+    // RECEITAS
     {lbl:'Receita Bruta',fn:d=>d.fat,cls:''},
+    {lbl:'(+) Outras Receitas',fn:d=>d.receitasExtra||0,cls:'pos'},
     {lbl:'(-) Cancelamentos',fn:d=>-d.cancelamentos,cls:'neg'},
     {lbl:'(-) Devoluções',fn:d=>-d.devolucoes,cls:'neg'},
     {lbl:'= Receita Líquida',fn:d=>d.recLiq,cls:'bold'},
+    // CUSTOS OPERACIONAIS
     {lbl:'(-) CMV',fn:d=>-d.cmv,cls:'neg'},
-    {lbl:'(-) Embalagem',fn:d=>-(d.embalagem||0),cls:'neg'},
+    {lbl:'(-) Taxas do Marketplace',fn:d=>-d.taxasMl,cls:'neg'},
+    {lbl:'(-) Frete de Vendas',fn:d=>-d.freteVendas,cls:'neg'},
     {lbl:'= Lucro Bruto',fn:d=>d.lucBruto,cls:'bold'},
-    {lbl:'(-) Taxas Marketplace',fn:d=>-d.taxasMl,cls:'neg'},
-    {lbl:'(-) Frete',fn:d=>-d.freteVendas,cls:'neg'},
+    // DESPESAS OPERACIONAIS
     {lbl:'(-) Publicidade ADS',fn:d=>-d.pubTotal,cls:'neg'},
     {lbl:'(-) Outras Despesas',fn:d=>-(d.outrasDespTotal||0),cls:'neg'},
-    {lbl:'(-) Estrutura e Op.',fn:d=>-d.desp_estrutura,cls:'neg'},
+    {lbl:'(-) Embalagem',fn:d=>-(d.embalagem||0),cls:'neg'},
+    {lbl:'(-) Estrutura e Operacional',fn:d=>-d.desp_estrutura,cls:'neg'},
     {lbl:'(-) Salários',fn:d=>-d.desp_pessoal,cls:'neg'},
-    {lbl:'(-) Adm. e Serviços',fn:d=>-d.desp_admin,cls:'neg'},
+    {lbl:'(-) Administrativo e Serviços',fn:d=>-d.desp_admin,cls:'neg'},
     {lbl:'= Resultado Operacional',fn:d=>d.resultOp,cls:'bold'},
+    // RECEITAS / DESPESAS FINANCEIRAS
+    {lbl:'Rec./Desp. Financeiras',fn:d=>d.financeiroExtra||0,cls:''},
+    {lbl:'= Resultado Financeiro',fn:d=>d.resultFin||d.resultOp,cls:'bold'},
+    // IMPOSTOS E LUCRO LÍQUIDO
     {lbl:'(-) Impostos',fn:d=>-d.impostos,cls:'neg'},
     {lbl:'= Lucro Líquido',fn:d=>d.lucLiq,cls:'lucro'},
-    {lbl:'Margem de Contribuição',fn:d=>d.mc,cls:'',pct:false},
-    {lbl:'MC %',fn:d=>d.mcPct,cls:'',pct:true},
-    {lbl:'Margem Líquida %',fn:d=>d.margem,cls:'lucro',pct:true},
+    // MARGENS
     {lbl:'Margem Bruta %',fn:d=>d.margemBruta,cls:'',pct:true},
+    {lbl:'Margem Líquida %',fn:d=>d.margem,cls:'lucro',pct:true},
   ];
   const totals={};linhas.forEach(l=>{totals[l.lbl]=meses.reduce((s,m)=>s+l.fn(m.d),0);});
   let html='<thead><tr><th>Linha</th>'+meses.map(m=>'<th>'+m.n+'</th>').join('')+'<th>Total</th></tr></thead><tbody>';
   linhas.forEach(l=>{
-    const isBold=l.cls==='bold';const isLucro=l.cls==='lucro';const isNeg=l.cls==='neg';
+    const isBold=l.cls==='bold';const isLucro=l.cls==='lucro';const isNeg=l.cls==='neg';const isPos=l.cls==='pos';
     html+='<tr class="'+(isLucro?'row-lucro':isBold?'row-bold':'')+'"><td>'+l.lbl+'</td>';
-    meses.forEach(m=>{const v=l.fn(m.d);html+='<td style="color:'+(isLucro?'var(--green)':isNeg?'var(--red)':'')+'">'+(l.pct?v.toFixed(1)+'%':BRL(Math.abs(v)))+'</td>';});
+    meses.forEach(m=>{const v=l.fn(m.d);html+='<td style="color:'+(isLucro?'var(--green)':isNeg?'var(--red)':isPos?'var(--green)':'')+'">'  +(l.pct?v.toFixed(1)+'%':BRL(Math.abs(v)))+'</td>';});
     const tot=totals[l.lbl];
-    html+='<td style="color:'+(isLucro?'var(--green)':isNeg?'var(--red)':'')+';font-weight:600">'+(l.pct?(tot/12).toFixed(1)+'%':BRL(Math.abs(tot)))+'</td></tr>';
+    html+='<td style="color:'+(isLucro?'var(--green)':isNeg?'var(--red)':isPos?'var(--green)':'')+ ';font-weight:600">'+(l.pct?(tot/12).toFixed(1)+'%':BRL(Math.abs(tot)))+'</td></tr>';
   });
   html+='</tbody>';
   document.getElementById('dreAnualTable').innerHTML=html;
