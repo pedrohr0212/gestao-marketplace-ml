@@ -2695,6 +2695,7 @@ function renderDREAnual(){
     {lbl:'(-) Taxas do Marketplace',fn:d=>-d.taxasMl,cls:'neg'},
     {lbl:'(-) Frete de Vendas',fn:d=>-d.freteVendas,cls:'neg'},
     {lbl:'= Lucro Bruto',fn:d=>d.lucBruto,cls:'bold'},
+    {lbl:'Margem Bruta %',fn:d=>d.margemBruta,cls:'',pct:true},
     // DESPESAS OPERACIONAIS
     {lbl:'(-) Publicidade ADS',fn:d=>-d.pubTotal,cls:'neg'},
     {lbl:'(-) Outras Despesas',fn:d=>-(d.outrasDespTotal||0),cls:'neg'},
@@ -2710,7 +2711,6 @@ function renderDREAnual(){
     {lbl:'(-) Impostos',fn:d=>-d.impostos,cls:'neg'},
     {lbl:'= Lucro Líquido',fn:d=>d.lucLiq,cls:'lucro'},
     // MARGENS
-    {lbl:'Margem Bruta %',fn:d=>d.margemBruta,cls:'',pct:true},
     {lbl:'Margem Líquida %',fn:d=>d.margem,cls:'lucro',pct:true},
   ];
   const totals={};linhas.forEach(l=>{totals[l.lbl]=meses.reduce((s,m)=>s+l.fn(m.d),0);});
