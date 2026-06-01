@@ -2605,7 +2605,7 @@ function renderDRE(){
 
   // ── DESPESAS OPERACIONAIS
   rh+=sec('DESPESAS OPERACIONAIS');
-  rh+=rp('(-) Publicidade ADS',d.pubTotal,'neg',d.fat);
+  rh+=rp('(-) Publicidade ADS',d.pubTotal,'neg',d.fat,false,false);
   if(d.outrasDespTotal>0){
     rh+=rp('(-) Outras Despesas',d.outrasDespTotal,'neg',d.fat);
     if(d.tarifaMinhaPagina>0)rh+=rp('↳ Tarifa Minha Página',d.tarifaMinhaPagina,'neg',null,false,true);
@@ -2615,7 +2615,7 @@ function renderDRE(){
   if(d.desp_estrutura>0)rh+=rp('(-) Estrutura e Operacional',d.desp_estrutura,'neg',d.fat);
   if(d.desp_pessoal>0)rh+=rp('(-) Salários',d.desp_pessoal,'neg',d.fat);
   if(d.desp_admin>0)rh+=rp('(-) Administrativo e Serviços',d.desp_admin,'neg',d.fat);
-  rh+=div;rh+=rp('= Resultado Operacional',d.resultOp,d.resultOp>=0?'pos':'neg',d.recLiq,true);
+  rh+=div;rh+=rp('= Resultado Operacional',d.resultOp,d.resultOp>=0?'pos':'neg',null,true);
   rh+=bar(d.resultOp,d.fat,'var(--teal)');
 
   // ── RECEITAS / DESPESAS FINANCEIRAS
@@ -2628,7 +2628,7 @@ function renderDRE(){
   }else{
     rh+='<div style="font-size:11px;color:var(--text3);padding:4px 0">Nenhum lançamento financeiro.</div>';
   }
-  rh+=div;rh+=rp('= Resultado Financeiro',d.resultFin,d.resultFin>=0?'pos':'neg',d.recLiq,true);
+  rh+=div;rh+=rp('= Resultado Financeiro',d.resultFin,d.resultFin>=0?'pos':'neg',null,true);
   rh+=bar(d.resultFin,d.fat,'var(--blue)');
 
   // ── IMPOSTOS E LUCRO LÍQUIDO
