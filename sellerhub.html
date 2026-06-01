@@ -2326,9 +2326,6 @@ function getDREData(m,y){
   const financeiroItems=(l.financeiroExtra||[]);
   const financeiroExtra=financeiroItems.reduce((s,t)=>s+(+t.valor||0),0);
   const resultFin=resultOp+financeiroExtra;
-  const financeiroItems=(l.financeiroExtra||[]);
-  const financeiroExtra=financeiroItems.reduce((s,t)=>s+(+t.valor||0),0);
-  const resultFin=resultOp+financeiroExtra;
 
   // ── Impostos (valor fixo manual)
   const impostos=+(l.impostos||0);
