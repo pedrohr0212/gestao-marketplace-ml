@@ -713,9 +713,14 @@ function extractBoletoCod(arrayBuffer, fileName, cb){
       if(datas.length>0)result.vencimento=datas[0].str;
     }
 
-    // ── NF: padrão NF69101-01 ou NF 69101
-    var mNF=str.match(/NF[\s-]?(\d{3,8}(?:[\/-]\d{2})?)/i);
-    if(mNF)result.nf=mNF[0].replace(/\s/g,'');
+    // ── NF: buscar entre parênteses (NF69101-01) — padrão PDF
+    var mNF=str.match(/\(NF(\d{3,8}(?:[\/-]\d{2,3})?)\)/i);
+    if(mNF){result.nf='NF'+mNF[1];}
+    else{
+      // Fallback: REF NF(S): 069101
+      var mRefNF=str.match(/REF\s+NF[^:]*:\s*0*(\d{4,8})/i);
+      if(mRefNF)result.nf='NF'+mRefNF[1];
+    }
 
     // ── Beneficiário: linha com LTDA, S/A, EIRELI, ME, EPP
     var mBen=str.match(/([A-Z][A-Z\s\.]{10,60}(?:LTDA|S\/A|SA|EIRELI|\bME\b|\bEPP\b)[A-Z\s\.]*)/);
@@ -1567,9 +1572,14 @@ function extractBoletoCod(arrayBuffer, fileName, cb){
       if(datas.length>0)result.vencimento=datas[0].str;
     }
 
-    // ── NF: padrão NF69101-01 ou NF 69101
-    var mNF=str.match(/NF[\s-]?(\d{3,8}(?:[\/-]\d{2})?)/i);
-    if(mNF)result.nf=mNF[0].replace(/\s/g,'');
+    // ── NF: buscar entre parênteses (NF69101-01) — padrão PDF
+    var mNF=str.match(/\(NF(\d{3,8}(?:[\/-]\d{2,3})?)\)/i);
+    if(mNF){result.nf='NF'+mNF[1];}
+    else{
+      // Fallback: REF NF(S): 069101
+      var mRefNF=str.match(/REF\s+NF[^:]*:\s*0*(\d{4,8})/i);
+      if(mRefNF)result.nf='NF'+mRefNF[1];
+    }
 
     // ── Beneficiário: linha com LTDA, S/A, EIRELI, ME, EPP
     var mBen=str.match(/([A-Z][A-Z\s\.]{10,60}(?:LTDA|S\/A|SA|EIRELI|\bME\b|\bEPP\b)[A-Z\s\.]*)/);
@@ -2421,9 +2431,14 @@ function extractBoletoCod(arrayBuffer, fileName, cb){
       if(datas.length>0)result.vencimento=datas[0].str;
     }
 
-    // ── NF: padrão NF69101-01 ou NF 69101
-    var mNF=str.match(/NF[\s-]?(\d{3,8}(?:[\/-]\d{2})?)/i);
-    if(mNF)result.nf=mNF[0].replace(/\s/g,'');
+    // ── NF: buscar entre parênteses (NF69101-01) — padrão PDF
+    var mNF=str.match(/\(NF(\d{3,8}(?:[\/-]\d{2,3})?)\)/i);
+    if(mNF){result.nf='NF'+mNF[1];}
+    else{
+      // Fallback: REF NF(S): 069101
+      var mRefNF=str.match(/REF\s+NF[^:]*:\s*0*(\d{4,8})/i);
+      if(mRefNF)result.nf='NF'+mRefNF[1];
+    }
 
     // ── Beneficiário: linha com LTDA, S/A, EIRELI, ME, EPP
     var mBen=str.match(/([A-Z][A-Z\s\.]{10,60}(?:LTDA|S\/A|SA|EIRELI|\bME\b|\bEPP\b)[A-Z\s\.]*)/);
@@ -8108,9 +8123,14 @@ function extractBoletoCod(arrayBuffer, fileName, cb){
       if(datas.length>0)result.vencimento=datas[0].str;
     }
 
-    // ── NF: padrão NF69101-01 ou NF 69101
-    var mNF=str.match(/NF[\s-]?(\d{3,8}(?:[\/-]\d{2})?)/i);
-    if(mNF)result.nf=mNF[0].replace(/\s/g,'');
+    // ── NF: buscar entre parênteses (NF69101-01) — padrão PDF
+    var mNF=str.match(/\(NF(\d{3,8}(?:[\/-]\d{2,3})?)\)/i);
+    if(mNF){result.nf='NF'+mNF[1];}
+    else{
+      // Fallback: REF NF(S): 069101
+      var mRefNF=str.match(/REF\s+NF[^:]*:\s*0*(\d{4,8})/i);
+      if(mRefNF)result.nf='NF'+mRefNF[1];
+    }
 
     // ── Beneficiário: linha com LTDA, S/A, EIRELI, ME, EPP
     var mBen=str.match(/([A-Z][A-Z\s\.]{10,60}(?:LTDA|S\/A|SA|EIRELI|\bME\b|\bEPP\b)[A-Z\s\.]*)/);
