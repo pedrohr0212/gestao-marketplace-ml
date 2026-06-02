@@ -4817,14 +4817,101 @@ function kpi(lbl,val,sub,cls){
 }
 
 // ── Helpers
+
+// ── FERIADOS NACIONAIS BRASIL ────────────────────────────
+function getFeriadosNacionais(ano){
+  // Cálculo da Páscoa (algoritmo de Gauss)
+  var a=ano%19, b=Math.floor(ano/100), c=ano%100;
+  var d=Math.floor(b/4), e=b%4, f=Math.floor((b+8)/25);
+  var g=Math.floor((b-f+1)/3), h=(19*a+b-d-g+15)%30;
+  var i=Math.floor(c/4), k=c%4, l=(32+2*e+2*i-h-k)%7;
+  var m=Math.floor((a+11*h+22*l)/451);
+  var mes=Math.floor((h+l-7*m+114)/31);
+  var dia=(h+l-7*m+114)%31+1;
+  var pascoa=new Date(ano,mes-1,dia);
+
+  // Feriados móveis baseados na Páscoa
+  var carnaval2=new Date(pascoa); carnaval2.setDate(pascoa.getDate()-48);
+  var carnaval3=new Date(pascoa); carnaval3.setDate(pascoa.getDate()-47);
+  var sextaSanta=new Date(pascoa); sextaSanta.setDate(pascoa.getDate()-2);
+  var corpusChristi=new Date(pascoa); corpusChristi.setDate(pascoa.getDate()+60);
+
+  var feriados=[
+    // Fixos
+    ano+'-01-01', // Confraternização Universal
+    ano+'-04-21', // Tiradentes
+    ano+'-05-01', // Dia do Trabalho
+    ano+'-09-07', // Independência
+    ano+'-10-12', // Nossa Senhora Aparecida
+    ano+'-11-02', // Finados
+    ano+'-11-15', // Proclamação da República
+    ano+'-11-20', // Consciência Negra
+    ano+'-12-25', // Natal
+    // Móveis
+    fmtISO(carnaval2),
+    fmtISO(carnaval3),
+    fmtISO(sextaSanta),
+    fmtISO(pascoa),
+    fmtISO(corpusChristi),
+  ];
+  return feriados;
+}
+
+function fmtISO(d){
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+
+var _feriadosCache={};
+function isFeriado(dateStr){
+  var ano=parseInt(dateStr.slice(0,4));
+  if(!_feriadosCache[ano])_feriadosCache[ano]=getFeriadosNacionais(ano);
+  return _feriadosCache[ano].indexOf(dateStr)>=0;
+}
+
+function isWeekend(d){
+  var dow=d.getDay();
+  return dow===0||dow===6;
+}
+
+function proxDiaUtil(dateStr){
+  var d=new Date(dateStr+'T00:00:00');
+  while(isWeekend(d)||isFeriado(fmtISO(d))){
+    d.setDate(d.getDate()+1);
+  }
+  return fmtISO(d);
+}
+
+function isDiaUtil(dateStr){
+  var d=new Date(dateStr+'T00:00:00');
+  return !isWeekend(d)&&!isFeriado(dateStr);
+}
 function pagDias(venc, status){
   if(status==='pago') return '<span class="pag-dias past">—</span>';
+  if(!venc) return '<span class="pag-dias past">—</span>';
   var hoje=new Date(); hoje.setHours(0,0,0,0);
-  var v=new Date(venc+'T00:00:00');
-  var diff=Math.round((v-hoje)/(1000*60*60*24));
-  var cls=diff<0?'danger':diff<=7?'warn':diff<=14?'warn':'ok';
-  var lbl=diff<0?Math.abs(diff)+'d atr.':diff+'d';
-  return '<span class="pag-dias '+cls+'">'+lbl+'</span>';
+  var hojeStr=fmtISO(hoje);
+  var vUtil=proxDiaUtil(venc);
+  var vUtilDate=new Date(vUtil+'T00:00:00');
+  var diff=Math.round((vUtilDate-hoje)/(1000*60*60*24));
+  
+  // Vencimento original é fim de semana ou feriado?
+  var vOrigDate=new Date(venc+'T00:00:00');
+  var naoUtil=!isDiaUtil(venc);
+  
+  if(diff<0){
+    // Já passou até o próximo dia útil
+    return '<span class="pag-dias danger">'+Math.abs(diff)+'d atr.</span>';
+  } else if(diff===0){
+    var badge='<span class="pag-dias warn">Vence hoje</span>';
+    if(naoUtil) badge+=' <span style="font-size:9px;background:var(--amber-bg);color:var(--amber);padding:1px 5px;border-radius:3px;white-space:nowrap">↪ útil '+fmtDate(vUtil)+'</span>';
+    return badge;
+  } else {
+    var cls=diff<=7?'warn':diff<=14?'warn':'ok';
+    var lbl=diff+'d';
+    var badge='<span class="pag-dias '+cls+'">'+lbl+'</span>';
+    if(naoUtil) badge+=' <span style="font-size:9px;background:var(--blue-bg);color:var(--blue);padding:1px 5px;border-radius:3px;white-space:nowrap">↪ útil '+fmtDate(vUtil)+'</span>';
+    return badge;
+  }
 }
 function pagStatusBadge(status){
   return '<span class="pag-status '+status+'">'+status.charAt(0).toUpperCase()+status.slice(1)+'</span>';
@@ -4990,8 +5077,9 @@ function renderPagGeral(){
     items.forEach(function(it){
       var statusAtual=it.status;
       if(statusAtual==='pendente'&&it.vencimento){
-        var v=new Date(it.vencimento+'T00:00:00');
-        if(v<hoje)statusAtual='atrasado';
+        var vUtil=proxDiaUtil(it.vencimento);
+        var vUtilDate=new Date(vUtil+'T00:00:00');
+        if(vUtilDate<hoje)statusAtual='atrasado';
       }
       tbody+='<tr>'
         +'<td class="bold">'+escHtml(it.descricao||'—')+'</td>'
@@ -5491,14 +5579,101 @@ function kpi(lbl,val,sub,cls){
 }
 
 // ── Helpers
+
+// ── FERIADOS NACIONAIS BRASIL ────────────────────────────
+function getFeriadosNacionais(ano){
+  // Cálculo da Páscoa (algoritmo de Gauss)
+  var a=ano%19, b=Math.floor(ano/100), c=ano%100;
+  var d=Math.floor(b/4), e=b%4, f=Math.floor((b+8)/25);
+  var g=Math.floor((b-f+1)/3), h=(19*a+b-d-g+15)%30;
+  var i=Math.floor(c/4), k=c%4, l=(32+2*e+2*i-h-k)%7;
+  var m=Math.floor((a+11*h+22*l)/451);
+  var mes=Math.floor((h+l-7*m+114)/31);
+  var dia=(h+l-7*m+114)%31+1;
+  var pascoa=new Date(ano,mes-1,dia);
+
+  // Feriados móveis baseados na Páscoa
+  var carnaval2=new Date(pascoa); carnaval2.setDate(pascoa.getDate()-48);
+  var carnaval3=new Date(pascoa); carnaval3.setDate(pascoa.getDate()-47);
+  var sextaSanta=new Date(pascoa); sextaSanta.setDate(pascoa.getDate()-2);
+  var corpusChristi=new Date(pascoa); corpusChristi.setDate(pascoa.getDate()+60);
+
+  var feriados=[
+    // Fixos
+    ano+'-01-01', // Confraternização Universal
+    ano+'-04-21', // Tiradentes
+    ano+'-05-01', // Dia do Trabalho
+    ano+'-09-07', // Independência
+    ano+'-10-12', // Nossa Senhora Aparecida
+    ano+'-11-02', // Finados
+    ano+'-11-15', // Proclamação da República
+    ano+'-11-20', // Consciência Negra
+    ano+'-12-25', // Natal
+    // Móveis
+    fmtISO(carnaval2),
+    fmtISO(carnaval3),
+    fmtISO(sextaSanta),
+    fmtISO(pascoa),
+    fmtISO(corpusChristi),
+  ];
+  return feriados;
+}
+
+function fmtISO(d){
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+
+var _feriadosCache={};
+function isFeriado(dateStr){
+  var ano=parseInt(dateStr.slice(0,4));
+  if(!_feriadosCache[ano])_feriadosCache[ano]=getFeriadosNacionais(ano);
+  return _feriadosCache[ano].indexOf(dateStr)>=0;
+}
+
+function isWeekend(d){
+  var dow=d.getDay();
+  return dow===0||dow===6;
+}
+
+function proxDiaUtil(dateStr){
+  var d=new Date(dateStr+'T00:00:00');
+  while(isWeekend(d)||isFeriado(fmtISO(d))){
+    d.setDate(d.getDate()+1);
+  }
+  return fmtISO(d);
+}
+
+function isDiaUtil(dateStr){
+  var d=new Date(dateStr+'T00:00:00');
+  return !isWeekend(d)&&!isFeriado(dateStr);
+}
 function pagDias(venc, status){
   if(status==='pago') return '<span class="pag-dias past">—</span>';
+  if(!venc) return '<span class="pag-dias past">—</span>';
   var hoje=new Date(); hoje.setHours(0,0,0,0);
-  var v=new Date(venc+'T00:00:00');
-  var diff=Math.round((v-hoje)/(1000*60*60*24));
-  var cls=diff<0?'danger':diff<=7?'warn':diff<=14?'warn':'ok';
-  var lbl=diff<0?Math.abs(diff)+'d atr.':diff+'d';
-  return '<span class="pag-dias '+cls+'">'+lbl+'</span>';
+  var hojeStr=fmtISO(hoje);
+  var vUtil=proxDiaUtil(venc);
+  var vUtilDate=new Date(vUtil+'T00:00:00');
+  var diff=Math.round((vUtilDate-hoje)/(1000*60*60*24));
+  
+  // Vencimento original é fim de semana ou feriado?
+  var vOrigDate=new Date(venc+'T00:00:00');
+  var naoUtil=!isDiaUtil(venc);
+  
+  if(diff<0){
+    // Já passou até o próximo dia útil
+    return '<span class="pag-dias danger">'+Math.abs(diff)+'d atr.</span>';
+  } else if(diff===0){
+    var badge='<span class="pag-dias warn">Vence hoje</span>';
+    if(naoUtil) badge+=' <span style="font-size:9px;background:var(--amber-bg);color:var(--amber);padding:1px 5px;border-radius:3px;white-space:nowrap">↪ útil '+fmtDate(vUtil)+'</span>';
+    return badge;
+  } else {
+    var cls=diff<=7?'warn':diff<=14?'warn':'ok';
+    var lbl=diff+'d';
+    var badge='<span class="pag-dias '+cls+'">'+lbl+'</span>';
+    if(naoUtil) badge+=' <span style="font-size:9px;background:var(--blue-bg);color:var(--blue);padding:1px 5px;border-radius:3px;white-space:nowrap">↪ útil '+fmtDate(vUtil)+'</span>';
+    return badge;
+  }
 }
 function pagStatusBadge(status){
   return '<span class="pag-status '+status+'">'+status.charAt(0).toUpperCase()+status.slice(1)+'</span>';
@@ -5554,8 +5729,9 @@ function renderPagForn(){
       var statusAtual=it.status;
       // Auto-marcar atrasado
       if(statusAtual==='pendente'&&it.vencimento){
-        var v=new Date(it.vencimento+'T00:00:00');
-        if(v<hoje)statusAtual='atrasado';
+        var vUtil=proxDiaUtil(it.vencimento);
+        var vUtilDate=new Date(vUtil+'T00:00:00');
+        if(vUtilDate<hoje)statusAtual='atrasado';
       }
       tbody+='<tr>'
         +'<td class="bold">'+escHtml(it.fornecedor||'—')+'</td>'
@@ -6189,15 +6365,9 @@ function savePagDataPag(input, id, tipo){
   }
   window._pagData=d;
   savePag();
-  // Atualizar só o badge de status na linha sem re-renderizar tudo
-  var tr=input.closest('tr');
-  if(tr){
-    var statusTd=tr.querySelectorAll('td')[8];
-    if(statusTd)statusTd.innerHTML=pagStatusBadge(it?it.status:'pendente');
-    var diasTd=tr.querySelectorAll('td')[9];
-    if(diasTd)diasTd.innerHTML=pagDias(it?it.vencimento:'',it?it.status:'pendente');
-  }
-  renderPagKpis();
+  // Re-renderizar a tabela correta completamente
+  if(tipo==='forn')renderPagForn();
+  else renderPagGeral();
 }
 
 function makeDraggableH(el){
