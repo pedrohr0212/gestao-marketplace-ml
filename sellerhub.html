@@ -146,7 +146,9 @@ function renderPagForn(){
         +'<td class="mono">'+fmtDate(it.vencimento)+'</td>'
         +'<td class="mono bold">'+BRL(it.valor||0)+'</td>'
         +'<td>'+pagTruncCod(it.referencia)+'</td>'
-        +'<td class="mono">'+fmtDate(it.dataPag)+'</td>'
+        +'<td class="mono" style="cursor:pointer" onclick="editPagDataPag(this,\''+it.id+'\',\'forn\')" title="Clique para editar data de pagamento">'
+        +(it.dataPag?fmtDate(it.dataPag):'<span style="color:var(--text3)">—</span>')
+        +'</td>'
         +'<td>'+pagStatusBadge(statusAtual)+'</td>'
         +'<td>'+pagDias(it.vencimento,statusAtual)+'</td>'
         +'<td style="font-size:11px;color:var(--text3);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escHtml(it.obs||'—')+'</td>'
@@ -169,6 +171,7 @@ function renderPagForn(){
   document.getElementById('pagFornBody').innerHTML=tbody;
   renderPagFornSide(d.fornecedores);
   renderPagKpis();
+  makeDraggableH(document.querySelector('#pagViewForn .pag-table-wrap div[style]'));
 }
 
 function renderPagFornSide(items){
@@ -324,7 +327,9 @@ function renderPagGeral(){
         +'<td><span class="pag-cat">'+escHtml(it.categoria||'—')+'</span></td>'
         +'<td class="mono">'+fmtDate(it.vencimento)+'</td>'
         +'<td class="mono bold">'+BRL(it.valor||0)+'</td>'
-        +'<td class="mono">'+fmtDate(it.dataPag)+'</td>'
+        +'<td class="mono" style="cursor:pointer" onclick="editPagDataPag(this,\''+it.id+'\',\'geral\')" title="Clique para editar data de pagamento">'
+        +(it.dataPag?fmtDate(it.dataPag):'<span style="color:var(--text3)">—</span>')
+        +'</td>'
         +'<td>'+pagStatusBadge(statusAtual)+'</td>'
         +'<td>'+pagDias(it.vencimento,statusAtual)+'</td>'
         +'<td style="font-size:11px;color:var(--text3)">'+escHtml(it.obs||'—')
@@ -343,6 +348,7 @@ function renderPagGeral(){
   }
   document.getElementById('pagGeralBody').innerHTML=tbody;
   renderPagKpis();
+  makeDraggableH(document.querySelector('#pagViewGeral .pag-table-wrap div[style]'));
 }
 
 // ── Sorting
@@ -511,12 +517,15 @@ function savePagItem(){
           venc=document.getElementById('pmVencimento').value;
         }
         var titulo=nf?(nf+' '+(i+1)+'/'+nParcelas):'Parcela '+(i+1)+'/'+nParcelas;
-        d.fornecedores.push({
+        var newItem={
           id:'forn_'+Date.now()+'_'+i,
           fornecedor:forn,nf:nf,modalidade:modalidade,titulo:titulo,
           valor:valorParcela,vencimento:venc,referencia:referencia,obs:obs,
           status:'pendente',dataPag:''
-        });
+        };
+        // Anexar PDF importado (apenas na 1ª parcela)
+        if(i===0&&window._pagPdfPendente){newItem.boletoData=window._pagPdfPendente;window._pagPdfPendente=null;}
+        d.fornecedores.push(newItem);
       });
     }
   } else {
@@ -623,21 +632,30 @@ function importarBoleto(){
       reader.onload=function(e){
         var data=e.target.result;
         // Extrair código de barras do PDF via texto
-        extractBoletoCod(data, file.name, function(cod){
-          var d=pagData();
-          var item={
-            id:'forn_'+Date.now()+'_'+Math.random().toString(36).slice(2,6),
-            fornecedor:'',nf:'',modalidade:'Boleto',titulo:file.name.replace('.pdf',''),
-            valor:0,vencimento:'',referencia:cod||'',obs:'Importado de PDF: '+file.name,
-            status:'pendente',dataPag:'',boletoData:btoa(String.fromCharCode.apply(null,new Uint8Array(e.target.result instanceof ArrayBuffer?e.target.result:new ArrayBuffer(0))))
-          };
-          // Abrir modal pré-preenchido para confirmação
-          window._pagData=d;
+        var pdfArrayBuffer=e.target.result;
+        extractBoletoCod(pdfArrayBuffer, file.name, function(res){
+          var b64=arrayBufferToBase64(pdfArrayBuffer);
           openPagModal('forn');
-          if(cod)document.getElementById('pmReferencia').value=cod;
-          document.getElementById('pmTitulo').value=file.name.replace('.pdf','');
+          // Preencher campos com dados extraídos
+          if(res.beneficiario)document.getElementById('pmFornecedor').value=res.beneficiario;
+          if(res.nf)document.getElementById('pmNF').value=res.nf;
+          if(res.valor){
+            var v=parseFloat(res.valor.replace(',','.'));
+            if(v>0)document.getElementById('pmValor').value=v.toFixed(2);
+          }
+          if(res.vencimento)document.getElementById('pmVencimento').value=res.vencimento;
+          if(res.cod)document.getElementById('pmReferencia').value=res.cod;
+          document.getElementById('pmTitulo').value=res.nf||file.name.replace('.pdf','');
           document.getElementById('pmObsForn').value='Importado de PDF: '+file.name;
-          showToast(cod?'Código de barras lido!':'PDF importado — preencha o código manualmente');
+          document.getElementById('pmModalidade').value='Boleto';
+          // Guardar base64 para salvar junto com o item
+          window._pagPdfPendente=b64;
+          var extraidos=[];
+          if(res.beneficiario)extraidos.push('Fornecedor');
+          if(res.valor)extraidos.push('Valor');
+          if(res.vencimento)extraidos.push('Vencimento');
+          if(res.cod)extraidos.push('Código');
+          showToast(extraidos.length>0?'Lido: '+extraidos.join(', '):'PDF importado — verifique os campos');
         });
       };
       reader.readAsArrayBuffer(file);
@@ -647,19 +665,99 @@ function importarBoleto(){
 }
 
 function extractBoletoCod(arrayBuffer, fileName, cb){
-  // Tenta extrair código de barras do texto do PDF
   try{
     var bytes=new Uint8Array(arrayBuffer);
     var str='';
-    for(var i=0;i<Math.min(bytes.length,50000);i++)str+=String.fromCharCode(bytes[i]);
-    // Padrão linha digitável boleto bancário: sequências de dígitos com pontos/espaços
-    var m=str.match(/\d{5}\.\d{5}\s\d{5}\.\d{6}\s\d{5}\.\d{6}\s\d\s\d{14}/);
-    if(m){cb(m[0].replace(/\s/g,''));return;}
-    // Código de barras numérico 44-47 dígitos
-    var m2=str.match(/[0-9]{44,47}/);
-    if(m2){cb(m2[0]);return;}
-    cb('');
-  }catch(e){cb('');}
+    for(var i=0;i<Math.min(bytes.length,80000);i++){
+      var c=bytes[i];
+      // Incluir apenas caracteres imprimíveis e espaços
+      if(c>=32&&c<127)str+=String.fromCharCode(c);
+      else if(c===10||c===13)str+=' ';
+    }
+
+    var result={cod:'',valor:'',vencimento:'',beneficiario:'',nf:''};
+
+    // ── Linha digitável: 00190.00009 03618.729101 00034.685172 1 14760000678222
+    var mLinha=str.match(/\d{5}\.\d{5}\s+\d{5}\.\d{6}\s+\d{5}\.\d{6}\s+\d\s+\d{14}/);
+    if(mLinha){result.cod=mLinha[0].replace(/\s+/g,' ').trim();}
+    else{
+      // Código de barras 44 dígitos compacto
+      var mCod=str.match(/\b\d{44,47}\b/);
+      if(mCod)result.cod=mCod[0];
+    }
+
+    // ── Valor: padrão "6.782,22" ou "R$ 6.782,22"
+    var mVals=str.match(/(?:R\$\s*)?([\d]{1,3}(?:\.\d{3})*,\d{2})/g);
+    if(mVals&&mVals.length>0){
+      // Pegar o maior valor (provavelmente o valor do documento)
+      var vals=mVals.map(function(v){
+        return parseFloat(v.replace(/[R\$\s]/g,'').replace(/\./g,'').replace(',','.'));
+      }).filter(function(v){return v>0;}).sort(function(a,b){return b-a;});
+      if(vals.length>0)result.valor=vals[0].toFixed(2).replace('.',',');
+    }
+
+    // ── Vencimento: padrão DD/MM/AAAA
+    var mVenc=str.match(/(?:Vencimento|Venc\.?)[\s\S]{0,30}(\d{2}\/\d{2}\/\d{4})/);
+    if(mVenc){
+      var parts=mVenc[1].split('/');
+      result.vencimento=parts[2]+'-'+parts[1]+'-'+parts[0];
+    } else {
+      // Tentar achar data que parece vencimento (geralmente a mais futura)
+      var datas=[];
+      var re=/\b(\d{2})\/(\d{2})\/(20\d{2})\b/g, m2;
+      while((m2=re.exec(str))!==null){
+        var d=new Date(m2[3]+'-'+m2[2]+'-'+m2[1]);
+        datas.push({str:m2[3]+'-'+m2[2]+'-'+m2[1],date:d});
+      }
+      datas.sort(function(a,b){return b.date-a.date;});
+      if(datas.length>0)result.vencimento=datas[0].str;
+    }
+
+    // ── NF: padrão NF69101-01 ou NF 69101
+    var mNF=str.match(/NF[\s-]?(\d{3,8}(?:[\/-]\d{2})?)/i);
+    if(mNF)result.nf=mNF[0].replace(/\s/g,'');
+
+    // ── Beneficiário: linha com LTDA, S/A, EIRELI, ME, EPP
+    var mBen=str.match(/([A-Z][A-Z\s\.]{10,60}(?:LTDA|S\/A|SA|EIRELI|\bME\b|\bEPP\b)[A-Z\s\.]*)/);
+    if(mBen)result.beneficiario=mBen[0].trim().slice(0,60);
+
+    cb(result);
+  }catch(e){cb({cod:'',valor:'',vencimento:'',beneficiario:'',nf:''});}
+}
+
+
+function anexarBoleto(id){
+  var input=document.createElement('input');
+  input.type='file';input.accept='application/pdf';
+  input.onchange=function(){
+    var file=input.files[0];
+    if(!file)return;
+    var reader=new FileReader();
+    reader.onload=function(e){
+      var arrayBuffer=e.target.result;
+      extractBoletoCod(arrayBuffer,file.name,function(res){
+        var d=pagData();
+        var it=d.fornecedores.find(function(x){return x.id===id;});
+        if(it){
+          it.boletoData=arrayBufferToBase64(arrayBuffer);
+          if(res.cod&&!it.referencia)it.referencia=res.cod;
+          if(res.valor&&!it.valor){var v=parseFloat(res.valor.replace(',','.'));if(v>0)it.valor=v;}
+          if(res.vencimento&&!it.vencimento)it.vencimento=res.vencimento;
+        }
+        window._pagData=d;savePag();renderPagForn();
+        var msg='Boleto anexado';
+        if(res.cod)msg+=' · código lido';
+        showToast(msg+'!');
+      });
+    };
+    reader.readAsArrayBuffer(file);
+  };
+  input.click();
+}
+function arrayBufferToBase64(buf){
+  var bytes=new Uint8Array(buf),bin='';
+  for(var i=0;i<bytes.length;i++)bin+=String.fromCharCode(bytes[i]);
+  return btoa(bin);
 }
 
 function verBoleto(id){
@@ -707,6 +805,58 @@ function escHtml(s){
 }
 
 // ── Init pagamentos quando abre a página
+
+
+function editPagDataPag(td, id, tipo){
+  var atual='';
+  var d=pagData();
+  var arr=tipo==='forn'?d.fornecedores:d.gerais;
+  var it=arr.find(function(x){return x.id===id;});
+  if(it)atual=it.dataPag||'';
+  td.innerHTML='<input type="date" value="'+atual+'" style="background:var(--bg4);border:0.5px solid var(--accent2);border-radius:6px;padding:3px 6px;color:var(--text);font-family:var(--mono);font-size:12px;width:130px" onblur="savePagDataPag(this,\''+id+'\',\''+tipo+'\')" onchange="savePagDataPag(this,\''+id+'\',\''+tipo+'\')">';
+  td.querySelector('input').focus();
+}
+function savePagDataPag(input, id, tipo){
+  var val=input.value;
+  var d=pagData();
+  var arr=tipo==='forn'?d.fornecedores:d.gerais;
+  var it=arr.find(function(x){return x.id===id;});
+  if(it){
+    it.dataPag=val;
+    if(val&&it.status!=='pago')it.status='pago';
+    else if(!val&&it.status==='pago')it.status='pendente';
+  }
+  window._pagData=d;
+  savePag();
+  if(tipo==='forn')renderPagForn();
+  else renderPagGeral();
+}
+
+function makeDraggableH(el){
+  if(!el||el._dragH)return;
+  el._dragH=true;
+  var isDown=false,startX,scrollLeft;
+  el.addEventListener('mousedown',function(e){
+    if(e.target.tagName==='INPUT'||e.target.tagName==='BUTTON'||e.target.tagName==='SELECT')return;
+    isDown=true;startX=e.pageX-el.offsetLeft;scrollLeft=el.scrollLeft;
+    el.style.cursor='grabbing';e.preventDefault();
+  });
+  el.addEventListener('mouseleave',function(){isDown=false;el.style.cursor='';});
+  el.addEventListener('mouseup',function(){isDown=false;el.style.cursor='';});
+  el.addEventListener('mousemove',function(e){
+    if(!isDown)return;
+    var x=e.pageX-el.offsetLeft;
+    el.scrollLeft=scrollLeft-(x-startX);
+  });
+  // Touch
+  var touchX,touchScroll;
+  el.addEventListener('touchstart',function(e){touchX=e.touches[0].pageX;touchScroll=el.scrollLeft;},{passive:true});
+  el.addEventListener('touchmove',function(e){
+    if(!touchX)return;
+    el.scrollLeft=touchScroll-(e.touches[0].pageX-touchX);
+  },{passive:true});
+}
+
 function initPagamentos(){
   window._pagData=loadPag();
   initPagGeralMes();
@@ -877,6 +1027,7 @@ function renderPagForn(){
   document.getElementById('pagFornBody').innerHTML=tbody;
   renderPagFornSide(d.fornecedores);
   renderPagKpis();
+  makeDraggableH(document.querySelector('#pagViewForn .pag-table-wrap div[style]'));
 }
 
 function renderPagFornSide(items){
@@ -1051,6 +1202,7 @@ function renderPagGeral(){
   }
   document.getElementById('pagGeralBody').innerHTML=tbody;
   renderPagKpis();
+  makeDraggableH(document.querySelector('#pagViewGeral .pag-table-wrap div[style]'));
 }
 
 // ── Sorting
@@ -1219,12 +1371,15 @@ function savePagItem(){
           venc=document.getElementById('pmVencimento').value;
         }
         var titulo=nf?(nf+' '+(i+1)+'/'+nParcelas):'Parcela '+(i+1)+'/'+nParcelas;
-        d.fornecedores.push({
+        var newItem={
           id:'forn_'+Date.now()+'_'+i,
           fornecedor:forn,nf:nf,modalidade:modalidade,titulo:titulo,
           valor:valorParcela,vencimento:venc,referencia:referencia,obs:obs,
           status:'pendente',dataPag:''
-        });
+        };
+        // Anexar PDF importado (apenas na 1ª parcela)
+        if(i===0&&window._pagPdfPendente){newItem.boletoData=window._pagPdfPendente;window._pagPdfPendente=null;}
+        d.fornecedores.push(newItem);
       });
     }
   } else {
@@ -1331,21 +1486,30 @@ function importarBoleto(){
       reader.onload=function(e){
         var data=e.target.result;
         // Extrair código de barras do PDF via texto
-        extractBoletoCod(data, file.name, function(cod){
-          var d=pagData();
-          var item={
-            id:'forn_'+Date.now()+'_'+Math.random().toString(36).slice(2,6),
-            fornecedor:'',nf:'',modalidade:'Boleto',titulo:file.name.replace('.pdf',''),
-            valor:0,vencimento:'',referencia:cod||'',obs:'Importado de PDF: '+file.name,
-            status:'pendente',dataPag:'',boletoData:btoa(String.fromCharCode.apply(null,new Uint8Array(e.target.result instanceof ArrayBuffer?e.target.result:new ArrayBuffer(0))))
-          };
-          // Abrir modal pré-preenchido para confirmação
-          window._pagData=d;
+        var pdfArrayBuffer=e.target.result;
+        extractBoletoCod(pdfArrayBuffer, file.name, function(res){
+          var b64=arrayBufferToBase64(pdfArrayBuffer);
           openPagModal('forn');
-          if(cod)document.getElementById('pmReferencia').value=cod;
-          document.getElementById('pmTitulo').value=file.name.replace('.pdf','');
+          // Preencher campos com dados extraídos
+          if(res.beneficiario)document.getElementById('pmFornecedor').value=res.beneficiario;
+          if(res.nf)document.getElementById('pmNF').value=res.nf;
+          if(res.valor){
+            var v=parseFloat(res.valor.replace(',','.'));
+            if(v>0)document.getElementById('pmValor').value=v.toFixed(2);
+          }
+          if(res.vencimento)document.getElementById('pmVencimento').value=res.vencimento;
+          if(res.cod)document.getElementById('pmReferencia').value=res.cod;
+          document.getElementById('pmTitulo').value=res.nf||file.name.replace('.pdf','');
           document.getElementById('pmObsForn').value='Importado de PDF: '+file.name;
-          showToast(cod?'Código de barras lido!':'PDF importado — preencha o código manualmente');
+          document.getElementById('pmModalidade').value='Boleto';
+          // Guardar base64 para salvar junto com o item
+          window._pagPdfPendente=b64;
+          var extraidos=[];
+          if(res.beneficiario)extraidos.push('Fornecedor');
+          if(res.valor)extraidos.push('Valor');
+          if(res.vencimento)extraidos.push('Vencimento');
+          if(res.cod)extraidos.push('Código');
+          showToast(extraidos.length>0?'Lido: '+extraidos.join(', '):'PDF importado — verifique os campos');
         });
       };
       reader.readAsArrayBuffer(file);
@@ -1355,19 +1519,99 @@ function importarBoleto(){
 }
 
 function extractBoletoCod(arrayBuffer, fileName, cb){
-  // Tenta extrair código de barras do texto do PDF
   try{
     var bytes=new Uint8Array(arrayBuffer);
     var str='';
-    for(var i=0;i<Math.min(bytes.length,50000);i++)str+=String.fromCharCode(bytes[i]);
-    // Padrão linha digitável boleto bancário: sequências de dígitos com pontos/espaços
-    var m=str.match(/\d{5}\.\d{5}\s\d{5}\.\d{6}\s\d{5}\.\d{6}\s\d\s\d{14}/);
-    if(m){cb(m[0].replace(/\s/g,''));return;}
-    // Código de barras numérico 44-47 dígitos
-    var m2=str.match(/[0-9]{44,47}/);
-    if(m2){cb(m2[0]);return;}
-    cb('');
-  }catch(e){cb('');}
+    for(var i=0;i<Math.min(bytes.length,80000);i++){
+      var c=bytes[i];
+      // Incluir apenas caracteres imprimíveis e espaços
+      if(c>=32&&c<127)str+=String.fromCharCode(c);
+      else if(c===10||c===13)str+=' ';
+    }
+
+    var result={cod:'',valor:'',vencimento:'',beneficiario:'',nf:''};
+
+    // ── Linha digitável: 00190.00009 03618.729101 00034.685172 1 14760000678222
+    var mLinha=str.match(/\d{5}\.\d{5}\s+\d{5}\.\d{6}\s+\d{5}\.\d{6}\s+\d\s+\d{14}/);
+    if(mLinha){result.cod=mLinha[0].replace(/\s+/g,' ').trim();}
+    else{
+      // Código de barras 44 dígitos compacto
+      var mCod=str.match(/\b\d{44,47}\b/);
+      if(mCod)result.cod=mCod[0];
+    }
+
+    // ── Valor: padrão "6.782,22" ou "R$ 6.782,22"
+    var mVals=str.match(/(?:R\$\s*)?([\d]{1,3}(?:\.\d{3})*,\d{2})/g);
+    if(mVals&&mVals.length>0){
+      // Pegar o maior valor (provavelmente o valor do documento)
+      var vals=mVals.map(function(v){
+        return parseFloat(v.replace(/[R\$\s]/g,'').replace(/\./g,'').replace(',','.'));
+      }).filter(function(v){return v>0;}).sort(function(a,b){return b-a;});
+      if(vals.length>0)result.valor=vals[0].toFixed(2).replace('.',',');
+    }
+
+    // ── Vencimento: padrão DD/MM/AAAA
+    var mVenc=str.match(/(?:Vencimento|Venc\.?)[\s\S]{0,30}(\d{2}\/\d{2}\/\d{4})/);
+    if(mVenc){
+      var parts=mVenc[1].split('/');
+      result.vencimento=parts[2]+'-'+parts[1]+'-'+parts[0];
+    } else {
+      // Tentar achar data que parece vencimento (geralmente a mais futura)
+      var datas=[];
+      var re=/\b(\d{2})\/(\d{2})\/(20\d{2})\b/g, m2;
+      while((m2=re.exec(str))!==null){
+        var d=new Date(m2[3]+'-'+m2[2]+'-'+m2[1]);
+        datas.push({str:m2[3]+'-'+m2[2]+'-'+m2[1],date:d});
+      }
+      datas.sort(function(a,b){return b.date-a.date;});
+      if(datas.length>0)result.vencimento=datas[0].str;
+    }
+
+    // ── NF: padrão NF69101-01 ou NF 69101
+    var mNF=str.match(/NF[\s-]?(\d{3,8}(?:[\/-]\d{2})?)/i);
+    if(mNF)result.nf=mNF[0].replace(/\s/g,'');
+
+    // ── Beneficiário: linha com LTDA, S/A, EIRELI, ME, EPP
+    var mBen=str.match(/([A-Z][A-Z\s\.]{10,60}(?:LTDA|S\/A|SA|EIRELI|\bME\b|\bEPP\b)[A-Z\s\.]*)/);
+    if(mBen)result.beneficiario=mBen[0].trim().slice(0,60);
+
+    cb(result);
+  }catch(e){cb({cod:'',valor:'',vencimento:'',beneficiario:'',nf:''});}
+}
+
+
+function anexarBoleto(id){
+  var input=document.createElement('input');
+  input.type='file';input.accept='application/pdf';
+  input.onchange=function(){
+    var file=input.files[0];
+    if(!file)return;
+    var reader=new FileReader();
+    reader.onload=function(e){
+      var arrayBuffer=e.target.result;
+      extractBoletoCod(arrayBuffer,file.name,function(res){
+        var d=pagData();
+        var it=d.fornecedores.find(function(x){return x.id===id;});
+        if(it){
+          it.boletoData=arrayBufferToBase64(arrayBuffer);
+          if(res.cod&&!it.referencia)it.referencia=res.cod;
+          if(res.valor&&!it.valor){var v=parseFloat(res.valor.replace(',','.'));if(v>0)it.valor=v;}
+          if(res.vencimento&&!it.vencimento)it.vencimento=res.vencimento;
+        }
+        window._pagData=d;savePag();renderPagForn();
+        var msg='Boleto anexado';
+        if(res.cod)msg+=' · código lido';
+        showToast(msg+'!');
+      });
+    };
+    reader.readAsArrayBuffer(file);
+  };
+  input.click();
+}
+function arrayBufferToBase64(buf){
+  var bytes=new Uint8Array(buf),bin='';
+  for(var i=0;i<bytes.length;i++)bin+=String.fromCharCode(bytes[i]);
+  return btoa(bin);
 }
 
 function verBoleto(id){
@@ -1415,6 +1659,58 @@ function escHtml(s){
 }
 
 // ── Init pagamentos quando abre a página
+
+
+function editPagDataPag(td, id, tipo){
+  var atual='';
+  var d=pagData();
+  var arr=tipo==='forn'?d.fornecedores:d.gerais;
+  var it=arr.find(function(x){return x.id===id;});
+  if(it)atual=it.dataPag||'';
+  td.innerHTML='<input type="date" value="'+atual+'" style="background:var(--bg4);border:0.5px solid var(--accent2);border-radius:6px;padding:3px 6px;color:var(--text);font-family:var(--mono);font-size:12px;width:130px" onblur="savePagDataPag(this,\''+id+'\',\''+tipo+'\')" onchange="savePagDataPag(this,\''+id+'\',\''+tipo+'\')">';
+  td.querySelector('input').focus();
+}
+function savePagDataPag(input, id, tipo){
+  var val=input.value;
+  var d=pagData();
+  var arr=tipo==='forn'?d.fornecedores:d.gerais;
+  var it=arr.find(function(x){return x.id===id;});
+  if(it){
+    it.dataPag=val;
+    if(val&&it.status!=='pago')it.status='pago';
+    else if(!val&&it.status==='pago')it.status='pendente';
+  }
+  window._pagData=d;
+  savePag();
+  if(tipo==='forn')renderPagForn();
+  else renderPagGeral();
+}
+
+function makeDraggableH(el){
+  if(!el||el._dragH)return;
+  el._dragH=true;
+  var isDown=false,startX,scrollLeft;
+  el.addEventListener('mousedown',function(e){
+    if(e.target.tagName==='INPUT'||e.target.tagName==='BUTTON'||e.target.tagName==='SELECT')return;
+    isDown=true;startX=e.pageX-el.offsetLeft;scrollLeft=el.scrollLeft;
+    el.style.cursor='grabbing';e.preventDefault();
+  });
+  el.addEventListener('mouseleave',function(){isDown=false;el.style.cursor='';});
+  el.addEventListener('mouseup',function(){isDown=false;el.style.cursor='';});
+  el.addEventListener('mousemove',function(e){
+    if(!isDown)return;
+    var x=e.pageX-el.offsetLeft;
+    el.scrollLeft=scrollLeft-(x-startX);
+  });
+  // Touch
+  var touchX,touchScroll;
+  el.addEventListener('touchstart',function(e){touchX=e.touches[0].pageX;touchScroll=el.scrollLeft;},{passive:true});
+  el.addEventListener('touchmove',function(e){
+    if(!touchX)return;
+    el.scrollLeft=touchScroll-(e.touches[0].pageX-touchX);
+  },{passive:true});
+}
+
 function initPagamentos(){
   window._pagData=loadPag();
   initPagGeralMes();
@@ -1585,6 +1881,7 @@ function renderPagForn(){
   document.getElementById('pagFornBody').innerHTML=tbody;
   renderPagFornSide(d.fornecedores);
   renderPagKpis();
+  makeDraggableH(document.querySelector('#pagViewForn .pag-table-wrap div[style]'));
 }
 
 function renderPagFornSide(items){
@@ -1759,6 +2056,7 @@ function renderPagGeral(){
   }
   document.getElementById('pagGeralBody').innerHTML=tbody;
   renderPagKpis();
+  makeDraggableH(document.querySelector('#pagViewGeral .pag-table-wrap div[style]'));
 }
 
 // ── Sorting
@@ -1927,12 +2225,15 @@ function savePagItem(){
           venc=document.getElementById('pmVencimento').value;
         }
         var titulo=nf?(nf+' '+(i+1)+'/'+nParcelas):'Parcela '+(i+1)+'/'+nParcelas;
-        d.fornecedores.push({
+        var newItem={
           id:'forn_'+Date.now()+'_'+i,
           fornecedor:forn,nf:nf,modalidade:modalidade,titulo:titulo,
           valor:valorParcela,vencimento:venc,referencia:referencia,obs:obs,
           status:'pendente',dataPag:''
-        });
+        };
+        // Anexar PDF importado (apenas na 1ª parcela)
+        if(i===0&&window._pagPdfPendente){newItem.boletoData=window._pagPdfPendente;window._pagPdfPendente=null;}
+        d.fornecedores.push(newItem);
       });
     }
   } else {
@@ -2039,21 +2340,30 @@ function importarBoleto(){
       reader.onload=function(e){
         var data=e.target.result;
         // Extrair código de barras do PDF via texto
-        extractBoletoCod(data, file.name, function(cod){
-          var d=pagData();
-          var item={
-            id:'forn_'+Date.now()+'_'+Math.random().toString(36).slice(2,6),
-            fornecedor:'',nf:'',modalidade:'Boleto',titulo:file.name.replace('.pdf',''),
-            valor:0,vencimento:'',referencia:cod||'',obs:'Importado de PDF: '+file.name,
-            status:'pendente',dataPag:'',boletoData:btoa(String.fromCharCode.apply(null,new Uint8Array(e.target.result instanceof ArrayBuffer?e.target.result:new ArrayBuffer(0))))
-          };
-          // Abrir modal pré-preenchido para confirmação
-          window._pagData=d;
+        var pdfArrayBuffer=e.target.result;
+        extractBoletoCod(pdfArrayBuffer, file.name, function(res){
+          var b64=arrayBufferToBase64(pdfArrayBuffer);
           openPagModal('forn');
-          if(cod)document.getElementById('pmReferencia').value=cod;
-          document.getElementById('pmTitulo').value=file.name.replace('.pdf','');
+          // Preencher campos com dados extraídos
+          if(res.beneficiario)document.getElementById('pmFornecedor').value=res.beneficiario;
+          if(res.nf)document.getElementById('pmNF').value=res.nf;
+          if(res.valor){
+            var v=parseFloat(res.valor.replace(',','.'));
+            if(v>0)document.getElementById('pmValor').value=v.toFixed(2);
+          }
+          if(res.vencimento)document.getElementById('pmVencimento').value=res.vencimento;
+          if(res.cod)document.getElementById('pmReferencia').value=res.cod;
+          document.getElementById('pmTitulo').value=res.nf||file.name.replace('.pdf','');
           document.getElementById('pmObsForn').value='Importado de PDF: '+file.name;
-          showToast(cod?'Código de barras lido!':'PDF importado — preencha o código manualmente');
+          document.getElementById('pmModalidade').value='Boleto';
+          // Guardar base64 para salvar junto com o item
+          window._pagPdfPendente=b64;
+          var extraidos=[];
+          if(res.beneficiario)extraidos.push('Fornecedor');
+          if(res.valor)extraidos.push('Valor');
+          if(res.vencimento)extraidos.push('Vencimento');
+          if(res.cod)extraidos.push('Código');
+          showToast(extraidos.length>0?'Lido: '+extraidos.join(', '):'PDF importado — verifique os campos');
         });
       };
       reader.readAsArrayBuffer(file);
@@ -2063,19 +2373,99 @@ function importarBoleto(){
 }
 
 function extractBoletoCod(arrayBuffer, fileName, cb){
-  // Tenta extrair código de barras do texto do PDF
   try{
     var bytes=new Uint8Array(arrayBuffer);
     var str='';
-    for(var i=0;i<Math.min(bytes.length,50000);i++)str+=String.fromCharCode(bytes[i]);
-    // Padrão linha digitável boleto bancário: sequências de dígitos com pontos/espaços
-    var m=str.match(/\d{5}\.\d{5}\s\d{5}\.\d{6}\s\d{5}\.\d{6}\s\d\s\d{14}/);
-    if(m){cb(m[0].replace(/\s/g,''));return;}
-    // Código de barras numérico 44-47 dígitos
-    var m2=str.match(/[0-9]{44,47}/);
-    if(m2){cb(m2[0]);return;}
-    cb('');
-  }catch(e){cb('');}
+    for(var i=0;i<Math.min(bytes.length,80000);i++){
+      var c=bytes[i];
+      // Incluir apenas caracteres imprimíveis e espaços
+      if(c>=32&&c<127)str+=String.fromCharCode(c);
+      else if(c===10||c===13)str+=' ';
+    }
+
+    var result={cod:'',valor:'',vencimento:'',beneficiario:'',nf:''};
+
+    // ── Linha digitável: 00190.00009 03618.729101 00034.685172 1 14760000678222
+    var mLinha=str.match(/\d{5}\.\d{5}\s+\d{5}\.\d{6}\s+\d{5}\.\d{6}\s+\d\s+\d{14}/);
+    if(mLinha){result.cod=mLinha[0].replace(/\s+/g,' ').trim();}
+    else{
+      // Código de barras 44 dígitos compacto
+      var mCod=str.match(/\b\d{44,47}\b/);
+      if(mCod)result.cod=mCod[0];
+    }
+
+    // ── Valor: padrão "6.782,22" ou "R$ 6.782,22"
+    var mVals=str.match(/(?:R\$\s*)?([\d]{1,3}(?:\.\d{3})*,\d{2})/g);
+    if(mVals&&mVals.length>0){
+      // Pegar o maior valor (provavelmente o valor do documento)
+      var vals=mVals.map(function(v){
+        return parseFloat(v.replace(/[R\$\s]/g,'').replace(/\./g,'').replace(',','.'));
+      }).filter(function(v){return v>0;}).sort(function(a,b){return b-a;});
+      if(vals.length>0)result.valor=vals[0].toFixed(2).replace('.',',');
+    }
+
+    // ── Vencimento: padrão DD/MM/AAAA
+    var mVenc=str.match(/(?:Vencimento|Venc\.?)[\s\S]{0,30}(\d{2}\/\d{2}\/\d{4})/);
+    if(mVenc){
+      var parts=mVenc[1].split('/');
+      result.vencimento=parts[2]+'-'+parts[1]+'-'+parts[0];
+    } else {
+      // Tentar achar data que parece vencimento (geralmente a mais futura)
+      var datas=[];
+      var re=/\b(\d{2})\/(\d{2})\/(20\d{2})\b/g, m2;
+      while((m2=re.exec(str))!==null){
+        var d=new Date(m2[3]+'-'+m2[2]+'-'+m2[1]);
+        datas.push({str:m2[3]+'-'+m2[2]+'-'+m2[1],date:d});
+      }
+      datas.sort(function(a,b){return b.date-a.date;});
+      if(datas.length>0)result.vencimento=datas[0].str;
+    }
+
+    // ── NF: padrão NF69101-01 ou NF 69101
+    var mNF=str.match(/NF[\s-]?(\d{3,8}(?:[\/-]\d{2})?)/i);
+    if(mNF)result.nf=mNF[0].replace(/\s/g,'');
+
+    // ── Beneficiário: linha com LTDA, S/A, EIRELI, ME, EPP
+    var mBen=str.match(/([A-Z][A-Z\s\.]{10,60}(?:LTDA|S\/A|SA|EIRELI|\bME\b|\bEPP\b)[A-Z\s\.]*)/);
+    if(mBen)result.beneficiario=mBen[0].trim().slice(0,60);
+
+    cb(result);
+  }catch(e){cb({cod:'',valor:'',vencimento:'',beneficiario:'',nf:''});}
+}
+
+
+function anexarBoleto(id){
+  var input=document.createElement('input');
+  input.type='file';input.accept='application/pdf';
+  input.onchange=function(){
+    var file=input.files[0];
+    if(!file)return;
+    var reader=new FileReader();
+    reader.onload=function(e){
+      var arrayBuffer=e.target.result;
+      extractBoletoCod(arrayBuffer,file.name,function(res){
+        var d=pagData();
+        var it=d.fornecedores.find(function(x){return x.id===id;});
+        if(it){
+          it.boletoData=arrayBufferToBase64(arrayBuffer);
+          if(res.cod&&!it.referencia)it.referencia=res.cod;
+          if(res.valor&&!it.valor){var v=parseFloat(res.valor.replace(',','.'));if(v>0)it.valor=v;}
+          if(res.vencimento&&!it.vencimento)it.vencimento=res.vencimento;
+        }
+        window._pagData=d;savePag();renderPagForn();
+        var msg='Boleto anexado';
+        if(res.cod)msg+=' · código lido';
+        showToast(msg+'!');
+      });
+    };
+    reader.readAsArrayBuffer(file);
+  };
+  input.click();
+}
+function arrayBufferToBase64(buf){
+  var bytes=new Uint8Array(buf),bin='';
+  for(var i=0;i<bytes.length;i++)bin+=String.fromCharCode(bytes[i]);
+  return btoa(bin);
 }
 
 function verBoleto(id){
@@ -2123,6 +2513,58 @@ function escHtml(s){
 }
 
 // ── Init pagamentos quando abre a página
+
+
+function editPagDataPag(td, id, tipo){
+  var atual='';
+  var d=pagData();
+  var arr=tipo==='forn'?d.fornecedores:d.gerais;
+  var it=arr.find(function(x){return x.id===id;});
+  if(it)atual=it.dataPag||'';
+  td.innerHTML='<input type="date" value="'+atual+'" style="background:var(--bg4);border:0.5px solid var(--accent2);border-radius:6px;padding:3px 6px;color:var(--text);font-family:var(--mono);font-size:12px;width:130px" onblur="savePagDataPag(this,\''+id+'\',\''+tipo+'\')" onchange="savePagDataPag(this,\''+id+'\',\''+tipo+'\')">';
+  td.querySelector('input').focus();
+}
+function savePagDataPag(input, id, tipo){
+  var val=input.value;
+  var d=pagData();
+  var arr=tipo==='forn'?d.fornecedores:d.gerais;
+  var it=arr.find(function(x){return x.id===id;});
+  if(it){
+    it.dataPag=val;
+    if(val&&it.status!=='pago')it.status='pago';
+    else if(!val&&it.status==='pago')it.status='pendente';
+  }
+  window._pagData=d;
+  savePag();
+  if(tipo==='forn')renderPagForn();
+  else renderPagGeral();
+}
+
+function makeDraggableH(el){
+  if(!el||el._dragH)return;
+  el._dragH=true;
+  var isDown=false,startX,scrollLeft;
+  el.addEventListener('mousedown',function(e){
+    if(e.target.tagName==='INPUT'||e.target.tagName==='BUTTON'||e.target.tagName==='SELECT')return;
+    isDown=true;startX=e.pageX-el.offsetLeft;scrollLeft=el.scrollLeft;
+    el.style.cursor='grabbing';e.preventDefault();
+  });
+  el.addEventListener('mouseleave',function(){isDown=false;el.style.cursor='';});
+  el.addEventListener('mouseup',function(){isDown=false;el.style.cursor='';});
+  el.addEventListener('mousemove',function(e){
+    if(!isDown)return;
+    var x=e.pageX-el.offsetLeft;
+    el.scrollLeft=scrollLeft-(x-startX);
+  });
+  // Touch
+  var touchX,touchScroll;
+  el.addEventListener('touchstart',function(e){touchX=e.touches[0].pageX;touchScroll=el.scrollLeft;},{passive:true});
+  el.addEventListener('touchmove',function(e){
+    if(!touchX)return;
+    el.scrollLeft=touchScroll-(e.touches[0].pageX-touchX);
+  },{passive:true});
+}
+
 function initPagamentos(){
   window._pagData=loadPag();
   initPagGeralMes();
@@ -7126,6 +7568,7 @@ function renderPagForn(){
   document.getElementById('pagFornBody').innerHTML=tbody;
   renderPagFornSide(d.fornecedores);
   renderPagKpis();
+  makeDraggableH(document.querySelector('#pagViewForn .pag-table-wrap div[style]'));
 }
 
 function renderPagFornSide(items){
@@ -7300,6 +7743,7 @@ function renderPagGeral(){
   }
   document.getElementById('pagGeralBody').innerHTML=tbody;
   renderPagKpis();
+  makeDraggableH(document.querySelector('#pagViewGeral .pag-table-wrap div[style]'));
 }
 
 // ── Sorting
@@ -7468,12 +7912,15 @@ function savePagItem(){
           venc=document.getElementById('pmVencimento').value;
         }
         var titulo=nf?(nf+' '+(i+1)+'/'+nParcelas):'Parcela '+(i+1)+'/'+nParcelas;
-        d.fornecedores.push({
+        var newItem={
           id:'forn_'+Date.now()+'_'+i,
           fornecedor:forn,nf:nf,modalidade:modalidade,titulo:titulo,
           valor:valorParcela,vencimento:venc,referencia:referencia,obs:obs,
           status:'pendente',dataPag:''
-        });
+        };
+        // Anexar PDF importado (apenas na 1ª parcela)
+        if(i===0&&window._pagPdfPendente){newItem.boletoData=window._pagPdfPendente;window._pagPdfPendente=null;}
+        d.fornecedores.push(newItem);
       });
     }
   } else {
@@ -7580,21 +8027,30 @@ function importarBoleto(){
       reader.onload=function(e){
         var data=e.target.result;
         // Extrair código de barras do PDF via texto
-        extractBoletoCod(data, file.name, function(cod){
-          var d=pagData();
-          var item={
-            id:'forn_'+Date.now()+'_'+Math.random().toString(36).slice(2,6),
-            fornecedor:'',nf:'',modalidade:'Boleto',titulo:file.name.replace('.pdf',''),
-            valor:0,vencimento:'',referencia:cod||'',obs:'Importado de PDF: '+file.name,
-            status:'pendente',dataPag:'',boletoData:btoa(String.fromCharCode.apply(null,new Uint8Array(e.target.result instanceof ArrayBuffer?e.target.result:new ArrayBuffer(0))))
-          };
-          // Abrir modal pré-preenchido para confirmação
-          window._pagData=d;
+        var pdfArrayBuffer=e.target.result;
+        extractBoletoCod(pdfArrayBuffer, file.name, function(res){
+          var b64=arrayBufferToBase64(pdfArrayBuffer);
           openPagModal('forn');
-          if(cod)document.getElementById('pmReferencia').value=cod;
-          document.getElementById('pmTitulo').value=file.name.replace('.pdf','');
+          // Preencher campos com dados extraídos
+          if(res.beneficiario)document.getElementById('pmFornecedor').value=res.beneficiario;
+          if(res.nf)document.getElementById('pmNF').value=res.nf;
+          if(res.valor){
+            var v=parseFloat(res.valor.replace(',','.'));
+            if(v>0)document.getElementById('pmValor').value=v.toFixed(2);
+          }
+          if(res.vencimento)document.getElementById('pmVencimento').value=res.vencimento;
+          if(res.cod)document.getElementById('pmReferencia').value=res.cod;
+          document.getElementById('pmTitulo').value=res.nf||file.name.replace('.pdf','');
           document.getElementById('pmObsForn').value='Importado de PDF: '+file.name;
-          showToast(cod?'Código de barras lido!':'PDF importado — preencha o código manualmente');
+          document.getElementById('pmModalidade').value='Boleto';
+          // Guardar base64 para salvar junto com o item
+          window._pagPdfPendente=b64;
+          var extraidos=[];
+          if(res.beneficiario)extraidos.push('Fornecedor');
+          if(res.valor)extraidos.push('Valor');
+          if(res.vencimento)extraidos.push('Vencimento');
+          if(res.cod)extraidos.push('Código');
+          showToast(extraidos.length>0?'Lido: '+extraidos.join(', '):'PDF importado — verifique os campos');
         });
       };
       reader.readAsArrayBuffer(file);
@@ -7604,19 +8060,99 @@ function importarBoleto(){
 }
 
 function extractBoletoCod(arrayBuffer, fileName, cb){
-  // Tenta extrair código de barras do texto do PDF
   try{
     var bytes=new Uint8Array(arrayBuffer);
     var str='';
-    for(var i=0;i<Math.min(bytes.length,50000);i++)str+=String.fromCharCode(bytes[i]);
-    // Padrão linha digitável boleto bancário: sequências de dígitos com pontos/espaços
-    var m=str.match(/\d{5}\.\d{5}\s\d{5}\.\d{6}\s\d{5}\.\d{6}\s\d\s\d{14}/);
-    if(m){cb(m[0].replace(/\s/g,''));return;}
-    // Código de barras numérico 44-47 dígitos
-    var m2=str.match(/[0-9]{44,47}/);
-    if(m2){cb(m2[0]);return;}
-    cb('');
-  }catch(e){cb('');}
+    for(var i=0;i<Math.min(bytes.length,80000);i++){
+      var c=bytes[i];
+      // Incluir apenas caracteres imprimíveis e espaços
+      if(c>=32&&c<127)str+=String.fromCharCode(c);
+      else if(c===10||c===13)str+=' ';
+    }
+
+    var result={cod:'',valor:'',vencimento:'',beneficiario:'',nf:''};
+
+    // ── Linha digitável: 00190.00009 03618.729101 00034.685172 1 14760000678222
+    var mLinha=str.match(/\d{5}\.\d{5}\s+\d{5}\.\d{6}\s+\d{5}\.\d{6}\s+\d\s+\d{14}/);
+    if(mLinha){result.cod=mLinha[0].replace(/\s+/g,' ').trim();}
+    else{
+      // Código de barras 44 dígitos compacto
+      var mCod=str.match(/\b\d{44,47}\b/);
+      if(mCod)result.cod=mCod[0];
+    }
+
+    // ── Valor: padrão "6.782,22" ou "R$ 6.782,22"
+    var mVals=str.match(/(?:R\$\s*)?([\d]{1,3}(?:\.\d{3})*,\d{2})/g);
+    if(mVals&&mVals.length>0){
+      // Pegar o maior valor (provavelmente o valor do documento)
+      var vals=mVals.map(function(v){
+        return parseFloat(v.replace(/[R\$\s]/g,'').replace(/\./g,'').replace(',','.'));
+      }).filter(function(v){return v>0;}).sort(function(a,b){return b-a;});
+      if(vals.length>0)result.valor=vals[0].toFixed(2).replace('.',',');
+    }
+
+    // ── Vencimento: padrão DD/MM/AAAA
+    var mVenc=str.match(/(?:Vencimento|Venc\.?)[\s\S]{0,30}(\d{2}\/\d{2}\/\d{4})/);
+    if(mVenc){
+      var parts=mVenc[1].split('/');
+      result.vencimento=parts[2]+'-'+parts[1]+'-'+parts[0];
+    } else {
+      // Tentar achar data que parece vencimento (geralmente a mais futura)
+      var datas=[];
+      var re=/\b(\d{2})\/(\d{2})\/(20\d{2})\b/g, m2;
+      while((m2=re.exec(str))!==null){
+        var d=new Date(m2[3]+'-'+m2[2]+'-'+m2[1]);
+        datas.push({str:m2[3]+'-'+m2[2]+'-'+m2[1],date:d});
+      }
+      datas.sort(function(a,b){return b.date-a.date;});
+      if(datas.length>0)result.vencimento=datas[0].str;
+    }
+
+    // ── NF: padrão NF69101-01 ou NF 69101
+    var mNF=str.match(/NF[\s-]?(\d{3,8}(?:[\/-]\d{2})?)/i);
+    if(mNF)result.nf=mNF[0].replace(/\s/g,'');
+
+    // ── Beneficiário: linha com LTDA, S/A, EIRELI, ME, EPP
+    var mBen=str.match(/([A-Z][A-Z\s\.]{10,60}(?:LTDA|S\/A|SA|EIRELI|\bME\b|\bEPP\b)[A-Z\s\.]*)/);
+    if(mBen)result.beneficiario=mBen[0].trim().slice(0,60);
+
+    cb(result);
+  }catch(e){cb({cod:'',valor:'',vencimento:'',beneficiario:'',nf:''});}
+}
+
+
+function anexarBoleto(id){
+  var input=document.createElement('input');
+  input.type='file';input.accept='application/pdf';
+  input.onchange=function(){
+    var file=input.files[0];
+    if(!file)return;
+    var reader=new FileReader();
+    reader.onload=function(e){
+      var arrayBuffer=e.target.result;
+      extractBoletoCod(arrayBuffer,file.name,function(res){
+        var d=pagData();
+        var it=d.fornecedores.find(function(x){return x.id===id;});
+        if(it){
+          it.boletoData=arrayBufferToBase64(arrayBuffer);
+          if(res.cod&&!it.referencia)it.referencia=res.cod;
+          if(res.valor&&!it.valor){var v=parseFloat(res.valor.replace(',','.'));if(v>0)it.valor=v;}
+          if(res.vencimento&&!it.vencimento)it.vencimento=res.vencimento;
+        }
+        window._pagData=d;savePag();renderPagForn();
+        var msg='Boleto anexado';
+        if(res.cod)msg+=' · código lido';
+        showToast(msg+'!');
+      });
+    };
+    reader.readAsArrayBuffer(file);
+  };
+  input.click();
+}
+function arrayBufferToBase64(buf){
+  var bytes=new Uint8Array(buf),bin='';
+  for(var i=0;i<bytes.length;i++)bin+=String.fromCharCode(bytes[i]);
+  return btoa(bin);
 }
 
 function verBoleto(id){
@@ -7664,6 +8200,58 @@ function escHtml(s){
 }
 
 // ── Init pagamentos quando abre a página
+
+
+function editPagDataPag(td, id, tipo){
+  var atual='';
+  var d=pagData();
+  var arr=tipo==='forn'?d.fornecedores:d.gerais;
+  var it=arr.find(function(x){return x.id===id;});
+  if(it)atual=it.dataPag||'';
+  td.innerHTML='<input type="date" value="'+atual+'" style="background:var(--bg4);border:0.5px solid var(--accent2);border-radius:6px;padding:3px 6px;color:var(--text);font-family:var(--mono);font-size:12px;width:130px" onblur="savePagDataPag(this,\''+id+'\',\''+tipo+'\')" onchange="savePagDataPag(this,\''+id+'\',\''+tipo+'\')">';
+  td.querySelector('input').focus();
+}
+function savePagDataPag(input, id, tipo){
+  var val=input.value;
+  var d=pagData();
+  var arr=tipo==='forn'?d.fornecedores:d.gerais;
+  var it=arr.find(function(x){return x.id===id;});
+  if(it){
+    it.dataPag=val;
+    if(val&&it.status!=='pago')it.status='pago';
+    else if(!val&&it.status==='pago')it.status='pendente';
+  }
+  window._pagData=d;
+  savePag();
+  if(tipo==='forn')renderPagForn();
+  else renderPagGeral();
+}
+
+function makeDraggableH(el){
+  if(!el||el._dragH)return;
+  el._dragH=true;
+  var isDown=false,startX,scrollLeft;
+  el.addEventListener('mousedown',function(e){
+    if(e.target.tagName==='INPUT'||e.target.tagName==='BUTTON'||e.target.tagName==='SELECT')return;
+    isDown=true;startX=e.pageX-el.offsetLeft;scrollLeft=el.scrollLeft;
+    el.style.cursor='grabbing';e.preventDefault();
+  });
+  el.addEventListener('mouseleave',function(){isDown=false;el.style.cursor='';});
+  el.addEventListener('mouseup',function(){isDown=false;el.style.cursor='';});
+  el.addEventListener('mousemove',function(e){
+    if(!isDown)return;
+    var x=e.pageX-el.offsetLeft;
+    el.scrollLeft=scrollLeft-(x-startX);
+  });
+  // Touch
+  var touchX,touchScroll;
+  el.addEventListener('touchstart',function(e){touchX=e.touches[0].pageX;touchScroll=el.scrollLeft;},{passive:true});
+  el.addEventListener('touchmove',function(e){
+    if(!touchX)return;
+    el.scrollLeft=touchScroll-(e.touches[0].pageX-touchX);
+  },{passive:true});
+}
+
 function initPagamentos(){
   window._pagData=loadPag();
   initPagGeralMes();
