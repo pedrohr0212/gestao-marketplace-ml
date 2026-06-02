@@ -146,8 +146,8 @@ function renderPagForn(){
         +'<td class="mono">'+fmtDate(it.vencimento)+'</td>'
         +'<td class="mono bold">'+BRL(it.valor||0)+'</td>'
         +'<td>'+pagTruncCod(it.referencia)+'</td>'
-        +'<td class="mono" style="cursor:pointer" onclick="editPagDataPag(this,\''+it.id+'\',\'forn\')" title="Clique para editar data de pagamento">'
-        +(it.dataPag?fmtDate(it.dataPag):'<span style="color:var(--text3)">—</span>')
+        +'<td class="mono" style="cursor:pointer" data-id="'+it.id+'" data-tipo="forn" onclick="editPagDataPag(this,this.dataset.id,this.dataset.tipo)" title="Clique para inserir data de pagamento">'
+        +(it.dataPag?fmtDate(it.dataPag):'<span style="color:var(--text3);font-size:11px">—</span>')
         +'</td>'
         +'<td>'+pagStatusBadge(statusAtual)+'</td>'
         +'<td>'+pagDias(it.vencimento,statusAtual)+'</td>'
@@ -323,8 +323,8 @@ function renderPagGeral(){
         +'<td><span class="pag-cat">'+escHtml(it.categoria||'—')+'</span></td>'
         +'<td class="mono">'+fmtDate(it.vencimento)+'</td>'
         +'<td class="mono bold">'+BRL(it.valor||0)+'</td>'
-        +'<td class="mono" style="cursor:pointer" onclick="editPagDataPag(this,\''+it.id+'\',\'geral\')" title="Clique para editar data de pagamento">'
-        +(it.dataPag?fmtDate(it.dataPag):'<span style="color:var(--text3)">—</span>')
+        +'<td class="mono" style="cursor:pointer" data-id="'+it.id+'" data-tipo="geral" onclick="editPagDataPag(this,this.dataset.id,this.dataset.tipo)" title="Clique para inserir data de pagamento">'
+        +(it.dataPag?fmtDate(it.dataPag):'<span style="color:var(--text3);font-size:11px">—</span>')
         +'</td>'
         +'<td>'+pagStatusBadge(statusAtual)+'</td>'
         +'<td>'+pagDias(it.vencimento,statusAtual)+'</td>'
@@ -3570,7 +3570,8 @@ tbody tr:hover td{background:var(--bg3)}
   padding:2px;border-radius:4px;display:flex;align-items:center;flex-shrink:0;transition:color .15s;}
 .pag-copy-btn:hover{color:var(--accent2);}
 .pag-boleto-btn{background:none;border:none;cursor:pointer;color:var(--text3);
-  padding:2px;border-radius:4px;display:flex;align-items:center;transition:color .15s;}
+  padding:2px;border-radius:4px;display:inline-flex;align-items:center;justify-content:center;transition:color .15s;}
+.pag-table td:has(.pag-boleto-btn){text-align:center;vertical-align:middle;}
 .pag-boleto-btn:hover{color:var(--blue);}
 
 /* Dias restantes */
