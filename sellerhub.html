@@ -146,9 +146,7 @@ function renderPagForn(){
         +'<td class="mono">'+fmtDate(it.vencimento)+'</td>'
         +'<td class="mono bold">'+BRL(it.valor||0)+'</td>'
         +'<td>'+pagTruncCod(it.referencia)+'</td>'
-        +'<td class="mono" style="cursor:pointer" data-id="'+it.id+'" data-tipo="forn" onclick="editPagDataPag(this,this.dataset.id,this.dataset.tipo)" title="Clique para inserir data de pagamento">'
-        +(it.dataPag?fmtDate(it.dataPag):'<span style="color:var(--text3);font-size:11px">—</span>')
-        +'</td>'
+        +'<td class="mono"><input type="date" value="'+(it.dataPag||'')+'" data-id="'+it.id+'" data-tipo="forn" onchange="savePagDataPag(this,this.dataset.id,this.dataset.tipo)" style="background:transparent;border:none;color:var(--text2);font-family:var(--mono);font-size:12px;cursor:pointer;width:120px;outline:none;text-align:center"></td>'
         +'<td>'+pagStatusBadge(statusAtual)+'</td>'
         +'<td>'+pagDias(it.vencimento,statusAtual)+'</td>'
         +'<td style="font-size:11px;color:var(--text3);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escHtml(it.obs||'—')+'</td>'
@@ -323,9 +321,7 @@ function renderPagGeral(){
         +'<td><span class="pag-cat">'+escHtml(it.categoria||'—')+'</span></td>'
         +'<td class="mono">'+fmtDate(it.vencimento)+'</td>'
         +'<td class="mono bold">'+BRL(it.valor||0)+'</td>'
-        +'<td class="mono" style="cursor:pointer" data-id="'+it.id+'" data-tipo="geral" onclick="editPagDataPag(this,this.dataset.id,this.dataset.tipo)" title="Clique para inserir data de pagamento">'
-        +(it.dataPag?fmtDate(it.dataPag):'<span style="color:var(--text3);font-size:11px">—</span>')
-        +'</td>'
+        +'<td class="mono"><input type="date" value="'+(it.dataPag||'')+'" data-id="'+it.id+'" data-tipo="geral" onchange="savePagDataPag(this,this.dataset.id,this.dataset.tipo)" style="background:transparent;border:none;color:var(--text2);font-family:var(--mono);font-size:12px;cursor:pointer;width:120px;outline:none;text-align:center"></td>'
         +'<td>'+pagStatusBadge(statusAtual)+'</td>'
         +'<td>'+pagDias(it.vencimento,statusAtual)+'</td>'
         +'<td style="font-size:11px;color:var(--text3)">'+escHtml(it.obs||'—')
@@ -8160,8 +8156,15 @@ function savePagDataPag(input, id, tipo){
   }
   window._pagData=d;
   savePag();
-  if(tipo==='forn')renderPagForn();
-  else renderPagGeral();
+  // Atualizar só o badge de status na linha sem re-renderizar tudo
+  var tr=input.closest('tr');
+  if(tr){
+    var statusTd=tr.querySelectorAll('td')[8];
+    if(statusTd)statusTd.innerHTML=pagStatusBadge(it?it.status:'pendente');
+    var diasTd=tr.querySelectorAll('td')[9];
+    if(diasTd)diasTd.innerHTML=pagDias(it?it.vencimento:'',it?it.status:'pendente');
+  }
+  renderPagKpis();
 }
 
 function makeDraggableH(el){
