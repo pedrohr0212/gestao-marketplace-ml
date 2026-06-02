@@ -13,12 +13,7 @@
 // ══════════════════════════════════════════════════════════
 var STORE_PAG = 'pagamentosML_v1';
 var pagTab = 'fornecedores';
-var pagFornSort = {col:'vencimento', asc:true};
-var pagGeralSort = {col:'vencimento', asc:true};
-var pagGeralMes = 'todos'; // 'todos' ou 'YYYY-MM'
-var _pagEditId = null;
-var _pagEditType = null;
-var _pagRecorrId = null;
+// estado inicializado antes do INIT
 
 var PAG_CATS = [
   '🚚 Frete','📊 Contabilidade','🏢 Empresa','⚡ Energia',
@@ -726,12 +721,7 @@ function initPagamentos(){
 // ══════════════════════════════════════════════════════════
 var STORE_PAG = 'pagamentosML_v1';
 var pagTab = 'fornecedores';
-var pagFornSort = {col:'vencimento', asc:true};
-var pagGeralSort = {col:'vencimento', asc:true};
-var pagGeralMes = 'todos'; // 'todos' ou 'YYYY-MM'
-var _pagEditId = null;
-var _pagEditType = null;
-var _pagRecorrId = null;
+// estado inicializado antes do INIT
 
 var PAG_CATS = [
   '🚚 Frete','📊 Contabilidade','🏢 Empresa','⚡ Energia',
@@ -1439,12 +1429,7 @@ function initPagamentos(){
 // ══════════════════════════════════════════════════════════
 var STORE_PAG = 'pagamentosML_v1';
 var pagTab = 'fornecedores';
-var pagFornSort = {col:'vencimento', asc:true};
-var pagGeralSort = {col:'vencimento', asc:true};
-var pagGeralMes = 'todos'; // 'todos' ou 'YYYY-MM'
-var _pagEditId = null;
-var _pagEditType = null;
-var _pagRecorrId = null;
+// estado inicializado antes do INIT
 
 var PAG_CATS = [
   '🚚 Frete','📊 Contabilidade','🏢 Empresa','⚡ Energia',
@@ -6910,6 +6895,11 @@ function renderRelTopCards(){
   ].map(c=>'<div class="tc '+c.cls+'"><div class="tc-label">'+c.l+'</div><div class="tc-val" style="font-size:'+(c.v.toString().length>9?'15px':'22px')+'">'+c.v+'</div><div class="tc-sub">'+c.sub+'</div></div>').join('');
 }
 
+var pagFornSort={col:'vencimento',asc:true};
+var pagGeralSort={col:'vencimento',asc:true};
+var pagTab='fornecedores';
+var pagGeralMes='todos';
+var _pagEditId=null,_pagEditType=null,_pagRecorrId=null;
 // ── INIT ──────────────────────────────────────────────────────
 // Set default date for full form to today
 var td=new Date();
@@ -6980,12 +6970,7 @@ var _isDark=true;
 // ══════════════════════════════════════════════════════════
 var STORE_PAG = 'pagamentosML_v1';
 var pagTab = 'fornecedores';
-var pagFornSort = {col:'vencimento', asc:true};
-var pagGeralSort = {col:'vencimento', asc:true};
-var pagGeralMes = 'todos'; // 'todos' ou 'YYYY-MM'
-var _pagEditId = null;
-var _pagEditType = null;
-var _pagRecorrId = null;
+// estado inicializado antes do INIT
 
 var PAG_CATS = [
   '🚚 Frete','📊 Contabilidade','🏢 Empresa','⚡ Energia',
