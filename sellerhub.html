@@ -3545,11 +3545,11 @@ tbody tr:hover td{background:var(--bg3)}
   letter-spacing:.07em;color:var(--text3);border-bottom:0.5px solid var(--border);}
 .pag-table{width:100%;border-collapse:collapse;}
 .pag-table th{padding:8px 10px;font-size:9px;font-weight:600;text-transform:uppercase;
-  letter-spacing:.06em;color:var(--text3);text-align:left;border-bottom:0.5px solid var(--border);
+  letter-spacing:.06em;color:var(--text3);text-align:center;border-bottom:0.5px solid var(--border);
   white-space:nowrap;cursor:pointer;user-select:none;}
 .pag-table th:hover{color:var(--text2);}
 .pag-table td{padding:9px 10px;font-size:12px;color:var(--text2);border-bottom:0.5px solid var(--border);
-  vertical-align:middle;}
+  vertical-align:middle;text-align:center;}
 .pag-table tr:last-child td{border-bottom:none;}
 .pag-table tr:hover td{background:var(--bg4);}
 .pag-table td.mono{font-family:var(--mono);font-size:12px;}
@@ -8133,13 +8133,20 @@ function escHtml(s){
 
 
 function editPagDataPag(td, id, tipo){
-  var atual='';
   var d=pagData();
   var arr=tipo==='forn'?d.fornecedores:d.gerais;
   var it=arr.find(function(x){return x.id===id;});
-  if(it)atual=it.dataPag||'';
-  td.innerHTML='<input type="date" value="'+atual+'" style="background:var(--bg4);border:0.5px solid var(--accent2);border-radius:6px;padding:3px 6px;color:var(--text);font-family:var(--mono);font-size:12px;width:130px" onblur="savePagDataPag(this,\''+id+'\',\''+tipo+'\')" onchange="savePagDataPag(this,\''+id+'\',\''+tipo+'\')">';
-  td.querySelector('input').focus();
+  var atual=it?it.dataPag||'':'';
+  var inp=document.createElement('input');
+  inp.type='date';
+  inp.value=atual;
+  inp.style.cssText='background:var(--bg4);border:0.5px solid var(--accent2);border-radius:6px;padding:3px 6px;color:var(--text);font-family:var(--mono);font-size:12px;width:130px';
+  inp.addEventListener('change',function(){savePagDataPag(inp,id,tipo);});
+  inp.addEventListener('blur',function(){savePagDataPag(inp,id,tipo);});
+  td.innerHTML='';
+  td.appendChild(inp);
+  inp.focus();
+  inp.showPicker&&inp.showPicker();
 }
 function savePagDataPag(input, id, tipo){
   var val=input.value;
