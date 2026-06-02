@@ -399,7 +399,9 @@ function openPagModal(type, editId){
   } else {
     // Limpar campos
     if(isForn){
-      ['pmFornecedor','pmNF','pmTitulo','pmValor','pmVencimento','pmReferencia','pmObsForn'].forEach(function(id){document.getElementById(id).value='';});
+      ['pmFornecedor','pmNF','pmTitulo','pmValor','pmVencimento','pmEmissao','pmPrazo','pmReferencia','pmObsForn'].forEach(function(id){document.getElementById(id).value='';});
+        document.getElementById('pmParcelas').value='1';
+        document.getElementById('pmVencPreview').style.display='none';
       document.getElementById('pmModalidade').value='Boleto';
     } else {
       ['pmDescricao','pmValorGeral','pmVencimentoGeral','pmObsGeral'].forEach(function(id){document.getElementById(id).value='';});
@@ -415,33 +417,112 @@ function closePagModal(){
   _pagEditId=null; _pagEditType=null;
 }
 
+
+// ── PARCELAS FORNECEDOR ──────────────────────────────────
+function onPmParcelasChange(){
+  var n=parseInt(document.getElementById('pmParcelas').value)||1;
+  var prazoEl=document.getElementById('pmPrazo');
+  if(n===1){
+    prazoEl.placeholder='Ex: 30 (dias DDL)';
+  } else {
+    prazoEl.placeholder='Ex: 15/30 (um prazo por parcela, separado por /)';
+  }
+  calcVencimentos();
+}
+
+function calcVencimentos(){
+  var emissao=document.getElementById('pmEmissao').value;
+  var prazoStr=(document.getElementById('pmPrazo').value||'').trim();
+  var nParcelas=parseInt(document.getElementById('pmParcelas').value)||1;
+  var previewEl=document.getElementById('pmVencPreview');
+  var previewBody=document.getElementById('pmVencPreviewBody');
+  var vencEl=document.getElementById('pmVencimento');
+
+  if(!emissao||!prazoStr){previewEl.style.display='none';return;}
+
+  var prazos=prazoStr.split('/').map(function(p){return parseInt(p.trim())||0;}).filter(function(p){return p>0;});
+  
+  // Se prazos < parcelas, repetir o último
+  while(prazos.length<nParcelas) prazos.push(prazos[prazos.length-1]||30);
+  prazos=prazos.slice(0,nParcelas);
+
+  var baseDate=new Date(emissao+'T00:00:00');
+  var linhas=[];
+  var nf=(document.getElementById('pmNF').value||'').trim();
+  
+  prazos.forEach(function(dias, i){
+    var venc=new Date(baseDate.getTime()+dias*24*60*60*1000);
+    var vencStr=venc.getFullYear()+'-'+String(venc.getMonth()+1).padStart(2,'0')+'-'+String(venc.getDate()).padStart(2,'0');
+    var titulo=nf?(nf+' '+(i+1)+'/'+nParcelas):'Parcela '+(i+1)+'/'+nParcelas;
+    linhas.push({parcela:i+1,venc:vencStr,titulo:titulo,dias:dias});
+    if(i===0) vencEl.value=vencStr;
+  });
+
+  if(nParcelas>1){
+    previewEl.style.display='block';
+    previewBody.innerHTML=linhas.map(function(l){
+      return 'Parcela '+l.parcela+'/'+nParcelas
+        +' &nbsp;|&nbsp; '+fmtDate(l.venc)
+        +' &nbsp;|&nbsp; DDL +'+l.dias+'d'
+        +' &nbsp;|&nbsp; Título: '+escHtml(l.titulo);
+    }).join('<br>');
+    // Atualizar título com primeira parcela
+    document.getElementById('pmTitulo').value=linhas[0].titulo;
+  } else {
+    previewEl.style.display='none';
+    if(linhas.length>0) document.getElementById('pmTitulo').value=linhas[0].titulo;
+  }
+}
+
 function savePagItem(){
   var d=pagData();
   var isForn=_pagEditType==='forn';
   if(isForn){
     var forn=(document.getElementById('pmFornecedor').value||'').trim();
     var valor=+(document.getElementById('pmValor').value)||0;
-    var venc=document.getElementById('pmVencimento').value;
-    if(!forn||!valor||!venc){alert('Preencha os campos obrigatórios: Fornecedor, Valor e Vencimento.');return;}
-    var item={
-      id:_pagEditId||('forn_'+Date.now()),
-      fornecedor:forn,
-      nf:(document.getElementById('pmNF').value||'').trim(),
-      modalidade:document.getElementById('pmModalidade').value,
-      titulo:(document.getElementById('pmTitulo').value||'').trim(),
-      valor:valor,
-      vencimento:venc,
-      referencia:(document.getElementById('pmReferencia').value||'').trim(),
-      obs:(document.getElementById('pmObsForn').value||'').trim(),
-      status:'pendente',
-      dataPag:''
-    };
+    var emissao=document.getElementById('pmEmissao').value;
+    var nf=(document.getElementById('pmNF').value||'').trim();
+    var modalidade=document.getElementById('pmModalidade').value;
+    var prazoStr=(document.getElementById('pmPrazo').value||'').trim();
+    var nParcelas=parseInt(document.getElementById('pmParcelas').value)||1;
+    var referencia=(document.getElementById('pmReferencia').value||'').trim();
+    var obs=(document.getElementById('pmObsForn').value||'').trim();
+    if(!forn||!valor||!emissao){alert('Preencha os campos obrigatórios: Fornecedor, Valor e Data de Emissão.');return;}
+
     if(_pagEditId){
+      // Edição simples
+      var venc=document.getElementById('pmVencimento').value;
+      var titulo=(document.getElementById('pmTitulo').value||'').trim();
+      var item={
+        id:_pagEditId,fornecedor:forn,nf:nf,modalidade:modalidade,titulo:titulo,
+        valor:valor,vencimento:venc,referencia:referencia,obs:obs,status:'pendente',dataPag:''
+      };
       var idx=d.fornecedores.findIndex(function(x){return x.id===_pagEditId;});
       if(idx>=0){item.status=d.fornecedores[idx].status;item.dataPag=d.fornecedores[idx].dataPag;item.boletoData=d.fornecedores[idx].boletoData;}
       d.fornecedores[idx]=item;
     } else {
-      d.fornecedores.push(item);
+      // Criar parcelas
+      var prazos=prazoStr?prazoStr.split('/').map(function(p){return parseInt(p.trim())||0;}).filter(function(p){return p>0;}):[0];
+      while(prazos.length<nParcelas) prazos.push(prazos[prazos.length-1]||30);
+      prazos=prazos.slice(0,nParcelas);
+      var baseDate=new Date(emissao+'T00:00:00');
+      var valorParcela=Math.round(valor/nParcelas*100)/100;
+      prazos.forEach(function(dias,i){
+        var venc;
+        if(dias>0){
+          var vd=new Date(baseDate.getTime()+dias*24*60*60*1000);
+          venc=vd.getFullYear()+'-'+String(vd.getMonth()+1).padStart(2,'0')+'-'+String(vd.getDate()).padStart(2,'0');
+        } else {
+          venc=document.getElementById('pmVencimento').value;
+        }
+        var titulo=nf?(nf+' '+(i+1)+'/'+nParcelas):'Parcela '+(i+1)+'/'+nParcelas;
+        d.fornecedores.push({
+          id:'forn_'+Date.now()+'_'+i,
+          fornecedor:forn,nf:nf,modalidade:modalidade,titulo:titulo,
+          valor:valorParcela,vencimento:venc,referencia:referencia,obs:obs,
+          status:'pendente',dataPag:''
+        });
+      });
     }
   } else {
     var desc=(document.getElementById('pmDescricao').value||'').trim();
@@ -1031,7 +1112,9 @@ function openPagModal(type, editId){
   } else {
     // Limpar campos
     if(isForn){
-      ['pmFornecedor','pmNF','pmTitulo','pmValor','pmVencimento','pmReferencia','pmObsForn'].forEach(function(id){document.getElementById(id).value='';});
+      ['pmFornecedor','pmNF','pmTitulo','pmValor','pmVencimento','pmEmissao','pmPrazo','pmReferencia','pmObsForn'].forEach(function(id){document.getElementById(id).value='';});
+        document.getElementById('pmParcelas').value='1';
+        document.getElementById('pmVencPreview').style.display='none';
       document.getElementById('pmModalidade').value='Boleto';
     } else {
       ['pmDescricao','pmValorGeral','pmVencimentoGeral','pmObsGeral'].forEach(function(id){document.getElementById(id).value='';});
@@ -1047,33 +1130,112 @@ function closePagModal(){
   _pagEditId=null; _pagEditType=null;
 }
 
+
+// ── PARCELAS FORNECEDOR ──────────────────────────────────
+function onPmParcelasChange(){
+  var n=parseInt(document.getElementById('pmParcelas').value)||1;
+  var prazoEl=document.getElementById('pmPrazo');
+  if(n===1){
+    prazoEl.placeholder='Ex: 30 (dias DDL)';
+  } else {
+    prazoEl.placeholder='Ex: 15/30 (um prazo por parcela, separado por /)';
+  }
+  calcVencimentos();
+}
+
+function calcVencimentos(){
+  var emissao=document.getElementById('pmEmissao').value;
+  var prazoStr=(document.getElementById('pmPrazo').value||'').trim();
+  var nParcelas=parseInt(document.getElementById('pmParcelas').value)||1;
+  var previewEl=document.getElementById('pmVencPreview');
+  var previewBody=document.getElementById('pmVencPreviewBody');
+  var vencEl=document.getElementById('pmVencimento');
+
+  if(!emissao||!prazoStr){previewEl.style.display='none';return;}
+
+  var prazos=prazoStr.split('/').map(function(p){return parseInt(p.trim())||0;}).filter(function(p){return p>0;});
+  
+  // Se prazos < parcelas, repetir o último
+  while(prazos.length<nParcelas) prazos.push(prazos[prazos.length-1]||30);
+  prazos=prazos.slice(0,nParcelas);
+
+  var baseDate=new Date(emissao+'T00:00:00');
+  var linhas=[];
+  var nf=(document.getElementById('pmNF').value||'').trim();
+  
+  prazos.forEach(function(dias, i){
+    var venc=new Date(baseDate.getTime()+dias*24*60*60*1000);
+    var vencStr=venc.getFullYear()+'-'+String(venc.getMonth()+1).padStart(2,'0')+'-'+String(venc.getDate()).padStart(2,'0');
+    var titulo=nf?(nf+' '+(i+1)+'/'+nParcelas):'Parcela '+(i+1)+'/'+nParcelas;
+    linhas.push({parcela:i+1,venc:vencStr,titulo:titulo,dias:dias});
+    if(i===0) vencEl.value=vencStr;
+  });
+
+  if(nParcelas>1){
+    previewEl.style.display='block';
+    previewBody.innerHTML=linhas.map(function(l){
+      return 'Parcela '+l.parcela+'/'+nParcelas
+        +' &nbsp;|&nbsp; '+fmtDate(l.venc)
+        +' &nbsp;|&nbsp; DDL +'+l.dias+'d'
+        +' &nbsp;|&nbsp; Título: '+escHtml(l.titulo);
+    }).join('<br>');
+    // Atualizar título com primeira parcela
+    document.getElementById('pmTitulo').value=linhas[0].titulo;
+  } else {
+    previewEl.style.display='none';
+    if(linhas.length>0) document.getElementById('pmTitulo').value=linhas[0].titulo;
+  }
+}
+
 function savePagItem(){
   var d=pagData();
   var isForn=_pagEditType==='forn';
   if(isForn){
     var forn=(document.getElementById('pmFornecedor').value||'').trim();
     var valor=+(document.getElementById('pmValor').value)||0;
-    var venc=document.getElementById('pmVencimento').value;
-    if(!forn||!valor||!venc){alert('Preencha os campos obrigatórios: Fornecedor, Valor e Vencimento.');return;}
-    var item={
-      id:_pagEditId||('forn_'+Date.now()),
-      fornecedor:forn,
-      nf:(document.getElementById('pmNF').value||'').trim(),
-      modalidade:document.getElementById('pmModalidade').value,
-      titulo:(document.getElementById('pmTitulo').value||'').trim(),
-      valor:valor,
-      vencimento:venc,
-      referencia:(document.getElementById('pmReferencia').value||'').trim(),
-      obs:(document.getElementById('pmObsForn').value||'').trim(),
-      status:'pendente',
-      dataPag:''
-    };
+    var emissao=document.getElementById('pmEmissao').value;
+    var nf=(document.getElementById('pmNF').value||'').trim();
+    var modalidade=document.getElementById('pmModalidade').value;
+    var prazoStr=(document.getElementById('pmPrazo').value||'').trim();
+    var nParcelas=parseInt(document.getElementById('pmParcelas').value)||1;
+    var referencia=(document.getElementById('pmReferencia').value||'').trim();
+    var obs=(document.getElementById('pmObsForn').value||'').trim();
+    if(!forn||!valor||!emissao){alert('Preencha os campos obrigatórios: Fornecedor, Valor e Data de Emissão.');return;}
+
     if(_pagEditId){
+      // Edição simples
+      var venc=document.getElementById('pmVencimento').value;
+      var titulo=(document.getElementById('pmTitulo').value||'').trim();
+      var item={
+        id:_pagEditId,fornecedor:forn,nf:nf,modalidade:modalidade,titulo:titulo,
+        valor:valor,vencimento:venc,referencia:referencia,obs:obs,status:'pendente',dataPag:''
+      };
       var idx=d.fornecedores.findIndex(function(x){return x.id===_pagEditId;});
       if(idx>=0){item.status=d.fornecedores[idx].status;item.dataPag=d.fornecedores[idx].dataPag;item.boletoData=d.fornecedores[idx].boletoData;}
       d.fornecedores[idx]=item;
     } else {
-      d.fornecedores.push(item);
+      // Criar parcelas
+      var prazos=prazoStr?prazoStr.split('/').map(function(p){return parseInt(p.trim())||0;}).filter(function(p){return p>0;}):[0];
+      while(prazos.length<nParcelas) prazos.push(prazos[prazos.length-1]||30);
+      prazos=prazos.slice(0,nParcelas);
+      var baseDate=new Date(emissao+'T00:00:00');
+      var valorParcela=Math.round(valor/nParcelas*100)/100;
+      prazos.forEach(function(dias,i){
+        var venc;
+        if(dias>0){
+          var vd=new Date(baseDate.getTime()+dias*24*60*60*1000);
+          venc=vd.getFullYear()+'-'+String(vd.getMonth()+1).padStart(2,'0')+'-'+String(vd.getDate()).padStart(2,'0');
+        } else {
+          venc=document.getElementById('pmVencimento').value;
+        }
+        var titulo=nf?(nf+' '+(i+1)+'/'+nParcelas):'Parcela '+(i+1)+'/'+nParcelas;
+        d.fornecedores.push({
+          id:'forn_'+Date.now()+'_'+i,
+          fornecedor:forn,nf:nf,modalidade:modalidade,titulo:titulo,
+          valor:valorParcela,vencimento:venc,referencia:referencia,obs:obs,
+          status:'pendente',dataPag:''
+        });
+      });
     }
   } else {
     var desc=(document.getElementById('pmDescricao').value||'').trim();
@@ -1663,7 +1825,9 @@ function openPagModal(type, editId){
   } else {
     // Limpar campos
     if(isForn){
-      ['pmFornecedor','pmNF','pmTitulo','pmValor','pmVencimento','pmReferencia','pmObsForn'].forEach(function(id){document.getElementById(id).value='';});
+      ['pmFornecedor','pmNF','pmTitulo','pmValor','pmVencimento','pmEmissao','pmPrazo','pmReferencia','pmObsForn'].forEach(function(id){document.getElementById(id).value='';});
+        document.getElementById('pmParcelas').value='1';
+        document.getElementById('pmVencPreview').style.display='none';
       document.getElementById('pmModalidade').value='Boleto';
     } else {
       ['pmDescricao','pmValorGeral','pmVencimentoGeral','pmObsGeral'].forEach(function(id){document.getElementById(id).value='';});
@@ -1679,33 +1843,112 @@ function closePagModal(){
   _pagEditId=null; _pagEditType=null;
 }
 
+
+// ── PARCELAS FORNECEDOR ──────────────────────────────────
+function onPmParcelasChange(){
+  var n=parseInt(document.getElementById('pmParcelas').value)||1;
+  var prazoEl=document.getElementById('pmPrazo');
+  if(n===1){
+    prazoEl.placeholder='Ex: 30 (dias DDL)';
+  } else {
+    prazoEl.placeholder='Ex: 15/30 (um prazo por parcela, separado por /)';
+  }
+  calcVencimentos();
+}
+
+function calcVencimentos(){
+  var emissao=document.getElementById('pmEmissao').value;
+  var prazoStr=(document.getElementById('pmPrazo').value||'').trim();
+  var nParcelas=parseInt(document.getElementById('pmParcelas').value)||1;
+  var previewEl=document.getElementById('pmVencPreview');
+  var previewBody=document.getElementById('pmVencPreviewBody');
+  var vencEl=document.getElementById('pmVencimento');
+
+  if(!emissao||!prazoStr){previewEl.style.display='none';return;}
+
+  var prazos=prazoStr.split('/').map(function(p){return parseInt(p.trim())||0;}).filter(function(p){return p>0;});
+  
+  // Se prazos < parcelas, repetir o último
+  while(prazos.length<nParcelas) prazos.push(prazos[prazos.length-1]||30);
+  prazos=prazos.slice(0,nParcelas);
+
+  var baseDate=new Date(emissao+'T00:00:00');
+  var linhas=[];
+  var nf=(document.getElementById('pmNF').value||'').trim();
+  
+  prazos.forEach(function(dias, i){
+    var venc=new Date(baseDate.getTime()+dias*24*60*60*1000);
+    var vencStr=venc.getFullYear()+'-'+String(venc.getMonth()+1).padStart(2,'0')+'-'+String(venc.getDate()).padStart(2,'0');
+    var titulo=nf?(nf+' '+(i+1)+'/'+nParcelas):'Parcela '+(i+1)+'/'+nParcelas;
+    linhas.push({parcela:i+1,venc:vencStr,titulo:titulo,dias:dias});
+    if(i===0) vencEl.value=vencStr;
+  });
+
+  if(nParcelas>1){
+    previewEl.style.display='block';
+    previewBody.innerHTML=linhas.map(function(l){
+      return 'Parcela '+l.parcela+'/'+nParcelas
+        +' &nbsp;|&nbsp; '+fmtDate(l.venc)
+        +' &nbsp;|&nbsp; DDL +'+l.dias+'d'
+        +' &nbsp;|&nbsp; Título: '+escHtml(l.titulo);
+    }).join('<br>');
+    // Atualizar título com primeira parcela
+    document.getElementById('pmTitulo').value=linhas[0].titulo;
+  } else {
+    previewEl.style.display='none';
+    if(linhas.length>0) document.getElementById('pmTitulo').value=linhas[0].titulo;
+  }
+}
+
 function savePagItem(){
   var d=pagData();
   var isForn=_pagEditType==='forn';
   if(isForn){
     var forn=(document.getElementById('pmFornecedor').value||'').trim();
     var valor=+(document.getElementById('pmValor').value)||0;
-    var venc=document.getElementById('pmVencimento').value;
-    if(!forn||!valor||!venc){alert('Preencha os campos obrigatórios: Fornecedor, Valor e Vencimento.');return;}
-    var item={
-      id:_pagEditId||('forn_'+Date.now()),
-      fornecedor:forn,
-      nf:(document.getElementById('pmNF').value||'').trim(),
-      modalidade:document.getElementById('pmModalidade').value,
-      titulo:(document.getElementById('pmTitulo').value||'').trim(),
-      valor:valor,
-      vencimento:venc,
-      referencia:(document.getElementById('pmReferencia').value||'').trim(),
-      obs:(document.getElementById('pmObsForn').value||'').trim(),
-      status:'pendente',
-      dataPag:''
-    };
+    var emissao=document.getElementById('pmEmissao').value;
+    var nf=(document.getElementById('pmNF').value||'').trim();
+    var modalidade=document.getElementById('pmModalidade').value;
+    var prazoStr=(document.getElementById('pmPrazo').value||'').trim();
+    var nParcelas=parseInt(document.getElementById('pmParcelas').value)||1;
+    var referencia=(document.getElementById('pmReferencia').value||'').trim();
+    var obs=(document.getElementById('pmObsForn').value||'').trim();
+    if(!forn||!valor||!emissao){alert('Preencha os campos obrigatórios: Fornecedor, Valor e Data de Emissão.');return;}
+
     if(_pagEditId){
+      // Edição simples
+      var venc=document.getElementById('pmVencimento').value;
+      var titulo=(document.getElementById('pmTitulo').value||'').trim();
+      var item={
+        id:_pagEditId,fornecedor:forn,nf:nf,modalidade:modalidade,titulo:titulo,
+        valor:valor,vencimento:venc,referencia:referencia,obs:obs,status:'pendente',dataPag:''
+      };
       var idx=d.fornecedores.findIndex(function(x){return x.id===_pagEditId;});
       if(idx>=0){item.status=d.fornecedores[idx].status;item.dataPag=d.fornecedores[idx].dataPag;item.boletoData=d.fornecedores[idx].boletoData;}
       d.fornecedores[idx]=item;
     } else {
-      d.fornecedores.push(item);
+      // Criar parcelas
+      var prazos=prazoStr?prazoStr.split('/').map(function(p){return parseInt(p.trim())||0;}).filter(function(p){return p>0;}):[0];
+      while(prazos.length<nParcelas) prazos.push(prazos[prazos.length-1]||30);
+      prazos=prazos.slice(0,nParcelas);
+      var baseDate=new Date(emissao+'T00:00:00');
+      var valorParcela=Math.round(valor/nParcelas*100)/100;
+      prazos.forEach(function(dias,i){
+        var venc;
+        if(dias>0){
+          var vd=new Date(baseDate.getTime()+dias*24*60*60*1000);
+          venc=vd.getFullYear()+'-'+String(vd.getMonth()+1).padStart(2,'0')+'-'+String(vd.getDate()).padStart(2,'0');
+        } else {
+          venc=document.getElementById('pmVencimento').value;
+        }
+        var titulo=nf?(nf+' '+(i+1)+'/'+nParcelas):'Parcela '+(i+1)+'/'+nParcelas;
+        d.fornecedores.push({
+          id:'forn_'+Date.now()+'_'+i,
+          fornecedor:forn,nf:nf,modalidade:modalidade,titulo:titulo,
+          valor:valorParcela,vencimento:venc,referencia:referencia,obs:obs,
+          status:'pendente',dataPag:''
+        });
+      });
     }
   } else {
     var desc=(document.getElementById('pmDescricao').value||'').trim();
@@ -3647,15 +3890,31 @@ select.pag-form-inp{cursor:pointer;}
           </div>
           <div class="pag-form-group">
             <div class="pag-form-lbl">Título</div>
-            <input class="pag-form-inp" id="pmTitulo" placeholder="Ex: 5886 2">
+            <input class="pag-form-inp" id="pmTitulo" placeholder="Preenchido automaticamente">
+          </div>
+          <div class="pag-form-group" id="pmParcelasGroup">
+            <div class="pag-form-lbl">Nº de Parcelas</div>
+            <input class="pag-form-inp" id="pmParcelas" type="number" min="1" max="48" value="1" oninput="onPmParcelasChange()">
+          </div>
+          <div class="pag-form-group span2" id="pmPrazoGroup">
+            <div class="pag-form-lbl">Prazo DDL (dias separados por /)</div>
+            <input class="pag-form-inp" id="pmPrazo" placeholder="Ex: 15/30 ou 30 para parcela única">
+          </div>
+          <div class="pag-form-group">
+            <div class="pag-form-lbl">Data de Emissão da NF *</div>
+            <input class="pag-form-inp" id="pmEmissao" type="date" oninput="calcVencimentos()">
+          </div>
+          <div class="pag-form-group" id="pmVencimentoGroup">
+            <div class="pag-form-lbl">Vencimento (1ª parcela)</div>
+            <input class="pag-form-inp" id="pmVencimento" type="date" placeholder="Calculado automaticamente">
           </div>
           <div class="pag-form-group">
             <div class="pag-form-lbl">Valor (R$) *</div>
             <input class="pag-form-inp" id="pmValor" type="number" step="0.01" placeholder="0,00">
           </div>
-          <div class="pag-form-group">
-            <div class="pag-form-lbl">Vencimento *</div>
-            <input class="pag-form-inp" id="pmVencimento" type="date">
+          <div class="pag-form-group span2" id="pmVencPreview" style="display:none">
+            <div class="pag-form-lbl">Parcelas calculadas</div>
+            <div id="pmVencPreviewBody" style="background:var(--bg4);border-radius:8px;padding:10px 12px;font-size:11px;font-family:var(--mono);color:var(--text2);line-height:1.8"></div>
           </div>
           <div class="pag-form-group span2">
             <div class="pag-form-lbl">Referência (código de barras)</div>
@@ -7107,7 +7366,9 @@ function openPagModal(type, editId){
   } else {
     // Limpar campos
     if(isForn){
-      ['pmFornecedor','pmNF','pmTitulo','pmValor','pmVencimento','pmReferencia','pmObsForn'].forEach(function(id){document.getElementById(id).value='';});
+      ['pmFornecedor','pmNF','pmTitulo','pmValor','pmVencimento','pmEmissao','pmPrazo','pmReferencia','pmObsForn'].forEach(function(id){document.getElementById(id).value='';});
+        document.getElementById('pmParcelas').value='1';
+        document.getElementById('pmVencPreview').style.display='none';
       document.getElementById('pmModalidade').value='Boleto';
     } else {
       ['pmDescricao','pmValorGeral','pmVencimentoGeral','pmObsGeral'].forEach(function(id){document.getElementById(id).value='';});
@@ -7123,33 +7384,112 @@ function closePagModal(){
   _pagEditId=null; _pagEditType=null;
 }
 
+
+// ── PARCELAS FORNECEDOR ──────────────────────────────────
+function onPmParcelasChange(){
+  var n=parseInt(document.getElementById('pmParcelas').value)||1;
+  var prazoEl=document.getElementById('pmPrazo');
+  if(n===1){
+    prazoEl.placeholder='Ex: 30 (dias DDL)';
+  } else {
+    prazoEl.placeholder='Ex: 15/30 (um prazo por parcela, separado por /)';
+  }
+  calcVencimentos();
+}
+
+function calcVencimentos(){
+  var emissao=document.getElementById('pmEmissao').value;
+  var prazoStr=(document.getElementById('pmPrazo').value||'').trim();
+  var nParcelas=parseInt(document.getElementById('pmParcelas').value)||1;
+  var previewEl=document.getElementById('pmVencPreview');
+  var previewBody=document.getElementById('pmVencPreviewBody');
+  var vencEl=document.getElementById('pmVencimento');
+
+  if(!emissao||!prazoStr){previewEl.style.display='none';return;}
+
+  var prazos=prazoStr.split('/').map(function(p){return parseInt(p.trim())||0;}).filter(function(p){return p>0;});
+  
+  // Se prazos < parcelas, repetir o último
+  while(prazos.length<nParcelas) prazos.push(prazos[prazos.length-1]||30);
+  prazos=prazos.slice(0,nParcelas);
+
+  var baseDate=new Date(emissao+'T00:00:00');
+  var linhas=[];
+  var nf=(document.getElementById('pmNF').value||'').trim();
+  
+  prazos.forEach(function(dias, i){
+    var venc=new Date(baseDate.getTime()+dias*24*60*60*1000);
+    var vencStr=venc.getFullYear()+'-'+String(venc.getMonth()+1).padStart(2,'0')+'-'+String(venc.getDate()).padStart(2,'0');
+    var titulo=nf?(nf+' '+(i+1)+'/'+nParcelas):'Parcela '+(i+1)+'/'+nParcelas;
+    linhas.push({parcela:i+1,venc:vencStr,titulo:titulo,dias:dias});
+    if(i===0) vencEl.value=vencStr;
+  });
+
+  if(nParcelas>1){
+    previewEl.style.display='block';
+    previewBody.innerHTML=linhas.map(function(l){
+      return 'Parcela '+l.parcela+'/'+nParcelas
+        +' &nbsp;|&nbsp; '+fmtDate(l.venc)
+        +' &nbsp;|&nbsp; DDL +'+l.dias+'d'
+        +' &nbsp;|&nbsp; Título: '+escHtml(l.titulo);
+    }).join('<br>');
+    // Atualizar título com primeira parcela
+    document.getElementById('pmTitulo').value=linhas[0].titulo;
+  } else {
+    previewEl.style.display='none';
+    if(linhas.length>0) document.getElementById('pmTitulo').value=linhas[0].titulo;
+  }
+}
+
 function savePagItem(){
   var d=pagData();
   var isForn=_pagEditType==='forn';
   if(isForn){
     var forn=(document.getElementById('pmFornecedor').value||'').trim();
     var valor=+(document.getElementById('pmValor').value)||0;
-    var venc=document.getElementById('pmVencimento').value;
-    if(!forn||!valor||!venc){alert('Preencha os campos obrigatórios: Fornecedor, Valor e Vencimento.');return;}
-    var item={
-      id:_pagEditId||('forn_'+Date.now()),
-      fornecedor:forn,
-      nf:(document.getElementById('pmNF').value||'').trim(),
-      modalidade:document.getElementById('pmModalidade').value,
-      titulo:(document.getElementById('pmTitulo').value||'').trim(),
-      valor:valor,
-      vencimento:venc,
-      referencia:(document.getElementById('pmReferencia').value||'').trim(),
-      obs:(document.getElementById('pmObsForn').value||'').trim(),
-      status:'pendente',
-      dataPag:''
-    };
+    var emissao=document.getElementById('pmEmissao').value;
+    var nf=(document.getElementById('pmNF').value||'').trim();
+    var modalidade=document.getElementById('pmModalidade').value;
+    var prazoStr=(document.getElementById('pmPrazo').value||'').trim();
+    var nParcelas=parseInt(document.getElementById('pmParcelas').value)||1;
+    var referencia=(document.getElementById('pmReferencia').value||'').trim();
+    var obs=(document.getElementById('pmObsForn').value||'').trim();
+    if(!forn||!valor||!emissao){alert('Preencha os campos obrigatórios: Fornecedor, Valor e Data de Emissão.');return;}
+
     if(_pagEditId){
+      // Edição simples
+      var venc=document.getElementById('pmVencimento').value;
+      var titulo=(document.getElementById('pmTitulo').value||'').trim();
+      var item={
+        id:_pagEditId,fornecedor:forn,nf:nf,modalidade:modalidade,titulo:titulo,
+        valor:valor,vencimento:venc,referencia:referencia,obs:obs,status:'pendente',dataPag:''
+      };
       var idx=d.fornecedores.findIndex(function(x){return x.id===_pagEditId;});
       if(idx>=0){item.status=d.fornecedores[idx].status;item.dataPag=d.fornecedores[idx].dataPag;item.boletoData=d.fornecedores[idx].boletoData;}
       d.fornecedores[idx]=item;
     } else {
-      d.fornecedores.push(item);
+      // Criar parcelas
+      var prazos=prazoStr?prazoStr.split('/').map(function(p){return parseInt(p.trim())||0;}).filter(function(p){return p>0;}):[0];
+      while(prazos.length<nParcelas) prazos.push(prazos[prazos.length-1]||30);
+      prazos=prazos.slice(0,nParcelas);
+      var baseDate=new Date(emissao+'T00:00:00');
+      var valorParcela=Math.round(valor/nParcelas*100)/100;
+      prazos.forEach(function(dias,i){
+        var venc;
+        if(dias>0){
+          var vd=new Date(baseDate.getTime()+dias*24*60*60*1000);
+          venc=vd.getFullYear()+'-'+String(vd.getMonth()+1).padStart(2,'0')+'-'+String(vd.getDate()).padStart(2,'0');
+        } else {
+          venc=document.getElementById('pmVencimento').value;
+        }
+        var titulo=nf?(nf+' '+(i+1)+'/'+nParcelas):'Parcela '+(i+1)+'/'+nParcelas;
+        d.fornecedores.push({
+          id:'forn_'+Date.now()+'_'+i,
+          fornecedor:forn,nf:nf,modalidade:modalidade,titulo:titulo,
+          valor:valorParcela,vencimento:venc,referencia:referencia,obs:obs,
+          status:'pendente',dataPag:''
+        });
+      });
     }
   } else {
     var desc=(document.getElementById('pmDescricao').value||'').trim();
