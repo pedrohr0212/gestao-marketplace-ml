@@ -6,9 +6,1902 @@
   <title>SellerHub — Gestão Marketplace</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&family=DM+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js">
+
+// ══════════════════════════════════════════════════════════
+// PAGAMENTOS — JS
+// ══════════════════════════════════════════════════════════
+var STORE_PAG = 'pagamentosML_v1';
+var pagTab = 'fornecedores';
+var pagFornSort = {col:'vencimento', asc:true};
+var pagGeralSort = {col:'vencimento', asc:true};
+var pagGeralMes = 'todos'; // 'todos' ou 'YYYY-MM'
+var _pagEditId = null;
+var _pagEditType = null;
+var _pagRecorrId = null;
+
+var PAG_CATS = [
+  '🚚 Frete','📊 Contabilidade','🏢 Empresa','⚡ Energia',
+  '🌐 Internet','👥 Funcionários','📈 Investimentos','📣 Marketing',
+  '🎭 Lazer','📦 Outros'
+];
+
+// ── Estado
+function loadPag(){
+  try{
+    var s=localStorage.getItem(STORE_PAG);
+    return s?JSON.parse(s):{fornecedores:[],gerais:[]};
+  }catch(e){return {fornecedores:[],gerais:[]};}
+}
+function savePag(){
+  try{localStorage.setItem(STORE_PAG,JSON.stringify(pagData()));}catch(e){}
+}
+function pagData(){
+  return window._pagData||(window._pagData=loadPag());
+}
+
+// ── Tab
+function setPagTab(tab){
+  pagTab=tab;
+  document.getElementById('pagTabForn').className='pag-tab'+(tab==='fornecedores'?' active':'');
+  document.getElementById('pagTabGeral').className='pag-tab'+(tab==='gerais'?' active':'');
+  document.getElementById('pagViewForn').style.display=tab==='fornecedores'?'block':'none';
+  document.getElementById('pagViewGeral').style.display=tab==='gerais'?'block':'none';
+  renderPagKpis();
+  if(tab==='fornecedores')renderPagForn();
+  else renderPagGeral();
+}
+
+// ── KPIs
+function renderPagKpis(){
+  var d=pagData();
+  var items=pagTab==='fornecedores'?d.fornecedores:d.gerais;
+  var hoje=new Date(); hoje.setHours(0,0,0,0);
+  var total=0,pago=0,pendente=0,atrasado=0;
+  items.forEach(function(it){
+    total+=it.valor||0;
+    if(it.status==='pago')pago+=it.valor||0;
+    else if(it.status==='atrasado')atrasado+=it.valor||0;
+    else pendente+=it.valor||0;
+  });
+  var n=items.length;
+  document.getElementById('pagKpis').innerHTML=
+    kpi('TOTAL GERAL',BRL(total),n+' título'+(n!==1?'s':''),'')
+   +kpi('TOTAL PAGO',BRL(pago),total>0?(pago/total*100).toFixed(1)+'%':'0%','green')
+   +kpi('PENDENTE',BRL(pendente),total>0?(pendente/total*100).toFixed(1)+'%':'0%','amber')
+   +kpi('ATRASADO',BRL(atrasado),total>0?(atrasado/total*100).toFixed(1)+'%':'0%','red')
+   +kpi('Nº TÍTULOS',''+n,'','');
+}
+function kpi(lbl,val,sub,cls){
+  return '<div class="pag-kpi"><div class="pag-kpi-lbl">'+lbl+'</div>'
+    +'<div class="pag-kpi-val '+cls+'">'+val+'</div>'
+    +'<div class="pag-kpi-sub">'+sub+'</div></div>';
+}
+
+// ── Helpers
+function pagDias(venc, status){
+  if(status==='pago') return '<span class="pag-dias past">—</span>';
+  var hoje=new Date(); hoje.setHours(0,0,0,0);
+  var v=new Date(venc+'T00:00:00');
+  var diff=Math.round((v-hoje)/(1000*60*60*24));
+  var cls=diff<0?'danger':diff<=7?'warn':diff<=14?'warn':'ok';
+  var lbl=diff<0?Math.abs(diff)+'d atr.':diff+'d';
+  return '<span class="pag-dias '+cls+'">'+lbl+'</span>';
+}
+function pagStatusBadge(status){
+  return '<span class="pag-status '+status+'">'+status.charAt(0).toUpperCase()+status.slice(1)+'</span>';
+}
+function pagTruncCod(cod){
+  if(!cod)return '<span style="color:var(--text3);font-size:11px">—</span>';
+  var short=cod.length>20?cod.slice(0,18)+'…':cod;
+  return '<div class="pag-cod">'
+    +'<span class="pag-cod-txt" title="'+cod+'">'+short+'</span>'
+    +'<button class="pag-copy-btn" onclick="pagCopyCod(\''+cod.replace(/'/g,"\\'")+'\')" title="Copiar código">'
+    +'<svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>'
+    +'</button></div>';
+}
+function pagCopyCod(cod){
+  navigator.clipboard.writeText(cod).then(function(){showToast('Código copiado!');});
+}
+
+// ── Fornecedores
+function renderPagForn(){
+  var d=pagData();
+  var items=[].concat(d.fornecedores);
+  var q=(document.getElementById('pagFornSearch').value||'').toLowerCase();
+  var sf=document.getElementById('pagFornStatus').value;
+  if(q)items=items.filter(function(it){
+    return (it.fornecedor||'').toLowerCase().includes(q)
+      ||(it.nf||'').toLowerCase().includes(q)
+      ||(it.titulo||'').toLowerCase().includes(q);
+  });
+  if(sf)items=items.filter(function(it){return it.status===sf;});
+
+  // Sort
+  var col=pagFornSort.col, asc=pagFornSort.asc;
+  items.sort(function(a,b){
+    var va=a[col]||'', vb=b[col]||'';
+    if(col==='valor'||col==='dias'){va=+(a.valor||0);vb=+(b.valor||0);}
+    if(col==='vencimento'||col==='dataPag'){va=va||'9999';vb=vb||'9999';}
+    if(va<vb)return asc?-1:1;
+    if(va>vb)return asc?1:-1;
+    return 0;
+  });
+
+  var hoje=new Date(); hoje.setHours(0,0,0,0);
+  var tbody='';
+  if(!items.length){
+    tbody='<tr><td colspan="13"><div class="pag-empty">'
+      +'<svg width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.2" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>'
+      +'<div class="pag-empty-title">Nenhuma conta encontrada</div>'
+      +'<div class="pag-empty-sub">Adicione uma nova conta ou importe boletos PDF</div></div></td></tr>';
+  } else {
+    items.forEach(function(it){
+      var statusAtual=it.status;
+      // Auto-marcar atrasado
+      if(statusAtual==='pendente'&&it.vencimento){
+        var v=new Date(it.vencimento+'T00:00:00');
+        if(v<hoje)statusAtual='atrasado';
+      }
+      tbody+='<tr>'
+        +'<td class="bold">'+escHtml(it.fornecedor||'—')+'</td>'
+        +'<td class="mono">'+escHtml(it.nf||'—')+'</td>'
+        +'<td>'+escHtml(it.modalidade||'—')+'</td>'
+        +'<td>'+escHtml(it.titulo||'—')+'</td>'
+        +'<td class="mono">'+fmtDate(it.vencimento)+'</td>'
+        +'<td class="mono bold">'+BRL(it.valor||0)+'</td>'
+        +'<td>'+pagTruncCod(it.referencia)+'</td>'
+        +'<td class="mono">'+fmtDate(it.dataPag)+'</td>'
+        +'<td>'+pagStatusBadge(statusAtual)+'</td>'
+        +'<td>'+pagDias(it.vencimento,statusAtual)+'</td>'
+        +'<td style="font-size:11px;color:var(--text3);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escHtml(it.obs||'—')+'</td>'
+        +'<td>'+(it.boletoData
+          ?'<button class="pag-boleto-btn" onclick="verBoleto(\''+it.id+'\')" title="Ver boleto">'
+            +'<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>'
+            +'</button>'
+          :'<span style="color:var(--text3);font-size:11px">—</span>')+'</td>'
+        +'<td style="white-space:nowrap">'
+          +'<button class="pag-action-btn" onclick="editPagForn(\''+it.id+'\')" title="Editar">'
+            +'<svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>'
+          +'</button>'
+          +'<button class="pag-action-btn del" onclick="delPagForn(\''+it.id+'\')" title="Excluir">'
+            +'<svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>'
+          +'</button>'
+        +'</td>'
+        +'</tr>';
+    });
+  }
+  document.getElementById('pagFornBody').innerHTML=tbody;
+  renderPagFornSide(d.fornecedores);
+  renderPagKpis();
+}
+
+function renderPagFornSide(items){
+  var hoje=new Date(); hoje.setHours(0,0,0,0);
+  // Resumo por fornecedor
+  var byForn={};
+  items.forEach(function(it){
+    var f=it.fornecedor||'Outros';
+    if(!byForn[f])byForn[f]={pago:0,pend:0};
+    if(it.status==='pago')byForn[f].pago+=it.valor||0;
+    else byForn[f].pend+=it.valor||0;
+  });
+  var totalPago=0,totalPend=0;
+  var rows='';
+  Object.keys(byForn).sort().forEach(function(f){
+    totalPago+=byForn[f].pago;
+    totalPend+=byForn[f].pend;
+    rows+='<div class="pag-side-row">'
+      +'<span class="pag-side-row-name">'+escHtml(f)+'</span>'
+      +'<div class="pag-side-row-vals">'
+        +'<span class="pag-side-row-pago">'+BRL(byForn[f].pago)+'</span>'
+        +'<span class="pag-side-row-pend">'+BRL(byForn[f].pend)+'</span>'
+      +'</div></div>';
+  });
+
+  // Próximos vencimentos (pendentes, ordenados por data)
+  var proximos=items.filter(function(it){
+    return it.status!=='pago'&&it.vencimento;
+  }).sort(function(a,b){return a.vencimento>b.vencimento?1:-1;}).slice(0,5);
+  var proxHtml='';
+  proximos.forEach(function(it){
+    var v=new Date(it.vencimento+'T00:00:00');
+    var diff=Math.round((v-hoje)/(1000*60*60*24));
+    var cor=diff<0?'var(--red)':diff<=7?'var(--amber)':'var(--text3)';
+    proxHtml+='<div class="pag-prox-item">'
+      +'<div style="display:flex;justify-content:space-between">'
+        +'<span class="pag-prox-nome">'+escHtml(it.fornecedor||'—')+'</span>'
+        +'<span class="pag-prox-val">'+BRL(it.valor||0)+'</span>'
+      +'</div>'
+      +'<div class="pag-prox-info">'+escHtml(it.nf||'')+(it.titulo?' · '+escHtml(it.titulo):'')
+        +' <span style="color:'+cor+'">'+(diff<0?'atrasado '+Math.abs(diff)+'d':'em '+diff+'d')+'</span>'
+      +'</div></div>';
+  });
+
+  document.getElementById('pagFornSide').innerHTML=
+    '<div class="pag-side-card">'
+      +'<div class="pag-side-title">👥 Resumo por Fornecedor'
+        +'<div style="margin-left:auto;display:flex;gap:16px;font-size:9px">'
+          +'<span style="color:var(--green)">PAGO</span>'
+          +'<span style="color:var(--amber)">PENDENTE</span>'
+        +'</div></div>'
+      +'<div class="pag-side-body">'+rows+'</div>'
+      +'<div class="pag-side-total">'
+        +'<span>TOTAL</span>'
+        +'<div style="display:flex;gap:16px">'
+          +'<span class="pag-side-total-pago">'+BRL(totalPago)+'</span>'
+          +'<span class="pag-side-total-pend">'+BRL(totalPend)+'</span>'
+        +'</div>'
+      +'</div>'
+    +'</div>'
+    +'<div class="pag-side-card">'
+      +'<div class="pag-side-title">📅 Próximos Vencimentos</div>'
+      +'<div class="pag-side-body">'+(proxHtml||'<div style="padding:12px 14px;font-size:11px;color:var(--text3)">Nenhum vencimento pendente</div>')+'</div>'
+    +'</div>';
+}
+
+// ── Pagamentos Gerais
+function initPagGeralMes(){
+  var d=pagData();
+  var meses=new Set(['todos']);
+  var hoje=new Date();
+  // Incluir mês atual sempre
+  meses.add(hoje.getFullYear()+'-'+String(hoje.getMonth()+1).padStart(2,'0'));
+  d.gerais.forEach(function(it){if(it.vencimento)meses.add(it.vencimento.slice(0,7));});
+  var sel=document.getElementById('pagGeralMesSel');
+  sel.innerHTML='';
+  var sorted=Array.from(meses).filter(function(m){return m!=='todos';}).sort();
+  sel.innerHTML='<option value="todos">Todos os meses</option>'
+    +sorted.map(function(m){
+      var parts=m.split('-');
+      var label=MESES[parseInt(parts[1])-1]+' de '+parts[0];
+      return '<option value="'+m+'"'+( m===pagGeralMes?' selected':'')+'>'+label+'</option>';
+    }).join('');
+  if(pagGeralMes==='todos')sel.value='todos';
+  else sel.value=pagGeralMes;
+}
+
+function onPagGeralMesChange(){
+  pagGeralMes=document.getElementById('pagGeralMesSel').value;
+  renderPagGeral();
+}
+function pagGeralMesNav(dir){
+  if(pagGeralMes==='todos'){
+    var hoje=new Date();
+    pagGeralMes=hoje.getFullYear()+'-'+String(hoje.getMonth()+1+dir).padStart(2,'0');
+    // normalizar
+    var parts=pagGeralMes.split('-');
+    var d=new Date(parseInt(parts[0]),parseInt(parts[1])-1,1);
+    pagGeralMes=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+  } else {
+    var parts=pagGeralMes.split('-');
+    var d=new Date(parseInt(parts[0]),parseInt(parts[1])-1+dir,1);
+    pagGeralMes=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+  }
+  initPagGeralMes();
+  renderPagGeral();
+}
+function pagGeralMesTodos(){
+  pagGeralMes='todos';
+  document.getElementById('pagGeralMesSel').value='todos';
+  renderPagGeral();
+}
+
+function renderPagGeral(){
+  var d=pagData();
+  var items=[].concat(d.gerais);
+  var q=(document.getElementById('pagGeralSearch').value||'').toLowerCase();
+  var sf=document.getElementById('pagGeralStatus').value;
+  if(pagGeralMes!=='todos')items=items.filter(function(it){return (it.vencimento||'').slice(0,7)===pagGeralMes;});
+  if(q)items=items.filter(function(it){
+    return (it.descricao||'').toLowerCase().includes(q)||(it.categoria||'').toLowerCase().includes(q);
+  });
+  if(sf)items=items.filter(function(it){return it.status===sf;});
+
+  var col=pagGeralSort.col, asc=pagGeralSort.asc;
+  items.sort(function(a,b){
+    var va=a[col]||'', vb=b[col]||'';
+    if(col==='valor'){va=+(a.valor||0);vb=+(b.valor||0);}
+    if(col==='vencimento'||col==='dataPag'){va=va||'9999';vb=vb||'9999';}
+    if(va<vb)return asc?-1:1; if(va>vb)return asc?1:-1; return 0;
+  });
+
+  var hoje=new Date(); hoje.setHours(0,0,0,0);
+  var total=items.length;
+  var mesLabel=pagGeralMes==='todos'?'':'— '+total+' de '+d.gerais.length+' contas no mês';
+  document.getElementById('pagGeralCount').textContent=total+' conta'+(total!==1?'s':'')+mesLabel;
+
+  var tbody='';
+  if(!items.length){
+    tbody='<tr><td colspan="9"><div class="pag-empty">'
+      +'<svg width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>'
+      +'<div class="pag-empty-title">Nenhuma conta encontrada</div>'
+      +'<div class="pag-empty-sub">Adicione uma nova conta de pagamento</div></div></td></tr>';
+  } else {
+    items.forEach(function(it){
+      var statusAtual=it.status;
+      if(statusAtual==='pendente'&&it.vencimento){
+        var v=new Date(it.vencimento+'T00:00:00');
+        if(v<hoje)statusAtual='atrasado';
+      }
+      tbody+='<tr>'
+        +'<td class="bold">'+escHtml(it.descricao||'—')+'</td>'
+        +'<td><span class="pag-cat">'+escHtml(it.categoria||'—')+'</span></td>'
+        +'<td class="mono">'+fmtDate(it.vencimento)+'</td>'
+        +'<td class="mono bold">'+BRL(it.valor||0)+'</td>'
+        +'<td class="mono">'+fmtDate(it.dataPag)+'</td>'
+        +'<td>'+pagStatusBadge(statusAtual)+'</td>'
+        +'<td>'+pagDias(it.vencimento,statusAtual)+'</td>'
+        +'<td style="font-size:11px;color:var(--text3)">'+escHtml(it.obs||'—')
+          +(it.recorrente?'<span style="margin-left:4px;font-size:9px;background:var(--purple-bg);color:var(--purple);padding:1px 5px;border-radius:3px">↻ recorrente</span>':'')
+        +'</td>'
+        +'<td style="white-space:nowrap">'
+          +'<button class="pag-action-btn" onclick="editPagGeral(\''+it.id+'\')" title="Editar">'
+            +'<svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>'
+          +'</button>'
+          +'<button class="pag-action-btn del" onclick="delPagGeral(\''+it.id+'\')" title="Excluir">'
+            +'<svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>'
+          +'</button>'
+        +'</td>'
+        +'</tr>';
+    });
+  }
+  document.getElementById('pagGeralBody').innerHTML=tbody;
+  renderPagKpis();
+}
+
+// ── Sorting
+function sortPagForn(col){
+  if(pagFornSort.col===col)pagFornSort.asc=!pagFornSort.asc;
+  else{pagFornSort.col=col;pagFornSort.asc=true;}
+  renderPagForn();
+}
+function sortPagGeral(col){
+  if(pagGeralSort.col===col)pagGeralSort.asc=!pagGeralSort.asc;
+  else{pagGeralSort.col=col;pagGeralSort.asc=true;}
+  renderPagGeral();
+}
+
+// ── Modal
+function openPagModal(type, editId){
+  _pagEditType=type;
+  _pagEditId=editId||null;
+  var isForn=type==='forn';
+  document.getElementById('pagModalFornFields').style.display=isForn?'block':'none';
+  document.getElementById('pagModalGeralFields').style.display=isForn?'none':'block';
+  document.getElementById('pagModalTitle').textContent=editId?(isForn?'Editar Conta — Fornecedor':'Editar Conta — Geral'):(isForn?'Nova Conta — Fornecedor':'Nova Conta — Geral');
+  document.getElementById('pagModalSub').textContent='';
+
+  if(editId){
+    var d=pagData();
+    var arr=isForn?d.fornecedores:d.gerais;
+    var it=arr.find(function(x){return x.id===editId;});
+    if(it){
+      if(isForn){
+        document.getElementById('pmFornecedor').value=it.fornecedor||'';
+        document.getElementById('pmNF').value=it.nf||'';
+        document.getElementById('pmModalidade').value=it.modalidade||'Boleto';
+        document.getElementById('pmTitulo').value=it.titulo||'';
+        document.getElementById('pmValor').value=it.valor||'';
+        document.getElementById('pmVencimento').value=it.vencimento||'';
+        document.getElementById('pmReferencia').value=it.referencia||'';
+        document.getElementById('pmObsForn').value=it.obs||'';
+      } else {
+        document.getElementById('pmDescricao').value=it.descricao||'';
+        document.getElementById('pmCategoria').value=it.categoria||PAG_CATS[0];
+        document.getElementById('pmValorGeral').value=it.valor||'';
+        document.getElementById('pmVencimentoGeral').value=it.vencimento||'';
+        document.getElementById('pmStatusGeral').value=it.status||'pendente';
+        document.getElementById('pmObsGeral').value=it.obs||'';
+        document.getElementById('pmRecorrente').checked=it.recorrente||false;
+      }
+    }
+  } else {
+    // Limpar campos
+    if(isForn){
+      ['pmFornecedor','pmNF','pmTitulo','pmValor','pmVencimento','pmReferencia','pmObsForn'].forEach(function(id){document.getElementById(id).value='';});
+      document.getElementById('pmModalidade').value='Boleto';
+    } else {
+      ['pmDescricao','pmValorGeral','pmVencimentoGeral','pmObsGeral'].forEach(function(id){document.getElementById(id).value='';});
+      document.getElementById('pmCategoria').value=PAG_CATS[0];
+      document.getElementById('pmStatusGeral').value='pendente';
+      document.getElementById('pmRecorrente').checked=false;
+    }
+  }
+  document.getElementById('pagModal').className='pag-modal-overlay open';
+}
+function closePagModal(){
+  document.getElementById('pagModal').className='pag-modal-overlay';
+  _pagEditId=null; _pagEditType=null;
+}
+
+function savePagItem(){
+  var d=pagData();
+  var isForn=_pagEditType==='forn';
+  if(isForn){
+    var forn=(document.getElementById('pmFornecedor').value||'').trim();
+    var valor=+(document.getElementById('pmValor').value)||0;
+    var venc=document.getElementById('pmVencimento').value;
+    if(!forn||!valor||!venc){alert('Preencha os campos obrigatórios: Fornecedor, Valor e Vencimento.');return;}
+    var item={
+      id:_pagEditId||('forn_'+Date.now()),
+      fornecedor:forn,
+      nf:(document.getElementById('pmNF').value||'').trim(),
+      modalidade:document.getElementById('pmModalidade').value,
+      titulo:(document.getElementById('pmTitulo').value||'').trim(),
+      valor:valor,
+      vencimento:venc,
+      referencia:(document.getElementById('pmReferencia').value||'').trim(),
+      obs:(document.getElementById('pmObsForn').value||'').trim(),
+      status:'pendente',
+      dataPag:''
+    };
+    if(_pagEditId){
+      var idx=d.fornecedores.findIndex(function(x){return x.id===_pagEditId;});
+      if(idx>=0){item.status=d.fornecedores[idx].status;item.dataPag=d.fornecedores[idx].dataPag;item.boletoData=d.fornecedores[idx].boletoData;}
+      d.fornecedores[idx]=item;
+    } else {
+      d.fornecedores.push(item);
+    }
+  } else {
+    var desc=(document.getElementById('pmDescricao').value||'').trim();
+    var valor=+(document.getElementById('pmValorGeral').value)||0;
+    var venc=document.getElementById('pmVencimentoGeral').value;
+    if(!desc||!valor||!venc){alert('Preencha os campos obrigatórios: Descrição, Valor e Vencimento.');return;}
+    var recorr=document.getElementById('pmRecorrente').checked;
+    var item={
+      id:_pagEditId||('ger_'+Date.now()),
+      descricao:desc,
+      categoria:document.getElementById('pmCategoria').value,
+      valor:valor,
+      vencimento:venc,
+      status:document.getElementById('pmStatusGeral').value,
+      obs:(document.getElementById('pmObsGeral').value||'').trim(),
+      recorrente:recorr,
+      recorrGrupo:null,
+      dataPag:''
+    };
+    if(_pagEditId){
+      var idx=d.gerais.findIndex(function(x){return x.id===_pagEditId;});
+      if(idx>=0){item.recorrGrupo=d.gerais[idx].recorrGrupo;item.dataPag=d.gerais[idx].dataPag;}
+      d.gerais[idx]=item;
+    } else {
+      if(recorr){
+        // Criar lançamentos para 24 meses futuros
+        var grupoId='grp_'+Date.now();
+        item.recorrGrupo=grupoId;
+        d.gerais.push(item);
+        var base=new Date(venc+'T00:00:00');
+        for(var m=1;m<=24;m++){
+          var nd=new Date(base.getFullYear(),base.getMonth()+m,base.getDate());
+          var nVenc=nd.getFullYear()+'-'+String(nd.getMonth()+1).padStart(2,'0')+'-'+String(nd.getDate()).padStart(2,'0');
+          d.gerais.push(Object.assign({},item,{id:'ger_'+Date.now()+'_'+m,vencimento:nVenc,status:'pendente',dataPag:''}));
+        }
+      } else {
+        d.gerais.push(item);
+      }
+    }
+  }
+  window._pagData=d;
+  savePag();
+  closePagModal();
+  initPagGeralMes();
+  if(isForn)renderPagForn(); else renderPagGeral();
+}
+
+// ── Delete
+function delPagForn(id){
+  if(!confirm('Excluir esta conta?'))return;
+  var d=pagData();
+  d.fornecedores=d.fornecedores.filter(function(x){return x.id!==id;});
+  window._pagData=d; savePag(); renderPagForn();
+}
+function delPagGeral(id){
+  var d=pagData();
+  var it=d.gerais.find(function(x){return x.id===id;});
+  if(!it)return;
+  if(it.recorrente&&it.recorrGrupo){
+    _pagRecorrId=id;
+    document.getElementById('pagRecorrSub').textContent='Conta: '+it.descricao+' — '+fmtDate(it.vencimento);
+    document.getElementById('pagRecorrModal').className='pag-modal-overlay open';
+  } else {
+    if(!confirm('Excluir esta conta?'))return;
+    d.gerais=d.gerais.filter(function(x){return x.id!==id;});
+    window._pagData=d; savePag(); initPagGeralMes(); renderPagGeral();
+  }
+}
+function cancelRecorrSo(){
+  var d=pagData();
+  d.gerais=d.gerais.filter(function(x){return x.id!==_pagRecorrId;});
+  window._pagData=d; savePag();
+  document.getElementById('pagRecorrModal').className='pag-modal-overlay';
+  initPagGeralMes(); renderPagGeral();
+}
+function cancelRecorrFut(){
+  var d=pagData();
+  var it=d.gerais.find(function(x){return x.id===_pagRecorrId;});
+  if(!it){document.getElementById('pagRecorrModal').className='pag-modal-overlay';return;}
+  var vencRef=it.vencimento;
+  var grupo=it.recorrGrupo;
+  d.gerais=d.gerais.filter(function(x){
+    if(x.recorrGrupo!==grupo)return true;
+    return x.vencimento<vencRef;
+  });
+  window._pagData=d; savePag();
+  document.getElementById('pagRecorrModal').className='pag-modal-overlay';
+  initPagGeralMes(); renderPagGeral();
+}
+function editPagForn(id){openPagModal('forn',id);}
+function editPagGeral(id){openPagModal('geral',id);}
+
+// ── Importar Boleto PDF
+function importarBoleto(){
+  var input=document.createElement('input');
+  input.type='file'; input.accept='application/pdf'; input.multiple=true;
+  input.onchange=function(){
+    var files=Array.from(input.files);
+    if(!files.length)return;
+    showToast('Lendo '+files.length+' boleto(s)...');
+    files.forEach(function(file){
+      var reader=new FileReader();
+      reader.onload=function(e){
+        var data=e.target.result;
+        // Extrair código de barras do PDF via texto
+        extractBoletoCod(data, file.name, function(cod){
+          var d=pagData();
+          var item={
+            id:'forn_'+Date.now()+'_'+Math.random().toString(36).slice(2,6),
+            fornecedor:'',nf:'',modalidade:'Boleto',titulo:file.name.replace('.pdf',''),
+            valor:0,vencimento:'',referencia:cod||'',obs:'Importado de PDF: '+file.name,
+            status:'pendente',dataPag:'',boletoData:btoa(String.fromCharCode.apply(null,new Uint8Array(e.target.result instanceof ArrayBuffer?e.target.result:new ArrayBuffer(0))))
+          };
+          // Abrir modal pré-preenchido para confirmação
+          window._pagData=d;
+          openPagModal('forn');
+          if(cod)document.getElementById('pmReferencia').value=cod;
+          document.getElementById('pmTitulo').value=file.name.replace('.pdf','');
+          document.getElementById('pmObsForn').value='Importado de PDF: '+file.name;
+          showToast(cod?'Código de barras lido!':'PDF importado — preencha o código manualmente');
+        });
+      };
+      reader.readAsArrayBuffer(file);
+    });
+  };
+  input.click();
+}
+
+function extractBoletoCod(arrayBuffer, fileName, cb){
+  // Tenta extrair código de barras do texto do PDF
+  try{
+    var bytes=new Uint8Array(arrayBuffer);
+    var str='';
+    for(var i=0;i<Math.min(bytes.length,50000);i++)str+=String.fromCharCode(bytes[i]);
+    // Padrão linha digitável boleto bancário: sequências de dígitos com pontos/espaços
+    var m=str.match(/\d{5}\.\d{5}\s\d{5}\.\d{6}\s\d{5}\.\d{6}\s\d\s\d{14}/);
+    if(m){cb(m[0].replace(/\s/g,''));return;}
+    // Código de barras numérico 44-47 dígitos
+    var m2=str.match(/[0-9]{44,47}/);
+    if(m2){cb(m2[0]);return;}
+    cb('');
+  }catch(e){cb('');}
+}
+
+function verBoleto(id){
+  var d=pagData();
+  var it=d.fornecedores.find(function(x){return x.id===id;});
+  if(!it||!it.boletoData)return;
+  try{
+    var bin=atob(it.boletoData);
+    var bytes=new Uint8Array(bin.length);
+    for(var i=0;i<bin.length;i++)bytes[i]=bin.charCodeAt(i);
+    var blob=new Blob([bytes],{type:'application/pdf'});
+    window.open(URL.createObjectURL(blob),'_blank');
+  }catch(e){showToast('Erro ao abrir PDF');}
+}
+
+// ── Exportar CSV
+function exportPagCSV(tipo){
+  var d=pagData();
+  var rows,headers;
+  if(tipo==='forn'){
+    headers=['Fornecedor','NF','Modalidade','Título','Vencimento','Valor','Referência','Data Pagamento','Status','Observações'];
+    rows=d.fornecedores.map(function(it){return[it.fornecedor,it.nf,it.modalidade,it.titulo,it.vencimento,it.valor,it.referencia,it.dataPag,it.status,it.obs];});
+  } else {
+    headers=['Descrição','Categoria','Vencimento','Valor','Data Pagamento','Status','Observações','Recorrente'];
+    rows=d.gerais.map(function(it){return[it.descricao,it.categoria,it.vencimento,it.valor,it.dataPag,it.status,it.obs,it.recorrente?'Sim':'Não'];});
+  }
+  var csv=[headers].concat(rows).map(function(r){return r.map(function(c){return '"'+(c||'').toString().replace(/"/g,'""')+'"';}).join(',');}).join('\n');
+  var a=document.createElement('a');
+  a.href='data:text/csv;charset=utf-8,\uFEFF'+encodeURIComponent(csv);
+  a.download='pagamentos_'+(tipo==='forn'?'fornecedores':'gerais')+'_'+new Date().toISOString().slice(0,10)+'.csv';
+  a.click();
+}
+
+function salvarPag(){savePag();showToast('Pagamentos salvos!');}
+
+// ── Helpers
+function fmtDate(d){
+  if(!d)return '—';
+  var parts=d.split('-');
+  if(parts.length!==3)return d;
+  return parts[2]+'/'+parts[1]+'/'+parts[0];
+}
+function escHtml(s){
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Init pagamentos quando abre a página
+function initPagamentos(){
+  window._pagData=loadPag();
+  initPagGeralMes();
+  setPagTab('fornecedores');
+}
+
+</script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js">
+
+// ══════════════════════════════════════════════════════════
+// PAGAMENTOS — JS
+// ══════════════════════════════════════════════════════════
+var STORE_PAG = 'pagamentosML_v1';
+var pagTab = 'fornecedores';
+var pagFornSort = {col:'vencimento', asc:true};
+var pagGeralSort = {col:'vencimento', asc:true};
+var pagGeralMes = 'todos'; // 'todos' ou 'YYYY-MM'
+var _pagEditId = null;
+var _pagEditType = null;
+var _pagRecorrId = null;
+
+var PAG_CATS = [
+  '🚚 Frete','📊 Contabilidade','🏢 Empresa','⚡ Energia',
+  '🌐 Internet','👥 Funcionários','📈 Investimentos','📣 Marketing',
+  '🎭 Lazer','📦 Outros'
+];
+
+// ── Estado
+function loadPag(){
+  try{
+    var s=localStorage.getItem(STORE_PAG);
+    return s?JSON.parse(s):{fornecedores:[],gerais:[]};
+  }catch(e){return {fornecedores:[],gerais:[]};}
+}
+function savePag(){
+  try{localStorage.setItem(STORE_PAG,JSON.stringify(pagData()));}catch(e){}
+}
+function pagData(){
+  return window._pagData||(window._pagData=loadPag());
+}
+
+// ── Tab
+function setPagTab(tab){
+  pagTab=tab;
+  document.getElementById('pagTabForn').className='pag-tab'+(tab==='fornecedores'?' active':'');
+  document.getElementById('pagTabGeral').className='pag-tab'+(tab==='gerais'?' active':'');
+  document.getElementById('pagViewForn').style.display=tab==='fornecedores'?'block':'none';
+  document.getElementById('pagViewGeral').style.display=tab==='gerais'?'block':'none';
+  renderPagKpis();
+  if(tab==='fornecedores')renderPagForn();
+  else renderPagGeral();
+}
+
+// ── KPIs
+function renderPagKpis(){
+  var d=pagData();
+  var items=pagTab==='fornecedores'?d.fornecedores:d.gerais;
+  var hoje=new Date(); hoje.setHours(0,0,0,0);
+  var total=0,pago=0,pendente=0,atrasado=0;
+  items.forEach(function(it){
+    total+=it.valor||0;
+    if(it.status==='pago')pago+=it.valor||0;
+    else if(it.status==='atrasado')atrasado+=it.valor||0;
+    else pendente+=it.valor||0;
+  });
+  var n=items.length;
+  document.getElementById('pagKpis').innerHTML=
+    kpi('TOTAL GERAL',BRL(total),n+' título'+(n!==1?'s':''),'')
+   +kpi('TOTAL PAGO',BRL(pago),total>0?(pago/total*100).toFixed(1)+'%':'0%','green')
+   +kpi('PENDENTE',BRL(pendente),total>0?(pendente/total*100).toFixed(1)+'%':'0%','amber')
+   +kpi('ATRASADO',BRL(atrasado),total>0?(atrasado/total*100).toFixed(1)+'%':'0%','red')
+   +kpi('Nº TÍTULOS',''+n,'','');
+}
+function kpi(lbl,val,sub,cls){
+  return '<div class="pag-kpi"><div class="pag-kpi-lbl">'+lbl+'</div>'
+    +'<div class="pag-kpi-val '+cls+'">'+val+'</div>'
+    +'<div class="pag-kpi-sub">'+sub+'</div></div>';
+}
+
+// ── Helpers
+function pagDias(venc, status){
+  if(status==='pago') return '<span class="pag-dias past">—</span>';
+  var hoje=new Date(); hoje.setHours(0,0,0,0);
+  var v=new Date(venc+'T00:00:00');
+  var diff=Math.round((v-hoje)/(1000*60*60*24));
+  var cls=diff<0?'danger':diff<=7?'warn':diff<=14?'warn':'ok';
+  var lbl=diff<0?Math.abs(diff)+'d atr.':diff+'d';
+  return '<span class="pag-dias '+cls+'">'+lbl+'</span>';
+}
+function pagStatusBadge(status){
+  return '<span class="pag-status '+status+'">'+status.charAt(0).toUpperCase()+status.slice(1)+'</span>';
+}
+function pagTruncCod(cod){
+  if(!cod)return '<span style="color:var(--text3);font-size:11px">—</span>';
+  var short=cod.length>20?cod.slice(0,18)+'…':cod;
+  return '<div class="pag-cod">'
+    +'<span class="pag-cod-txt" title="'+cod+'">'+short+'</span>'
+    +'<button class="pag-copy-btn" onclick="pagCopyCod(\''+cod.replace(/'/g,"\\'")+'\')" title="Copiar código">'
+    +'<svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>'
+    +'</button></div>';
+}
+function pagCopyCod(cod){
+  navigator.clipboard.writeText(cod).then(function(){showToast('Código copiado!');});
+}
+
+// ── Fornecedores
+function renderPagForn(){
+  var d=pagData();
+  var items=[].concat(d.fornecedores);
+  var q=(document.getElementById('pagFornSearch').value||'').toLowerCase();
+  var sf=document.getElementById('pagFornStatus').value;
+  if(q)items=items.filter(function(it){
+    return (it.fornecedor||'').toLowerCase().includes(q)
+      ||(it.nf||'').toLowerCase().includes(q)
+      ||(it.titulo||'').toLowerCase().includes(q);
+  });
+  if(sf)items=items.filter(function(it){return it.status===sf;});
+
+  // Sort
+  var col=pagFornSort.col, asc=pagFornSort.asc;
+  items.sort(function(a,b){
+    var va=a[col]||'', vb=b[col]||'';
+    if(col==='valor'||col==='dias'){va=+(a.valor||0);vb=+(b.valor||0);}
+    if(col==='vencimento'||col==='dataPag'){va=va||'9999';vb=vb||'9999';}
+    if(va<vb)return asc?-1:1;
+    if(va>vb)return asc?1:-1;
+    return 0;
+  });
+
+  var hoje=new Date(); hoje.setHours(0,0,0,0);
+  var tbody='';
+  if(!items.length){
+    tbody='<tr><td colspan="13"><div class="pag-empty">'
+      +'<svg width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.2" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>'
+      +'<div class="pag-empty-title">Nenhuma conta encontrada</div>'
+      +'<div class="pag-empty-sub">Adicione uma nova conta ou importe boletos PDF</div></div></td></tr>';
+  } else {
+    items.forEach(function(it){
+      var statusAtual=it.status;
+      // Auto-marcar atrasado
+      if(statusAtual==='pendente'&&it.vencimento){
+        var v=new Date(it.vencimento+'T00:00:00');
+        if(v<hoje)statusAtual='atrasado';
+      }
+      tbody+='<tr>'
+        +'<td class="bold">'+escHtml(it.fornecedor||'—')+'</td>'
+        +'<td class="mono">'+escHtml(it.nf||'—')+'</td>'
+        +'<td>'+escHtml(it.modalidade||'—')+'</td>'
+        +'<td>'+escHtml(it.titulo||'—')+'</td>'
+        +'<td class="mono">'+fmtDate(it.vencimento)+'</td>'
+        +'<td class="mono bold">'+BRL(it.valor||0)+'</td>'
+        +'<td>'+pagTruncCod(it.referencia)+'</td>'
+        +'<td class="mono">'+fmtDate(it.dataPag)+'</td>'
+        +'<td>'+pagStatusBadge(statusAtual)+'</td>'
+        +'<td>'+pagDias(it.vencimento,statusAtual)+'</td>'
+        +'<td style="font-size:11px;color:var(--text3);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escHtml(it.obs||'—')+'</td>'
+        +'<td>'+(it.boletoData
+          ?'<button class="pag-boleto-btn" onclick="verBoleto(\''+it.id+'\')" title="Ver boleto">'
+            +'<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>'
+            +'</button>'
+          :'<span style="color:var(--text3);font-size:11px">—</span>')+'</td>'
+        +'<td style="white-space:nowrap">'
+          +'<button class="pag-action-btn" onclick="editPagForn(\''+it.id+'\')" title="Editar">'
+            +'<svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>'
+          +'</button>'
+          +'<button class="pag-action-btn del" onclick="delPagForn(\''+it.id+'\')" title="Excluir">'
+            +'<svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>'
+          +'</button>'
+        +'</td>'
+        +'</tr>';
+    });
+  }
+  document.getElementById('pagFornBody').innerHTML=tbody;
+  renderPagFornSide(d.fornecedores);
+  renderPagKpis();
+}
+
+function renderPagFornSide(items){
+  var hoje=new Date(); hoje.setHours(0,0,0,0);
+  // Resumo por fornecedor
+  var byForn={};
+  items.forEach(function(it){
+    var f=it.fornecedor||'Outros';
+    if(!byForn[f])byForn[f]={pago:0,pend:0};
+    if(it.status==='pago')byForn[f].pago+=it.valor||0;
+    else byForn[f].pend+=it.valor||0;
+  });
+  var totalPago=0,totalPend=0;
+  var rows='';
+  Object.keys(byForn).sort().forEach(function(f){
+    totalPago+=byForn[f].pago;
+    totalPend+=byForn[f].pend;
+    rows+='<div class="pag-side-row">'
+      +'<span class="pag-side-row-name">'+escHtml(f)+'</span>'
+      +'<div class="pag-side-row-vals">'
+        +'<span class="pag-side-row-pago">'+BRL(byForn[f].pago)+'</span>'
+        +'<span class="pag-side-row-pend">'+BRL(byForn[f].pend)+'</span>'
+      +'</div></div>';
+  });
+
+  // Próximos vencimentos (pendentes, ordenados por data)
+  var proximos=items.filter(function(it){
+    return it.status!=='pago'&&it.vencimento;
+  }).sort(function(a,b){return a.vencimento>b.vencimento?1:-1;}).slice(0,5);
+  var proxHtml='';
+  proximos.forEach(function(it){
+    var v=new Date(it.vencimento+'T00:00:00');
+    var diff=Math.round((v-hoje)/(1000*60*60*24));
+    var cor=diff<0?'var(--red)':diff<=7?'var(--amber)':'var(--text3)';
+    proxHtml+='<div class="pag-prox-item">'
+      +'<div style="display:flex;justify-content:space-between">'
+        +'<span class="pag-prox-nome">'+escHtml(it.fornecedor||'—')+'</span>'
+        +'<span class="pag-prox-val">'+BRL(it.valor||0)+'</span>'
+      +'</div>'
+      +'<div class="pag-prox-info">'+escHtml(it.nf||'')+(it.titulo?' · '+escHtml(it.titulo):'')
+        +' <span style="color:'+cor+'">'+(diff<0?'atrasado '+Math.abs(diff)+'d':'em '+diff+'d')+'</span>'
+      +'</div></div>';
+  });
+
+  document.getElementById('pagFornSide').innerHTML=
+    '<div class="pag-side-card">'
+      +'<div class="pag-side-title">👥 Resumo por Fornecedor'
+        +'<div style="margin-left:auto;display:flex;gap:16px;font-size:9px">'
+          +'<span style="color:var(--green)">PAGO</span>'
+          +'<span style="color:var(--amber)">PENDENTE</span>'
+        +'</div></div>'
+      +'<div class="pag-side-body">'+rows+'</div>'
+      +'<div class="pag-side-total">'
+        +'<span>TOTAL</span>'
+        +'<div style="display:flex;gap:16px">'
+          +'<span class="pag-side-total-pago">'+BRL(totalPago)+'</span>'
+          +'<span class="pag-side-total-pend">'+BRL(totalPend)+'</span>'
+        +'</div>'
+      +'</div>'
+    +'</div>'
+    +'<div class="pag-side-card">'
+      +'<div class="pag-side-title">📅 Próximos Vencimentos</div>'
+      +'<div class="pag-side-body">'+(proxHtml||'<div style="padding:12px 14px;font-size:11px;color:var(--text3)">Nenhum vencimento pendente</div>')+'</div>'
+    +'</div>';
+}
+
+// ── Pagamentos Gerais
+function initPagGeralMes(){
+  var d=pagData();
+  var meses=new Set(['todos']);
+  var hoje=new Date();
+  // Incluir mês atual sempre
+  meses.add(hoje.getFullYear()+'-'+String(hoje.getMonth()+1).padStart(2,'0'));
+  d.gerais.forEach(function(it){if(it.vencimento)meses.add(it.vencimento.slice(0,7));});
+  var sel=document.getElementById('pagGeralMesSel');
+  sel.innerHTML='';
+  var sorted=Array.from(meses).filter(function(m){return m!=='todos';}).sort();
+  sel.innerHTML='<option value="todos">Todos os meses</option>'
+    +sorted.map(function(m){
+      var parts=m.split('-');
+      var label=MESES[parseInt(parts[1])-1]+' de '+parts[0];
+      return '<option value="'+m+'"'+( m===pagGeralMes?' selected':'')+'>'+label+'</option>';
+    }).join('');
+  if(pagGeralMes==='todos')sel.value='todos';
+  else sel.value=pagGeralMes;
+}
+
+function onPagGeralMesChange(){
+  pagGeralMes=document.getElementById('pagGeralMesSel').value;
+  renderPagGeral();
+}
+function pagGeralMesNav(dir){
+  if(pagGeralMes==='todos'){
+    var hoje=new Date();
+    pagGeralMes=hoje.getFullYear()+'-'+String(hoje.getMonth()+1+dir).padStart(2,'0');
+    // normalizar
+    var parts=pagGeralMes.split('-');
+    var d=new Date(parseInt(parts[0]),parseInt(parts[1])-1,1);
+    pagGeralMes=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+  } else {
+    var parts=pagGeralMes.split('-');
+    var d=new Date(parseInt(parts[0]),parseInt(parts[1])-1+dir,1);
+    pagGeralMes=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+  }
+  initPagGeralMes();
+  renderPagGeral();
+}
+function pagGeralMesTodos(){
+  pagGeralMes='todos';
+  document.getElementById('pagGeralMesSel').value='todos';
+  renderPagGeral();
+}
+
+function renderPagGeral(){
+  var d=pagData();
+  var items=[].concat(d.gerais);
+  var q=(document.getElementById('pagGeralSearch').value||'').toLowerCase();
+  var sf=document.getElementById('pagGeralStatus').value;
+  if(pagGeralMes!=='todos')items=items.filter(function(it){return (it.vencimento||'').slice(0,7)===pagGeralMes;});
+  if(q)items=items.filter(function(it){
+    return (it.descricao||'').toLowerCase().includes(q)||(it.categoria||'').toLowerCase().includes(q);
+  });
+  if(sf)items=items.filter(function(it){return it.status===sf;});
+
+  var col=pagGeralSort.col, asc=pagGeralSort.asc;
+  items.sort(function(a,b){
+    var va=a[col]||'', vb=b[col]||'';
+    if(col==='valor'){va=+(a.valor||0);vb=+(b.valor||0);}
+    if(col==='vencimento'||col==='dataPag'){va=va||'9999';vb=vb||'9999';}
+    if(va<vb)return asc?-1:1; if(va>vb)return asc?1:-1; return 0;
+  });
+
+  var hoje=new Date(); hoje.setHours(0,0,0,0);
+  var total=items.length;
+  var mesLabel=pagGeralMes==='todos'?'':'— '+total+' de '+d.gerais.length+' contas no mês';
+  document.getElementById('pagGeralCount').textContent=total+' conta'+(total!==1?'s':'')+mesLabel;
+
+  var tbody='';
+  if(!items.length){
+    tbody='<tr><td colspan="9"><div class="pag-empty">'
+      +'<svg width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>'
+      +'<div class="pag-empty-title">Nenhuma conta encontrada</div>'
+      +'<div class="pag-empty-sub">Adicione uma nova conta de pagamento</div></div></td></tr>';
+  } else {
+    items.forEach(function(it){
+      var statusAtual=it.status;
+      if(statusAtual==='pendente'&&it.vencimento){
+        var v=new Date(it.vencimento+'T00:00:00');
+        if(v<hoje)statusAtual='atrasado';
+      }
+      tbody+='<tr>'
+        +'<td class="bold">'+escHtml(it.descricao||'—')+'</td>'
+        +'<td><span class="pag-cat">'+escHtml(it.categoria||'—')+'</span></td>'
+        +'<td class="mono">'+fmtDate(it.vencimento)+'</td>'
+        +'<td class="mono bold">'+BRL(it.valor||0)+'</td>'
+        +'<td class="mono">'+fmtDate(it.dataPag)+'</td>'
+        +'<td>'+pagStatusBadge(statusAtual)+'</td>'
+        +'<td>'+pagDias(it.vencimento,statusAtual)+'</td>'
+        +'<td style="font-size:11px;color:var(--text3)">'+escHtml(it.obs||'—')
+          +(it.recorrente?'<span style="margin-left:4px;font-size:9px;background:var(--purple-bg);color:var(--purple);padding:1px 5px;border-radius:3px">↻ recorrente</span>':'')
+        +'</td>'
+        +'<td style="white-space:nowrap">'
+          +'<button class="pag-action-btn" onclick="editPagGeral(\''+it.id+'\')" title="Editar">'
+            +'<svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>'
+          +'</button>'
+          +'<button class="pag-action-btn del" onclick="delPagGeral(\''+it.id+'\')" title="Excluir">'
+            +'<svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>'
+          +'</button>'
+        +'</td>'
+        +'</tr>';
+    });
+  }
+  document.getElementById('pagGeralBody').innerHTML=tbody;
+  renderPagKpis();
+}
+
+// ── Sorting
+function sortPagForn(col){
+  if(pagFornSort.col===col)pagFornSort.asc=!pagFornSort.asc;
+  else{pagFornSort.col=col;pagFornSort.asc=true;}
+  renderPagForn();
+}
+function sortPagGeral(col){
+  if(pagGeralSort.col===col)pagGeralSort.asc=!pagGeralSort.asc;
+  else{pagGeralSort.col=col;pagGeralSort.asc=true;}
+  renderPagGeral();
+}
+
+// ── Modal
+function openPagModal(type, editId){
+  _pagEditType=type;
+  _pagEditId=editId||null;
+  var isForn=type==='forn';
+  document.getElementById('pagModalFornFields').style.display=isForn?'block':'none';
+  document.getElementById('pagModalGeralFields').style.display=isForn?'none':'block';
+  document.getElementById('pagModalTitle').textContent=editId?(isForn?'Editar Conta — Fornecedor':'Editar Conta — Geral'):(isForn?'Nova Conta — Fornecedor':'Nova Conta — Geral');
+  document.getElementById('pagModalSub').textContent='';
+
+  if(editId){
+    var d=pagData();
+    var arr=isForn?d.fornecedores:d.gerais;
+    var it=arr.find(function(x){return x.id===editId;});
+    if(it){
+      if(isForn){
+        document.getElementById('pmFornecedor').value=it.fornecedor||'';
+        document.getElementById('pmNF').value=it.nf||'';
+        document.getElementById('pmModalidade').value=it.modalidade||'Boleto';
+        document.getElementById('pmTitulo').value=it.titulo||'';
+        document.getElementById('pmValor').value=it.valor||'';
+        document.getElementById('pmVencimento').value=it.vencimento||'';
+        document.getElementById('pmReferencia').value=it.referencia||'';
+        document.getElementById('pmObsForn').value=it.obs||'';
+      } else {
+        document.getElementById('pmDescricao').value=it.descricao||'';
+        document.getElementById('pmCategoria').value=it.categoria||PAG_CATS[0];
+        document.getElementById('pmValorGeral').value=it.valor||'';
+        document.getElementById('pmVencimentoGeral').value=it.vencimento||'';
+        document.getElementById('pmStatusGeral').value=it.status||'pendente';
+        document.getElementById('pmObsGeral').value=it.obs||'';
+        document.getElementById('pmRecorrente').checked=it.recorrente||false;
+      }
+    }
+  } else {
+    // Limpar campos
+    if(isForn){
+      ['pmFornecedor','pmNF','pmTitulo','pmValor','pmVencimento','pmReferencia','pmObsForn'].forEach(function(id){document.getElementById(id).value='';});
+      document.getElementById('pmModalidade').value='Boleto';
+    } else {
+      ['pmDescricao','pmValorGeral','pmVencimentoGeral','pmObsGeral'].forEach(function(id){document.getElementById(id).value='';});
+      document.getElementById('pmCategoria').value=PAG_CATS[0];
+      document.getElementById('pmStatusGeral').value='pendente';
+      document.getElementById('pmRecorrente').checked=false;
+    }
+  }
+  document.getElementById('pagModal').className='pag-modal-overlay open';
+}
+function closePagModal(){
+  document.getElementById('pagModal').className='pag-modal-overlay';
+  _pagEditId=null; _pagEditType=null;
+}
+
+function savePagItem(){
+  var d=pagData();
+  var isForn=_pagEditType==='forn';
+  if(isForn){
+    var forn=(document.getElementById('pmFornecedor').value||'').trim();
+    var valor=+(document.getElementById('pmValor').value)||0;
+    var venc=document.getElementById('pmVencimento').value;
+    if(!forn||!valor||!venc){alert('Preencha os campos obrigatórios: Fornecedor, Valor e Vencimento.');return;}
+    var item={
+      id:_pagEditId||('forn_'+Date.now()),
+      fornecedor:forn,
+      nf:(document.getElementById('pmNF').value||'').trim(),
+      modalidade:document.getElementById('pmModalidade').value,
+      titulo:(document.getElementById('pmTitulo').value||'').trim(),
+      valor:valor,
+      vencimento:venc,
+      referencia:(document.getElementById('pmReferencia').value||'').trim(),
+      obs:(document.getElementById('pmObsForn').value||'').trim(),
+      status:'pendente',
+      dataPag:''
+    };
+    if(_pagEditId){
+      var idx=d.fornecedores.findIndex(function(x){return x.id===_pagEditId;});
+      if(idx>=0){item.status=d.fornecedores[idx].status;item.dataPag=d.fornecedores[idx].dataPag;item.boletoData=d.fornecedores[idx].boletoData;}
+      d.fornecedores[idx]=item;
+    } else {
+      d.fornecedores.push(item);
+    }
+  } else {
+    var desc=(document.getElementById('pmDescricao').value||'').trim();
+    var valor=+(document.getElementById('pmValorGeral').value)||0;
+    var venc=document.getElementById('pmVencimentoGeral').value;
+    if(!desc||!valor||!venc){alert('Preencha os campos obrigatórios: Descrição, Valor e Vencimento.');return;}
+    var recorr=document.getElementById('pmRecorrente').checked;
+    var item={
+      id:_pagEditId||('ger_'+Date.now()),
+      descricao:desc,
+      categoria:document.getElementById('pmCategoria').value,
+      valor:valor,
+      vencimento:venc,
+      status:document.getElementById('pmStatusGeral').value,
+      obs:(document.getElementById('pmObsGeral').value||'').trim(),
+      recorrente:recorr,
+      recorrGrupo:null,
+      dataPag:''
+    };
+    if(_pagEditId){
+      var idx=d.gerais.findIndex(function(x){return x.id===_pagEditId;});
+      if(idx>=0){item.recorrGrupo=d.gerais[idx].recorrGrupo;item.dataPag=d.gerais[idx].dataPag;}
+      d.gerais[idx]=item;
+    } else {
+      if(recorr){
+        // Criar lançamentos para 24 meses futuros
+        var grupoId='grp_'+Date.now();
+        item.recorrGrupo=grupoId;
+        d.gerais.push(item);
+        var base=new Date(venc+'T00:00:00');
+        for(var m=1;m<=24;m++){
+          var nd=new Date(base.getFullYear(),base.getMonth()+m,base.getDate());
+          var nVenc=nd.getFullYear()+'-'+String(nd.getMonth()+1).padStart(2,'0')+'-'+String(nd.getDate()).padStart(2,'0');
+          d.gerais.push(Object.assign({},item,{id:'ger_'+Date.now()+'_'+m,vencimento:nVenc,status:'pendente',dataPag:''}));
+        }
+      } else {
+        d.gerais.push(item);
+      }
+    }
+  }
+  window._pagData=d;
+  savePag();
+  closePagModal();
+  initPagGeralMes();
+  if(isForn)renderPagForn(); else renderPagGeral();
+}
+
+// ── Delete
+function delPagForn(id){
+  if(!confirm('Excluir esta conta?'))return;
+  var d=pagData();
+  d.fornecedores=d.fornecedores.filter(function(x){return x.id!==id;});
+  window._pagData=d; savePag(); renderPagForn();
+}
+function delPagGeral(id){
+  var d=pagData();
+  var it=d.gerais.find(function(x){return x.id===id;});
+  if(!it)return;
+  if(it.recorrente&&it.recorrGrupo){
+    _pagRecorrId=id;
+    document.getElementById('pagRecorrSub').textContent='Conta: '+it.descricao+' — '+fmtDate(it.vencimento);
+    document.getElementById('pagRecorrModal').className='pag-modal-overlay open';
+  } else {
+    if(!confirm('Excluir esta conta?'))return;
+    d.gerais=d.gerais.filter(function(x){return x.id!==id;});
+    window._pagData=d; savePag(); initPagGeralMes(); renderPagGeral();
+  }
+}
+function cancelRecorrSo(){
+  var d=pagData();
+  d.gerais=d.gerais.filter(function(x){return x.id!==_pagRecorrId;});
+  window._pagData=d; savePag();
+  document.getElementById('pagRecorrModal').className='pag-modal-overlay';
+  initPagGeralMes(); renderPagGeral();
+}
+function cancelRecorrFut(){
+  var d=pagData();
+  var it=d.gerais.find(function(x){return x.id===_pagRecorrId;});
+  if(!it){document.getElementById('pagRecorrModal').className='pag-modal-overlay';return;}
+  var vencRef=it.vencimento;
+  var grupo=it.recorrGrupo;
+  d.gerais=d.gerais.filter(function(x){
+    if(x.recorrGrupo!==grupo)return true;
+    return x.vencimento<vencRef;
+  });
+  window._pagData=d; savePag();
+  document.getElementById('pagRecorrModal').className='pag-modal-overlay';
+  initPagGeralMes(); renderPagGeral();
+}
+function editPagForn(id){openPagModal('forn',id);}
+function editPagGeral(id){openPagModal('geral',id);}
+
+// ── Importar Boleto PDF
+function importarBoleto(){
+  var input=document.createElement('input');
+  input.type='file'; input.accept='application/pdf'; input.multiple=true;
+  input.onchange=function(){
+    var files=Array.from(input.files);
+    if(!files.length)return;
+    showToast('Lendo '+files.length+' boleto(s)...');
+    files.forEach(function(file){
+      var reader=new FileReader();
+      reader.onload=function(e){
+        var data=e.target.result;
+        // Extrair código de barras do PDF via texto
+        extractBoletoCod(data, file.name, function(cod){
+          var d=pagData();
+          var item={
+            id:'forn_'+Date.now()+'_'+Math.random().toString(36).slice(2,6),
+            fornecedor:'',nf:'',modalidade:'Boleto',titulo:file.name.replace('.pdf',''),
+            valor:0,vencimento:'',referencia:cod||'',obs:'Importado de PDF: '+file.name,
+            status:'pendente',dataPag:'',boletoData:btoa(String.fromCharCode.apply(null,new Uint8Array(e.target.result instanceof ArrayBuffer?e.target.result:new ArrayBuffer(0))))
+          };
+          // Abrir modal pré-preenchido para confirmação
+          window._pagData=d;
+          openPagModal('forn');
+          if(cod)document.getElementById('pmReferencia').value=cod;
+          document.getElementById('pmTitulo').value=file.name.replace('.pdf','');
+          document.getElementById('pmObsForn').value='Importado de PDF: '+file.name;
+          showToast(cod?'Código de barras lido!':'PDF importado — preencha o código manualmente');
+        });
+      };
+      reader.readAsArrayBuffer(file);
+    });
+  };
+  input.click();
+}
+
+function extractBoletoCod(arrayBuffer, fileName, cb){
+  // Tenta extrair código de barras do texto do PDF
+  try{
+    var bytes=new Uint8Array(arrayBuffer);
+    var str='';
+    for(var i=0;i<Math.min(bytes.length,50000);i++)str+=String.fromCharCode(bytes[i]);
+    // Padrão linha digitável boleto bancário: sequências de dígitos com pontos/espaços
+    var m=str.match(/\d{5}\.\d{5}\s\d{5}\.\d{6}\s\d{5}\.\d{6}\s\d\s\d{14}/);
+    if(m){cb(m[0].replace(/\s/g,''));return;}
+    // Código de barras numérico 44-47 dígitos
+    var m2=str.match(/[0-9]{44,47}/);
+    if(m2){cb(m2[0]);return;}
+    cb('');
+  }catch(e){cb('');}
+}
+
+function verBoleto(id){
+  var d=pagData();
+  var it=d.fornecedores.find(function(x){return x.id===id;});
+  if(!it||!it.boletoData)return;
+  try{
+    var bin=atob(it.boletoData);
+    var bytes=new Uint8Array(bin.length);
+    for(var i=0;i<bin.length;i++)bytes[i]=bin.charCodeAt(i);
+    var blob=new Blob([bytes],{type:'application/pdf'});
+    window.open(URL.createObjectURL(blob),'_blank');
+  }catch(e){showToast('Erro ao abrir PDF');}
+}
+
+// ── Exportar CSV
+function exportPagCSV(tipo){
+  var d=pagData();
+  var rows,headers;
+  if(tipo==='forn'){
+    headers=['Fornecedor','NF','Modalidade','Título','Vencimento','Valor','Referência','Data Pagamento','Status','Observações'];
+    rows=d.fornecedores.map(function(it){return[it.fornecedor,it.nf,it.modalidade,it.titulo,it.vencimento,it.valor,it.referencia,it.dataPag,it.status,it.obs];});
+  } else {
+    headers=['Descrição','Categoria','Vencimento','Valor','Data Pagamento','Status','Observações','Recorrente'];
+    rows=d.gerais.map(function(it){return[it.descricao,it.categoria,it.vencimento,it.valor,it.dataPag,it.status,it.obs,it.recorrente?'Sim':'Não'];});
+  }
+  var csv=[headers].concat(rows).map(function(r){return r.map(function(c){return '"'+(c||'').toString().replace(/"/g,'""')+'"';}).join(',');}).join('\n');
+  var a=document.createElement('a');
+  a.href='data:text/csv;charset=utf-8,\uFEFF'+encodeURIComponent(csv);
+  a.download='pagamentos_'+(tipo==='forn'?'fornecedores':'gerais')+'_'+new Date().toISOString().slice(0,10)+'.csv';
+  a.click();
+}
+
+function salvarPag(){savePag();showToast('Pagamentos salvos!');}
+
+// ── Helpers
+function fmtDate(d){
+  if(!d)return '—';
+  var parts=d.split('-');
+  if(parts.length!==3)return d;
+  return parts[2]+'/'+parts[1]+'/'+parts[0];
+}
+function escHtml(s){
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Init pagamentos quando abre a página
+function initPagamentos(){
+  window._pagData=loadPag();
+  initPagGeralMes();
+  setPagTab('fornecedores');
+}
+
+</script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js">
+
+// ══════════════════════════════════════════════════════════
+// PAGAMENTOS — JS
+// ══════════════════════════════════════════════════════════
+var STORE_PAG = 'pagamentosML_v1';
+var pagTab = 'fornecedores';
+var pagFornSort = {col:'vencimento', asc:true};
+var pagGeralSort = {col:'vencimento', asc:true};
+var pagGeralMes = 'todos'; // 'todos' ou 'YYYY-MM'
+var _pagEditId = null;
+var _pagEditType = null;
+var _pagRecorrId = null;
+
+var PAG_CATS = [
+  '🚚 Frete','📊 Contabilidade','🏢 Empresa','⚡ Energia',
+  '🌐 Internet','👥 Funcionários','📈 Investimentos','📣 Marketing',
+  '🎭 Lazer','📦 Outros'
+];
+
+// ── Estado
+function loadPag(){
+  try{
+    var s=localStorage.getItem(STORE_PAG);
+    return s?JSON.parse(s):{fornecedores:[],gerais:[]};
+  }catch(e){return {fornecedores:[],gerais:[]};}
+}
+function savePag(){
+  try{localStorage.setItem(STORE_PAG,JSON.stringify(pagData()));}catch(e){}
+}
+function pagData(){
+  return window._pagData||(window._pagData=loadPag());
+}
+
+// ── Tab
+function setPagTab(tab){
+  pagTab=tab;
+  document.getElementById('pagTabForn').className='pag-tab'+(tab==='fornecedores'?' active':'');
+  document.getElementById('pagTabGeral').className='pag-tab'+(tab==='gerais'?' active':'');
+  document.getElementById('pagViewForn').style.display=tab==='fornecedores'?'block':'none';
+  document.getElementById('pagViewGeral').style.display=tab==='gerais'?'block':'none';
+  renderPagKpis();
+  if(tab==='fornecedores')renderPagForn();
+  else renderPagGeral();
+}
+
+// ── KPIs
+function renderPagKpis(){
+  var d=pagData();
+  var items=pagTab==='fornecedores'?d.fornecedores:d.gerais;
+  var hoje=new Date(); hoje.setHours(0,0,0,0);
+  var total=0,pago=0,pendente=0,atrasado=0;
+  items.forEach(function(it){
+    total+=it.valor||0;
+    if(it.status==='pago')pago+=it.valor||0;
+    else if(it.status==='atrasado')atrasado+=it.valor||0;
+    else pendente+=it.valor||0;
+  });
+  var n=items.length;
+  document.getElementById('pagKpis').innerHTML=
+    kpi('TOTAL GERAL',BRL(total),n+' título'+(n!==1?'s':''),'')
+   +kpi('TOTAL PAGO',BRL(pago),total>0?(pago/total*100).toFixed(1)+'%':'0%','green')
+   +kpi('PENDENTE',BRL(pendente),total>0?(pendente/total*100).toFixed(1)+'%':'0%','amber')
+   +kpi('ATRASADO',BRL(atrasado),total>0?(atrasado/total*100).toFixed(1)+'%':'0%','red')
+   +kpi('Nº TÍTULOS',''+n,'','');
+}
+function kpi(lbl,val,sub,cls){
+  return '<div class="pag-kpi"><div class="pag-kpi-lbl">'+lbl+'</div>'
+    +'<div class="pag-kpi-val '+cls+'">'+val+'</div>'
+    +'<div class="pag-kpi-sub">'+sub+'</div></div>';
+}
+
+// ── Helpers
+function pagDias(venc, status){
+  if(status==='pago') return '<span class="pag-dias past">—</span>';
+  var hoje=new Date(); hoje.setHours(0,0,0,0);
+  var v=new Date(venc+'T00:00:00');
+  var diff=Math.round((v-hoje)/(1000*60*60*24));
+  var cls=diff<0?'danger':diff<=7?'warn':diff<=14?'warn':'ok';
+  var lbl=diff<0?Math.abs(diff)+'d atr.':diff+'d';
+  return '<span class="pag-dias '+cls+'">'+lbl+'</span>';
+}
+function pagStatusBadge(status){
+  return '<span class="pag-status '+status+'">'+status.charAt(0).toUpperCase()+status.slice(1)+'</span>';
+}
+function pagTruncCod(cod){
+  if(!cod)return '<span style="color:var(--text3);font-size:11px">—</span>';
+  var short=cod.length>20?cod.slice(0,18)+'…':cod;
+  return '<div class="pag-cod">'
+    +'<span class="pag-cod-txt" title="'+cod+'">'+short+'</span>'
+    +'<button class="pag-copy-btn" onclick="pagCopyCod(\''+cod.replace(/'/g,"\\'")+'\')" title="Copiar código">'
+    +'<svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>'
+    +'</button></div>';
+}
+function pagCopyCod(cod){
+  navigator.clipboard.writeText(cod).then(function(){showToast('Código copiado!');});
+}
+
+// ── Fornecedores
+function renderPagForn(){
+  var d=pagData();
+  var items=[].concat(d.fornecedores);
+  var q=(document.getElementById('pagFornSearch').value||'').toLowerCase();
+  var sf=document.getElementById('pagFornStatus').value;
+  if(q)items=items.filter(function(it){
+    return (it.fornecedor||'').toLowerCase().includes(q)
+      ||(it.nf||'').toLowerCase().includes(q)
+      ||(it.titulo||'').toLowerCase().includes(q);
+  });
+  if(sf)items=items.filter(function(it){return it.status===sf;});
+
+  // Sort
+  var col=pagFornSort.col, asc=pagFornSort.asc;
+  items.sort(function(a,b){
+    var va=a[col]||'', vb=b[col]||'';
+    if(col==='valor'||col==='dias'){va=+(a.valor||0);vb=+(b.valor||0);}
+    if(col==='vencimento'||col==='dataPag'){va=va||'9999';vb=vb||'9999';}
+    if(va<vb)return asc?-1:1;
+    if(va>vb)return asc?1:-1;
+    return 0;
+  });
+
+  var hoje=new Date(); hoje.setHours(0,0,0,0);
+  var tbody='';
+  if(!items.length){
+    tbody='<tr><td colspan="13"><div class="pag-empty">'
+      +'<svg width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.2" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>'
+      +'<div class="pag-empty-title">Nenhuma conta encontrada</div>'
+      +'<div class="pag-empty-sub">Adicione uma nova conta ou importe boletos PDF</div></div></td></tr>';
+  } else {
+    items.forEach(function(it){
+      var statusAtual=it.status;
+      // Auto-marcar atrasado
+      if(statusAtual==='pendente'&&it.vencimento){
+        var v=new Date(it.vencimento+'T00:00:00');
+        if(v<hoje)statusAtual='atrasado';
+      }
+      tbody+='<tr>'
+        +'<td class="bold">'+escHtml(it.fornecedor||'—')+'</td>'
+        +'<td class="mono">'+escHtml(it.nf||'—')+'</td>'
+        +'<td>'+escHtml(it.modalidade||'—')+'</td>'
+        +'<td>'+escHtml(it.titulo||'—')+'</td>'
+        +'<td class="mono">'+fmtDate(it.vencimento)+'</td>'
+        +'<td class="mono bold">'+BRL(it.valor||0)+'</td>'
+        +'<td>'+pagTruncCod(it.referencia)+'</td>'
+        +'<td class="mono">'+fmtDate(it.dataPag)+'</td>'
+        +'<td>'+pagStatusBadge(statusAtual)+'</td>'
+        +'<td>'+pagDias(it.vencimento,statusAtual)+'</td>'
+        +'<td style="font-size:11px;color:var(--text3);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escHtml(it.obs||'—')+'</td>'
+        +'<td>'+(it.boletoData
+          ?'<button class="pag-boleto-btn" onclick="verBoleto(\''+it.id+'\')" title="Ver boleto">'
+            +'<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>'
+            +'</button>'
+          :'<span style="color:var(--text3);font-size:11px">—</span>')+'</td>'
+        +'<td style="white-space:nowrap">'
+          +'<button class="pag-action-btn" onclick="editPagForn(\''+it.id+'\')" title="Editar">'
+            +'<svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>'
+          +'</button>'
+          +'<button class="pag-action-btn del" onclick="delPagForn(\''+it.id+'\')" title="Excluir">'
+            +'<svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>'
+          +'</button>'
+        +'</td>'
+        +'</tr>';
+    });
+  }
+  document.getElementById('pagFornBody').innerHTML=tbody;
+  renderPagFornSide(d.fornecedores);
+  renderPagKpis();
+}
+
+function renderPagFornSide(items){
+  var hoje=new Date(); hoje.setHours(0,0,0,0);
+  // Resumo por fornecedor
+  var byForn={};
+  items.forEach(function(it){
+    var f=it.fornecedor||'Outros';
+    if(!byForn[f])byForn[f]={pago:0,pend:0};
+    if(it.status==='pago')byForn[f].pago+=it.valor||0;
+    else byForn[f].pend+=it.valor||0;
+  });
+  var totalPago=0,totalPend=0;
+  var rows='';
+  Object.keys(byForn).sort().forEach(function(f){
+    totalPago+=byForn[f].pago;
+    totalPend+=byForn[f].pend;
+    rows+='<div class="pag-side-row">'
+      +'<span class="pag-side-row-name">'+escHtml(f)+'</span>'
+      +'<div class="pag-side-row-vals">'
+        +'<span class="pag-side-row-pago">'+BRL(byForn[f].pago)+'</span>'
+        +'<span class="pag-side-row-pend">'+BRL(byForn[f].pend)+'</span>'
+      +'</div></div>';
+  });
+
+  // Próximos vencimentos (pendentes, ordenados por data)
+  var proximos=items.filter(function(it){
+    return it.status!=='pago'&&it.vencimento;
+  }).sort(function(a,b){return a.vencimento>b.vencimento?1:-1;}).slice(0,5);
+  var proxHtml='';
+  proximos.forEach(function(it){
+    var v=new Date(it.vencimento+'T00:00:00');
+    var diff=Math.round((v-hoje)/(1000*60*60*24));
+    var cor=diff<0?'var(--red)':diff<=7?'var(--amber)':'var(--text3)';
+    proxHtml+='<div class="pag-prox-item">'
+      +'<div style="display:flex;justify-content:space-between">'
+        +'<span class="pag-prox-nome">'+escHtml(it.fornecedor||'—')+'</span>'
+        +'<span class="pag-prox-val">'+BRL(it.valor||0)+'</span>'
+      +'</div>'
+      +'<div class="pag-prox-info">'+escHtml(it.nf||'')+(it.titulo?' · '+escHtml(it.titulo):'')
+        +' <span style="color:'+cor+'">'+(diff<0?'atrasado '+Math.abs(diff)+'d':'em '+diff+'d')+'</span>'
+      +'</div></div>';
+  });
+
+  document.getElementById('pagFornSide').innerHTML=
+    '<div class="pag-side-card">'
+      +'<div class="pag-side-title">👥 Resumo por Fornecedor'
+        +'<div style="margin-left:auto;display:flex;gap:16px;font-size:9px">'
+          +'<span style="color:var(--green)">PAGO</span>'
+          +'<span style="color:var(--amber)">PENDENTE</span>'
+        +'</div></div>'
+      +'<div class="pag-side-body">'+rows+'</div>'
+      +'<div class="pag-side-total">'
+        +'<span>TOTAL</span>'
+        +'<div style="display:flex;gap:16px">'
+          +'<span class="pag-side-total-pago">'+BRL(totalPago)+'</span>'
+          +'<span class="pag-side-total-pend">'+BRL(totalPend)+'</span>'
+        +'</div>'
+      +'</div>'
+    +'</div>'
+    +'<div class="pag-side-card">'
+      +'<div class="pag-side-title">📅 Próximos Vencimentos</div>'
+      +'<div class="pag-side-body">'+(proxHtml||'<div style="padding:12px 14px;font-size:11px;color:var(--text3)">Nenhum vencimento pendente</div>')+'</div>'
+    +'</div>';
+}
+
+// ── Pagamentos Gerais
+function initPagGeralMes(){
+  var d=pagData();
+  var meses=new Set(['todos']);
+  var hoje=new Date();
+  // Incluir mês atual sempre
+  meses.add(hoje.getFullYear()+'-'+String(hoje.getMonth()+1).padStart(2,'0'));
+  d.gerais.forEach(function(it){if(it.vencimento)meses.add(it.vencimento.slice(0,7));});
+  var sel=document.getElementById('pagGeralMesSel');
+  sel.innerHTML='';
+  var sorted=Array.from(meses).filter(function(m){return m!=='todos';}).sort();
+  sel.innerHTML='<option value="todos">Todos os meses</option>'
+    +sorted.map(function(m){
+      var parts=m.split('-');
+      var label=MESES[parseInt(parts[1])-1]+' de '+parts[0];
+      return '<option value="'+m+'"'+( m===pagGeralMes?' selected':'')+'>'+label+'</option>';
+    }).join('');
+  if(pagGeralMes==='todos')sel.value='todos';
+  else sel.value=pagGeralMes;
+}
+
+function onPagGeralMesChange(){
+  pagGeralMes=document.getElementById('pagGeralMesSel').value;
+  renderPagGeral();
+}
+function pagGeralMesNav(dir){
+  if(pagGeralMes==='todos'){
+    var hoje=new Date();
+    pagGeralMes=hoje.getFullYear()+'-'+String(hoje.getMonth()+1+dir).padStart(2,'0');
+    // normalizar
+    var parts=pagGeralMes.split('-');
+    var d=new Date(parseInt(parts[0]),parseInt(parts[1])-1,1);
+    pagGeralMes=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+  } else {
+    var parts=pagGeralMes.split('-');
+    var d=new Date(parseInt(parts[0]),parseInt(parts[1])-1+dir,1);
+    pagGeralMes=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+  }
+  initPagGeralMes();
+  renderPagGeral();
+}
+function pagGeralMesTodos(){
+  pagGeralMes='todos';
+  document.getElementById('pagGeralMesSel').value='todos';
+  renderPagGeral();
+}
+
+function renderPagGeral(){
+  var d=pagData();
+  var items=[].concat(d.gerais);
+  var q=(document.getElementById('pagGeralSearch').value||'').toLowerCase();
+  var sf=document.getElementById('pagGeralStatus').value;
+  if(pagGeralMes!=='todos')items=items.filter(function(it){return (it.vencimento||'').slice(0,7)===pagGeralMes;});
+  if(q)items=items.filter(function(it){
+    return (it.descricao||'').toLowerCase().includes(q)||(it.categoria||'').toLowerCase().includes(q);
+  });
+  if(sf)items=items.filter(function(it){return it.status===sf;});
+
+  var col=pagGeralSort.col, asc=pagGeralSort.asc;
+  items.sort(function(a,b){
+    var va=a[col]||'', vb=b[col]||'';
+    if(col==='valor'){va=+(a.valor||0);vb=+(b.valor||0);}
+    if(col==='vencimento'||col==='dataPag'){va=va||'9999';vb=vb||'9999';}
+    if(va<vb)return asc?-1:1; if(va>vb)return asc?1:-1; return 0;
+  });
+
+  var hoje=new Date(); hoje.setHours(0,0,0,0);
+  var total=items.length;
+  var mesLabel=pagGeralMes==='todos'?'':'— '+total+' de '+d.gerais.length+' contas no mês';
+  document.getElementById('pagGeralCount').textContent=total+' conta'+(total!==1?'s':'')+mesLabel;
+
+  var tbody='';
+  if(!items.length){
+    tbody='<tr><td colspan="9"><div class="pag-empty">'
+      +'<svg width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>'
+      +'<div class="pag-empty-title">Nenhuma conta encontrada</div>'
+      +'<div class="pag-empty-sub">Adicione uma nova conta de pagamento</div></div></td></tr>';
+  } else {
+    items.forEach(function(it){
+      var statusAtual=it.status;
+      if(statusAtual==='pendente'&&it.vencimento){
+        var v=new Date(it.vencimento+'T00:00:00');
+        if(v<hoje)statusAtual='atrasado';
+      }
+      tbody+='<tr>'
+        +'<td class="bold">'+escHtml(it.descricao||'—')+'</td>'
+        +'<td><span class="pag-cat">'+escHtml(it.categoria||'—')+'</span></td>'
+        +'<td class="mono">'+fmtDate(it.vencimento)+'</td>'
+        +'<td class="mono bold">'+BRL(it.valor||0)+'</td>'
+        +'<td class="mono">'+fmtDate(it.dataPag)+'</td>'
+        +'<td>'+pagStatusBadge(statusAtual)+'</td>'
+        +'<td>'+pagDias(it.vencimento,statusAtual)+'</td>'
+        +'<td style="font-size:11px;color:var(--text3)">'+escHtml(it.obs||'—')
+          +(it.recorrente?'<span style="margin-left:4px;font-size:9px;background:var(--purple-bg);color:var(--purple);padding:1px 5px;border-radius:3px">↻ recorrente</span>':'')
+        +'</td>'
+        +'<td style="white-space:nowrap">'
+          +'<button class="pag-action-btn" onclick="editPagGeral(\''+it.id+'\')" title="Editar">'
+            +'<svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>'
+          +'</button>'
+          +'<button class="pag-action-btn del" onclick="delPagGeral(\''+it.id+'\')" title="Excluir">'
+            +'<svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>'
+          +'</button>'
+        +'</td>'
+        +'</tr>';
+    });
+  }
+  document.getElementById('pagGeralBody').innerHTML=tbody;
+  renderPagKpis();
+}
+
+// ── Sorting
+function sortPagForn(col){
+  if(pagFornSort.col===col)pagFornSort.asc=!pagFornSort.asc;
+  else{pagFornSort.col=col;pagFornSort.asc=true;}
+  renderPagForn();
+}
+function sortPagGeral(col){
+  if(pagGeralSort.col===col)pagGeralSort.asc=!pagGeralSort.asc;
+  else{pagGeralSort.col=col;pagGeralSort.asc=true;}
+  renderPagGeral();
+}
+
+// ── Modal
+function openPagModal(type, editId){
+  _pagEditType=type;
+  _pagEditId=editId||null;
+  var isForn=type==='forn';
+  document.getElementById('pagModalFornFields').style.display=isForn?'block':'none';
+  document.getElementById('pagModalGeralFields').style.display=isForn?'none':'block';
+  document.getElementById('pagModalTitle').textContent=editId?(isForn?'Editar Conta — Fornecedor':'Editar Conta — Geral'):(isForn?'Nova Conta — Fornecedor':'Nova Conta — Geral');
+  document.getElementById('pagModalSub').textContent='';
+
+  if(editId){
+    var d=pagData();
+    var arr=isForn?d.fornecedores:d.gerais;
+    var it=arr.find(function(x){return x.id===editId;});
+    if(it){
+      if(isForn){
+        document.getElementById('pmFornecedor').value=it.fornecedor||'';
+        document.getElementById('pmNF').value=it.nf||'';
+        document.getElementById('pmModalidade').value=it.modalidade||'Boleto';
+        document.getElementById('pmTitulo').value=it.titulo||'';
+        document.getElementById('pmValor').value=it.valor||'';
+        document.getElementById('pmVencimento').value=it.vencimento||'';
+        document.getElementById('pmReferencia').value=it.referencia||'';
+        document.getElementById('pmObsForn').value=it.obs||'';
+      } else {
+        document.getElementById('pmDescricao').value=it.descricao||'';
+        document.getElementById('pmCategoria').value=it.categoria||PAG_CATS[0];
+        document.getElementById('pmValorGeral').value=it.valor||'';
+        document.getElementById('pmVencimentoGeral').value=it.vencimento||'';
+        document.getElementById('pmStatusGeral').value=it.status||'pendente';
+        document.getElementById('pmObsGeral').value=it.obs||'';
+        document.getElementById('pmRecorrente').checked=it.recorrente||false;
+      }
+    }
+  } else {
+    // Limpar campos
+    if(isForn){
+      ['pmFornecedor','pmNF','pmTitulo','pmValor','pmVencimento','pmReferencia','pmObsForn'].forEach(function(id){document.getElementById(id).value='';});
+      document.getElementById('pmModalidade').value='Boleto';
+    } else {
+      ['pmDescricao','pmValorGeral','pmVencimentoGeral','pmObsGeral'].forEach(function(id){document.getElementById(id).value='';});
+      document.getElementById('pmCategoria').value=PAG_CATS[0];
+      document.getElementById('pmStatusGeral').value='pendente';
+      document.getElementById('pmRecorrente').checked=false;
+    }
+  }
+  document.getElementById('pagModal').className='pag-modal-overlay open';
+}
+function closePagModal(){
+  document.getElementById('pagModal').className='pag-modal-overlay';
+  _pagEditId=null; _pagEditType=null;
+}
+
+function savePagItem(){
+  var d=pagData();
+  var isForn=_pagEditType==='forn';
+  if(isForn){
+    var forn=(document.getElementById('pmFornecedor').value||'').trim();
+    var valor=+(document.getElementById('pmValor').value)||0;
+    var venc=document.getElementById('pmVencimento').value;
+    if(!forn||!valor||!venc){alert('Preencha os campos obrigatórios: Fornecedor, Valor e Vencimento.');return;}
+    var item={
+      id:_pagEditId||('forn_'+Date.now()),
+      fornecedor:forn,
+      nf:(document.getElementById('pmNF').value||'').trim(),
+      modalidade:document.getElementById('pmModalidade').value,
+      titulo:(document.getElementById('pmTitulo').value||'').trim(),
+      valor:valor,
+      vencimento:venc,
+      referencia:(document.getElementById('pmReferencia').value||'').trim(),
+      obs:(document.getElementById('pmObsForn').value||'').trim(),
+      status:'pendente',
+      dataPag:''
+    };
+    if(_pagEditId){
+      var idx=d.fornecedores.findIndex(function(x){return x.id===_pagEditId;});
+      if(idx>=0){item.status=d.fornecedores[idx].status;item.dataPag=d.fornecedores[idx].dataPag;item.boletoData=d.fornecedores[idx].boletoData;}
+      d.fornecedores[idx]=item;
+    } else {
+      d.fornecedores.push(item);
+    }
+  } else {
+    var desc=(document.getElementById('pmDescricao').value||'').trim();
+    var valor=+(document.getElementById('pmValorGeral').value)||0;
+    var venc=document.getElementById('pmVencimentoGeral').value;
+    if(!desc||!valor||!venc){alert('Preencha os campos obrigatórios: Descrição, Valor e Vencimento.');return;}
+    var recorr=document.getElementById('pmRecorrente').checked;
+    var item={
+      id:_pagEditId||('ger_'+Date.now()),
+      descricao:desc,
+      categoria:document.getElementById('pmCategoria').value,
+      valor:valor,
+      vencimento:venc,
+      status:document.getElementById('pmStatusGeral').value,
+      obs:(document.getElementById('pmObsGeral').value||'').trim(),
+      recorrente:recorr,
+      recorrGrupo:null,
+      dataPag:''
+    };
+    if(_pagEditId){
+      var idx=d.gerais.findIndex(function(x){return x.id===_pagEditId;});
+      if(idx>=0){item.recorrGrupo=d.gerais[idx].recorrGrupo;item.dataPag=d.gerais[idx].dataPag;}
+      d.gerais[idx]=item;
+    } else {
+      if(recorr){
+        // Criar lançamentos para 24 meses futuros
+        var grupoId='grp_'+Date.now();
+        item.recorrGrupo=grupoId;
+        d.gerais.push(item);
+        var base=new Date(venc+'T00:00:00');
+        for(var m=1;m<=24;m++){
+          var nd=new Date(base.getFullYear(),base.getMonth()+m,base.getDate());
+          var nVenc=nd.getFullYear()+'-'+String(nd.getMonth()+1).padStart(2,'0')+'-'+String(nd.getDate()).padStart(2,'0');
+          d.gerais.push(Object.assign({},item,{id:'ger_'+Date.now()+'_'+m,vencimento:nVenc,status:'pendente',dataPag:''}));
+        }
+      } else {
+        d.gerais.push(item);
+      }
+    }
+  }
+  window._pagData=d;
+  savePag();
+  closePagModal();
+  initPagGeralMes();
+  if(isForn)renderPagForn(); else renderPagGeral();
+}
+
+// ── Delete
+function delPagForn(id){
+  if(!confirm('Excluir esta conta?'))return;
+  var d=pagData();
+  d.fornecedores=d.fornecedores.filter(function(x){return x.id!==id;});
+  window._pagData=d; savePag(); renderPagForn();
+}
+function delPagGeral(id){
+  var d=pagData();
+  var it=d.gerais.find(function(x){return x.id===id;});
+  if(!it)return;
+  if(it.recorrente&&it.recorrGrupo){
+    _pagRecorrId=id;
+    document.getElementById('pagRecorrSub').textContent='Conta: '+it.descricao+' — '+fmtDate(it.vencimento);
+    document.getElementById('pagRecorrModal').className='pag-modal-overlay open';
+  } else {
+    if(!confirm('Excluir esta conta?'))return;
+    d.gerais=d.gerais.filter(function(x){return x.id!==id;});
+    window._pagData=d; savePag(); initPagGeralMes(); renderPagGeral();
+  }
+}
+function cancelRecorrSo(){
+  var d=pagData();
+  d.gerais=d.gerais.filter(function(x){return x.id!==_pagRecorrId;});
+  window._pagData=d; savePag();
+  document.getElementById('pagRecorrModal').className='pag-modal-overlay';
+  initPagGeralMes(); renderPagGeral();
+}
+function cancelRecorrFut(){
+  var d=pagData();
+  var it=d.gerais.find(function(x){return x.id===_pagRecorrId;});
+  if(!it){document.getElementById('pagRecorrModal').className='pag-modal-overlay';return;}
+  var vencRef=it.vencimento;
+  var grupo=it.recorrGrupo;
+  d.gerais=d.gerais.filter(function(x){
+    if(x.recorrGrupo!==grupo)return true;
+    return x.vencimento<vencRef;
+  });
+  window._pagData=d; savePag();
+  document.getElementById('pagRecorrModal').className='pag-modal-overlay';
+  initPagGeralMes(); renderPagGeral();
+}
+function editPagForn(id){openPagModal('forn',id);}
+function editPagGeral(id){openPagModal('geral',id);}
+
+// ── Importar Boleto PDF
+function importarBoleto(){
+  var input=document.createElement('input');
+  input.type='file'; input.accept='application/pdf'; input.multiple=true;
+  input.onchange=function(){
+    var files=Array.from(input.files);
+    if(!files.length)return;
+    showToast('Lendo '+files.length+' boleto(s)...');
+    files.forEach(function(file){
+      var reader=new FileReader();
+      reader.onload=function(e){
+        var data=e.target.result;
+        // Extrair código de barras do PDF via texto
+        extractBoletoCod(data, file.name, function(cod){
+          var d=pagData();
+          var item={
+            id:'forn_'+Date.now()+'_'+Math.random().toString(36).slice(2,6),
+            fornecedor:'',nf:'',modalidade:'Boleto',titulo:file.name.replace('.pdf',''),
+            valor:0,vencimento:'',referencia:cod||'',obs:'Importado de PDF: '+file.name,
+            status:'pendente',dataPag:'',boletoData:btoa(String.fromCharCode.apply(null,new Uint8Array(e.target.result instanceof ArrayBuffer?e.target.result:new ArrayBuffer(0))))
+          };
+          // Abrir modal pré-preenchido para confirmação
+          window._pagData=d;
+          openPagModal('forn');
+          if(cod)document.getElementById('pmReferencia').value=cod;
+          document.getElementById('pmTitulo').value=file.name.replace('.pdf','');
+          document.getElementById('pmObsForn').value='Importado de PDF: '+file.name;
+          showToast(cod?'Código de barras lido!':'PDF importado — preencha o código manualmente');
+        });
+      };
+      reader.readAsArrayBuffer(file);
+    });
+  };
+  input.click();
+}
+
+function extractBoletoCod(arrayBuffer, fileName, cb){
+  // Tenta extrair código de barras do texto do PDF
+  try{
+    var bytes=new Uint8Array(arrayBuffer);
+    var str='';
+    for(var i=0;i<Math.min(bytes.length,50000);i++)str+=String.fromCharCode(bytes[i]);
+    // Padrão linha digitável boleto bancário: sequências de dígitos com pontos/espaços
+    var m=str.match(/\d{5}\.\d{5}\s\d{5}\.\d{6}\s\d{5}\.\d{6}\s\d\s\d{14}/);
+    if(m){cb(m[0].replace(/\s/g,''));return;}
+    // Código de barras numérico 44-47 dígitos
+    var m2=str.match(/[0-9]{44,47}/);
+    if(m2){cb(m2[0]);return;}
+    cb('');
+  }catch(e){cb('');}
+}
+
+function verBoleto(id){
+  var d=pagData();
+  var it=d.fornecedores.find(function(x){return x.id===id;});
+  if(!it||!it.boletoData)return;
+  try{
+    var bin=atob(it.boletoData);
+    var bytes=new Uint8Array(bin.length);
+    for(var i=0;i<bin.length;i++)bytes[i]=bin.charCodeAt(i);
+    var blob=new Blob([bytes],{type:'application/pdf'});
+    window.open(URL.createObjectURL(blob),'_blank');
+  }catch(e){showToast('Erro ao abrir PDF');}
+}
+
+// ── Exportar CSV
+function exportPagCSV(tipo){
+  var d=pagData();
+  var rows,headers;
+  if(tipo==='forn'){
+    headers=['Fornecedor','NF','Modalidade','Título','Vencimento','Valor','Referência','Data Pagamento','Status','Observações'];
+    rows=d.fornecedores.map(function(it){return[it.fornecedor,it.nf,it.modalidade,it.titulo,it.vencimento,it.valor,it.referencia,it.dataPag,it.status,it.obs];});
+  } else {
+    headers=['Descrição','Categoria','Vencimento','Valor','Data Pagamento','Status','Observações','Recorrente'];
+    rows=d.gerais.map(function(it){return[it.descricao,it.categoria,it.vencimento,it.valor,it.dataPag,it.status,it.obs,it.recorrente?'Sim':'Não'];});
+  }
+  var csv=[headers].concat(rows).map(function(r){return r.map(function(c){return '"'+(c||'').toString().replace(/"/g,'""')+'"';}).join(',');}).join('\n');
+  var a=document.createElement('a');
+  a.href='data:text/csv;charset=utf-8,\uFEFF'+encodeURIComponent(csv);
+  a.download='pagamentos_'+(tipo==='forn'?'fornecedores':'gerais')+'_'+new Date().toISOString().slice(0,10)+'.csv';
+  a.click();
+}
+
+function salvarPag(){savePag();showToast('Pagamentos salvos!');}
+
+// ── Helpers
+function fmtDate(d){
+  if(!d)return '—';
+  var parts=d.split('-');
+  if(parts.length!==3)return d;
+  return parts[2]+'/'+parts[1]+'/'+parts[0];
+}
+function escHtml(s){
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Init pagamentos quando abre a página
+function initPagamentos(){
+  window._pagData=loadPag();
+  initPagGeralMes();
+  setPagTab('fornecedores');
+}
+
+</script>
   <style>
 
 :root{
@@ -1005,7 +2898,174 @@ tbody tr:hover td{background:var(--bg3)}
 .sidebar.collapsed .nav-group-hdr{justify-content:center;padding:5px 6px}
 .sidebar.collapsed .nav-group-body{max-height:500px!important;overflow:visible}
 
-  </style>
+  
+/* ══════════════════════════════════════════════════════════
+   PAGAMENTOS — CSS
+══════════════════════════════════════════════════════════ */
+.pag-tabs{display:flex;gap:8px;margin-bottom:20px;}
+.pag-tab{padding:8px 18px;border-radius:20px;border:0.5px solid var(--border2);
+  background:transparent;color:var(--text3);font-size:13px;font-weight:500;
+  cursor:pointer;transition:all .15s;font-family:var(--font);}
+.pag-tab:hover{background:var(--bg3);color:var(--text2);}
+.pag-tab.active{background:var(--accent);color:#fff;border-color:var(--accent);font-weight:600;}
+
+/* KPI cards */
+.pag-kpis{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin-bottom:16px;}
+.pag-kpi{background:var(--bg3);border:0.5px solid var(--border);border-radius:var(--r2);padding:14px 16px;}
+.pag-kpi-lbl{font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--text3);margin-bottom:6px;}
+.pag-kpi-val{font-family:var(--mono);font-size:20px;font-weight:600;color:var(--text);}
+.pag-kpi-val.green{color:var(--green);}
+.pag-kpi-val.amber{color:var(--amber);}
+.pag-kpi-val.red{color:var(--red);}
+.pag-kpi-sub{font-size:10px;color:var(--text3);margin-top:3px;font-family:var(--mono);}
+
+/* Toolbar */
+.pag-toolbar{display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap;}
+.pag-search{flex:1;min-width:180px;max-width:280px;background:var(--bg3);
+  border:0.5px solid var(--border2);border-radius:8px;padding:7px 12px;
+  color:var(--text);font-size:12px;font-family:var(--font);outline:none;}
+.pag-search:focus{border-color:var(--accent2);}
+.pag-select{background:var(--bg3);border:0.5px solid var(--border2);border-radius:8px;
+  padding:7px 10px;color:var(--text2);font-size:12px;font-family:var(--font);
+  cursor:pointer;outline:none;}
+.pag-btn{display:flex;align-items:center;gap:6px;padding:7px 14px;border-radius:8px;
+  border:0.5px solid var(--border2);background:var(--bg3);color:var(--text2);
+  font-size:12px;font-family:var(--font);cursor:pointer;transition:all .15s;white-space:nowrap;}
+.pag-btn:hover{background:var(--bg4);color:var(--text);}
+.pag-btn.primary{background:var(--accent);color:#fff;border-color:var(--accent);}
+.pag-btn.primary:hover{background:var(--accent2);border-color:var(--accent2);}
+.pag-btn.green{background:var(--green-bg);color:var(--green);border-color:rgba(52,211,153,.3);}
+.pag-btn.green:hover{background:rgba(52,211,153,.2);}
+
+/* Layout principal: tabela + painel lateral */
+.pag-layout{display:grid;grid-template-columns:1fr 280px;gap:12px;align-items:start;}
+.pag-layout.full{grid-template-columns:1fr;}
+
+/* Tabela */
+.pag-table-wrap{background:var(--bg3);border:0.5px solid var(--border);border-radius:var(--r2);overflow:hidden;}
+.pag-table-title{padding:12px 16px;font-size:10px;font-weight:600;text-transform:uppercase;
+  letter-spacing:.07em;color:var(--text3);border-bottom:0.5px solid var(--border);}
+.pag-table{width:100%;border-collapse:collapse;}
+.pag-table th{padding:8px 10px;font-size:9px;font-weight:600;text-transform:uppercase;
+  letter-spacing:.06em;color:var(--text3);text-align:left;border-bottom:0.5px solid var(--border);
+  white-space:nowrap;cursor:pointer;user-select:none;}
+.pag-table th:hover{color:var(--text2);}
+.pag-table td{padding:9px 10px;font-size:12px;color:var(--text2);border-bottom:0.5px solid var(--border);
+  vertical-align:middle;}
+.pag-table tr:last-child td{border-bottom:none;}
+.pag-table tr:hover td{background:var(--bg4);}
+.pag-table td.mono{font-family:var(--mono);font-size:12px;}
+.pag-table td.bold{font-weight:600;color:var(--text);}
+
+/* Status badges */
+.pag-status{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;
+  border-radius:20px;font-size:10px;font-weight:600;white-space:nowrap;}
+.pag-status.pago{background:var(--green-bg);color:var(--green);}
+.pag-status.pendente{background:var(--amber-bg);color:var(--amber);}
+.pag-status.atrasado{background:var(--red-bg);color:var(--red);}
+
+/* Código de barras truncado */
+.pag-cod{display:flex;align-items:center;gap:4px;max-width:160px;}
+.pag-cod-txt{font-family:var(--mono);font-size:10px;color:var(--text3);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;}
+.pag-copy-btn{background:none;border:none;cursor:pointer;color:var(--text3);
+  padding:2px;border-radius:4px;display:flex;align-items:center;flex-shrink:0;transition:color .15s;}
+.pag-copy-btn:hover{color:var(--accent2);}
+.pag-boleto-btn{background:none;border:none;cursor:pointer;color:var(--text3);
+  padding:2px;border-radius:4px;display:flex;align-items:center;transition:color .15s;}
+.pag-boleto-btn:hover{color:var(--blue);}
+
+/* Dias restantes */
+.pag-dias{font-family:var(--mono);font-size:11px;font-weight:600;}
+.pag-dias.ok{color:var(--green);}
+.pag-dias.warn{color:var(--amber);}
+.pag-dias.danger{color:var(--red);}
+.pag-dias.past{color:var(--text3);}
+
+/* Painel lateral */
+.pag-side{display:flex;flex-direction:column;gap:10px;}
+.pag-side-card{background:var(--bg3);border:0.5px solid var(--border);border-radius:var(--r2);overflow:hidden;}
+.pag-side-title{padding:10px 14px;font-size:10px;font-weight:600;text-transform:uppercase;
+  letter-spacing:.07em;color:var(--text3);border-bottom:0.5px solid var(--border);
+  display:flex;align-items:center;gap:6px;}
+.pag-side-body{padding:4px 0;}
+.pag-side-row{display:flex;align-items:center;justify-content:space-between;
+  padding:8px 14px;font-size:12px;border-bottom:0.5px solid var(--border);}
+.pag-side-row:last-child{border-bottom:none;}
+.pag-side-row-name{color:var(--text2);font-weight:500;}
+.pag-side-row-vals{display:flex;gap:12px;}
+.pag-side-row-pago{font-family:var(--mono);font-size:11px;color:var(--green);}
+.pag-side-row-pend{font-family:var(--mono);font-size:11px;color:var(--amber);}
+.pag-side-total{padding:10px 14px;display:flex;justify-content:space-between;
+  border-top:0.5px solid var(--border2);font-size:11px;font-weight:600;}
+.pag-side-total-pago{font-family:var(--mono);color:var(--green);}
+.pag-side-total-pend{font-family:var(--mono);color:var(--amber);}
+
+/* Próximos vencimentos */
+.pag-prox-item{padding:8px 14px;border-bottom:0.5px solid var(--border);}
+.pag-prox-item:last-child{border-bottom:none;}
+.pag-prox-nome{font-size:12px;color:var(--text2);font-weight:500;}
+.pag-prox-val{font-family:var(--mono);font-size:12px;color:var(--text);}
+.pag-prox-info{font-size:10px;color:var(--text3);margin-top:2px;}
+.pag-prox-info span{color:var(--amber);}
+
+/* Filtro de mês (Pagamentos Gerais) */
+.pag-month-bar{display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap;}
+.pag-month-nav{width:28px;height:28px;border-radius:7px;background:var(--bg3);
+  border:0.5px solid var(--border2);display:flex;align-items:center;justify-content:center;
+  cursor:pointer;color:var(--text2);transition:all .15s;}
+.pag-month-nav:hover{background:var(--bg4);color:var(--text);}
+.pag-month-sel{background:var(--bg3);border:0.5px solid var(--border2);border-radius:8px;
+  padding:5px 10px;color:var(--text);font-size:12px;font-family:var(--font);cursor:pointer;outline:none;}
+.pag-month-count{font-size:11px;color:var(--text3);font-family:var(--mono);}
+
+/* Categoria badge */
+.pag-cat{display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--text2);}
+
+/* Ações inline */
+.pag-action-btn{background:none;border:none;cursor:pointer;color:var(--text3);
+  padding:3px;border-radius:4px;display:inline-flex;align-items:center;transition:color .15s;}
+.pag-action-btn:hover{color:var(--text);}
+.pag-action-btn.del:hover{color:var(--red);}
+
+/* Modal */
+.pag-modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);
+  z-index:1000;display:none;align-items:center;justify-content:center;}
+.pag-modal-overlay.open{display:flex;}
+.pag-modal{background:var(--bg2);border:0.5px solid var(--border2);border-radius:var(--r2);
+  width:100%;max-width:520px;max-height:90vh;overflow-y:auto;padding:24px;}
+.pag-modal-title{font-size:16px;font-weight:600;color:var(--text);margin-bottom:4px;}
+.pag-modal-sub{font-size:12px;color:var(--text3);margin-bottom:20px;}
+.pag-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.pag-form-grid.full{grid-template-columns:1fr;}
+.pag-form-group{display:flex;flex-direction:column;gap:5px;}
+.pag-form-group.span2{grid-column:span 2;}
+.pag-form-lbl{font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;}
+.pag-form-inp{background:var(--bg3);border:0.5px solid var(--border2);border-radius:8px;
+  padding:8px 12px;color:var(--text);font-size:13px;font-family:var(--font);outline:none;}
+.pag-form-inp:focus{border-color:var(--accent2);}
+.pag-form-inp::placeholder{color:var(--text3);}
+select.pag-form-inp{cursor:pointer;}
+.pag-modal-btns{display:flex;justify-content:flex-end;gap:8px;margin-top:20px;}
+.pag-recorr-box{background:var(--bg4);border:0.5px solid var(--border);border-radius:8px;
+  padding:12px;margin-top:8px;display:flex;align-items:center;gap:10px;font-size:12px;color:var(--text2);}
+
+/* Empty state */
+.pag-empty{padding:48px 20px;text-align:center;color:var(--text3);}
+.pag-empty svg{margin-bottom:12px;opacity:.3;}
+.pag-empty-title{font-size:14px;font-weight:600;color:var(--text2);margin-bottom:6px;}
+.pag-empty-sub{font-size:12px;}
+
+@media(max-width:900px){
+  .pag-kpis{grid-template-columns:repeat(3,1fr);}
+  .pag-layout{grid-template-columns:1fr;}
+  .pag-side{display:none;}
+}
+@media(max-width:600px){
+  .pag-kpis{grid-template-columns:repeat(2,1fr);}
+}
+
+</style>
 </head>
 <body>
 
@@ -1425,19 +3485,269 @@ tbody tr:hover td{background:var(--bg3)}
 
 
 <!-- PAGAMENTOS -->
+
+<!-- PAGAMENTOS -->
 <div class="page" id="page-pagamentos">
   <div style="height:16px"></div>
-  <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 20px;text-align:center;color:var(--text3)">
-    <svg width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.2" viewBox="0 0 24 24" style="margin-bottom:16px;opacity:.4"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>
-    <div style="font-size:16px;font-weight:600;color:var(--text2);margin-bottom:8px">Pagamentos</div>
-    <div style="font-size:13px;max-width:320px;line-height:1.6">Em desenvolvimento. Aqui você acompanhará os pagamentos recebidos, a prazo e pendências financeiras.</div>
+
+  <!-- Sub-abas -->
+  <div class="pag-tabs">
+    <button class="pag-tab active" id="pagTabForn" onclick="setPagTab('fornecedores')">📋 Fornecedores</button>
+    <button class="pag-tab" id="pagTabGeral" onclick="setPagTab('gerais')">💡 Pagamentos Gerais</button>
   </div>
+
+  <!-- KPIs -->
+  <div class="pag-kpis" id="pagKpis"></div>
+
+  <!-- ── SUB-ABA FORNECEDORES ── -->
+  <div id="pagViewForn">
+    <!-- Toolbar -->
+    <div class="pag-toolbar">
+      <input class="pag-search" id="pagFornSearch" placeholder="🔍 Buscar fornecedor, NF, título..." oninput="renderPagForn()">
+      <select class="pag-select" id="pagFornStatus" onchange="renderPagForn()">
+        <option value="">Todos status</option>
+        <option value="pendente">Pendente</option>
+        <option value="pago">Pago</option>
+        <option value="atrasado">Atrasado</option>
+      </select>
+      <button class="pag-btn primary" onclick="openPagModal('forn')">
+        <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+        Nova Conta
+      </button>
+      <button class="pag-btn green" onclick="importarBoleto()">
+        <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        Importar Boletos PDF
+      </button>
+      <button class="pag-btn" onclick="salvarPag()">
+        <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+        Salvar
+      </button>
+      <button class="pag-btn" onclick="exportPagCSV('forn')">
+        <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Exportar CSV
+      </button>
+    </div>
+
+    <!-- Layout tabela + painel -->
+    <div class="pag-layout">
+      <div class="pag-table-wrap">
+        <div class="pag-table-title">CONTAS A PAGAR — FORNECEDORES</div>
+        <div style="overflow-x:auto">
+          <table class="pag-table">
+            <thead>
+              <tr>
+                <th onclick="sortPagForn('fornecedor')">FORNECEDOR ↕</th>
+                <th onclick="sortPagForn('nf')">NOTA FISCAL ↕</th>
+                <th>MODALIDADE</th>
+                <th onclick="sortPagForn('titulo')">TÍTULO ↕</th>
+                <th onclick="sortPagForn('vencimento')">VENCIMENTO ↕</th>
+                <th onclick="sortPagForn('valor')">VALOR (R$) ↕</th>
+                <th>REFERÊNCIA</th>
+                <th onclick="sortPagForn('dataPag')">DATA PAGAMENTO ↕</th>
+                <th onclick="sortPagForn('status')">STATUS ↕</th>
+                <th onclick="sortPagForn('dias')">DIAS ↕</th>
+                <th>OBSERVAÇÕES</th>
+                <th>BOLETO</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="pagFornBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Painel lateral -->
+      <div class="pag-side" id="pagFornSide"></div>
+    </div>
+  </div>
+
+  <!-- ── SUB-ABA PAGAMENTOS GERAIS ── -->
+  <div id="pagViewGeral" style="display:none">
+    <!-- Filtro de mês -->
+    <div class="pag-month-bar">
+      <select class="pag-month-sel" id="pagGeralMesSel" onchange="onPagGeralMesChange()"></select>
+      <div class="pag-month-nav" onclick="pagGeralMesNav(-1)">‹</div>
+      <div class="pag-month-nav" onclick="pagGeralMesNav(1)">›</div>
+      <button class="pag-btn" onclick="pagGeralMesTodos()" id="pagGeralBtnTodos" style="font-size:11px;padding:5px 12px">Todos os meses</button>
+      <span class="pag-month-count" id="pagGeralCount"></span>
+    </div>
+
+    <!-- Toolbar -->
+    <div class="pag-toolbar">
+      <input class="pag-search" id="pagGeralSearch" placeholder="🔍 Buscar descrição, categoria..." oninput="renderPagGeral()">
+      <select class="pag-select" id="pagGeralStatus" onchange="renderPagGeral()">
+        <option value="">Todos status</option>
+        <option value="pendente">Pendente</option>
+        <option value="pago">Pago</option>
+        <option value="atrasado">Atrasado</option>
+      </select>
+      <button class="pag-btn primary" onclick="openPagModal('geral')">
+        <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+        Nova Conta
+      </button>
+      <button class="pag-btn" onclick="salvarPag()">
+        <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+        Salvar
+      </button>
+      <button class="pag-btn" onclick="exportPagCSV('geral')">
+        <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Exportar CSV
+      </button>
+    </div>
+
+    <div class="pag-table-wrap">
+      <div class="pag-table-title">CONTAS A PAGAR — GERAIS</div>
+      <div style="overflow-x:auto">
+        <table class="pag-table">
+          <thead>
+            <tr>
+              <th onclick="sortPagGeral('descricao')">DESCRIÇÃO ↕</th>
+              <th onclick="sortPagGeral('categoria')">CATEGORIA ↕</th>
+              <th onclick="sortPagGeral('vencimento')">VENCIMENTO ↕</th>
+              <th onclick="sortPagGeral('valor')">VALOR (R$) ↕</th>
+              <th onclick="sortPagGeral('dataPag')">DATA PAGAMENTO ↕</th>
+              <th onclick="sortPagGeral('status')">STATUS ↕</th>
+              <th onclick="sortPagGeral('dias')">DIAS ↕</th>
+              <th>OBSERVAÇÕES</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="pagGeralBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── MODAL NOVA CONTA ── -->
+  <div class="pag-modal-overlay" id="pagModal">
+    <div class="pag-modal">
+      <div class="pag-modal-title" id="pagModalTitle">Nova Conta</div>
+      <div class="pag-modal-sub" id="pagModalSub"></div>
+
+      <!-- Campos Fornecedor -->
+      <div id="pagModalFornFields">
+        <div class="pag-form-grid">
+          <div class="pag-form-group">
+            <div class="pag-form-lbl">Fornecedor *</div>
+            <input class="pag-form-inp" id="pmFornecedor" placeholder="Nome do fornecedor">
+          </div>
+          <div class="pag-form-group">
+            <div class="pag-form-lbl">Nota Fiscal</div>
+            <input class="pag-form-inp" id="pmNF" placeholder="Número da NF">
+          </div>
+          <div class="pag-form-group">
+            <div class="pag-form-lbl">Modalidade</div>
+            <select class="pag-form-inp" id="pmModalidade">
+              <option value="Boleto">Boleto</option>
+              <option value="PIX">PIX</option>
+              <option value="Prazo">Prazo</option>
+              <option value="Cartão">Cartão</option>
+              <option value="Transferência">Transferência</option>
+            </select>
+          </div>
+          <div class="pag-form-group">
+            <div class="pag-form-lbl">Título</div>
+            <input class="pag-form-inp" id="pmTitulo" placeholder="Ex: 5886 2">
+          </div>
+          <div class="pag-form-group">
+            <div class="pag-form-lbl">Valor (R$) *</div>
+            <input class="pag-form-inp" id="pmValor" type="number" step="0.01" placeholder="0,00">
+          </div>
+          <div class="pag-form-group">
+            <div class="pag-form-lbl">Vencimento *</div>
+            <input class="pag-form-inp" id="pmVencimento" type="date">
+          </div>
+          <div class="pag-form-group span2">
+            <div class="pag-form-lbl">Referência (código de barras)</div>
+            <input class="pag-form-inp" id="pmReferencia" placeholder="Linha digitável ou código de barras">
+          </div>
+          <div class="pag-form-group span2">
+            <div class="pag-form-lbl">Observações</div>
+            <input class="pag-form-inp" id="pmObsForn" placeholder="Observações opcionais">
+          </div>
+        </div>
+      </div>
+
+      <!-- Campos Gerais -->
+      <div id="pagModalGeralFields" style="display:none">
+        <div class="pag-form-grid">
+          <div class="pag-form-group span2">
+            <div class="pag-form-lbl">Descrição *</div>
+            <input class="pag-form-inp" id="pmDescricao" placeholder="Ex: Aluguel, Energia, Internet...">
+          </div>
+          <div class="pag-form-group">
+            <div class="pag-form-lbl">Categoria *</div>
+            <select class="pag-form-inp" id="pmCategoria">
+              <option value="🚚 Frete">🚚 Frete</option>
+              <option value="📊 Contabilidade">📊 Contabilidade</option>
+              <option value="🏢 Empresa">🏢 Empresa</option>
+              <option value="⚡ Energia">⚡ Energia</option>
+              <option value="🌐 Internet">🌐 Internet</option>
+              <option value="👥 Funcionários">👥 Funcionários</option>
+              <option value="📈 Investimentos">📈 Investimentos</option>
+              <option value="📣 Marketing">📣 Marketing</option>
+              <option value="🎭 Lazer">🎭 Lazer</option>
+              <option value="📦 Outros">📦 Outros</option>
+            </select>
+          </div>
+          <div class="pag-form-group">
+            <div class="pag-form-lbl">Valor (R$) *</div>
+            <input class="pag-form-inp" id="pmValorGeral" type="number" step="0.01" placeholder="0,00">
+          </div>
+          <div class="pag-form-group">
+            <div class="pag-form-lbl">Vencimento *</div>
+            <input class="pag-form-inp" id="pmVencimentoGeral" type="date">
+          </div>
+          <div class="pag-form-group">
+            <div class="pag-form-lbl">Status</div>
+            <select class="pag-form-inp" id="pmStatusGeral">
+              <option value="pendente">Pendente</option>
+              <option value="pago">Pago</option>
+              <option value="atrasado">Atrasado</option>
+            </select>
+          </div>
+          <div class="pag-form-group span2">
+            <div class="pag-form-lbl">Observações</div>
+            <input class="pag-form-inp" id="pmObsGeral" placeholder="Observações opcionais">
+          </div>
+        </div>
+        <!-- Recorrência -->
+        <div class="pag-recorr-box">
+          <input type="checkbox" id="pmRecorrente" style="cursor:pointer">
+          <label for="pmRecorrente" style="cursor:pointer;font-weight:500">Conta recorrente</label>
+          <span style="color:var(--text3);font-size:11px">— repete mensalmente até cancelar</span>
+        </div>
+      </div>
+
+      <div class="pag-modal-btns">
+        <button class="pag-btn" onclick="closePagModal()">Cancelar</button>
+        <button class="pag-btn primary" onclick="savePagItem()">Salvar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal cancelar recorrência -->
+  <div class="pag-modal-overlay" id="pagRecorrModal">
+    <div class="pag-modal" style="max-width:400px">
+      <div class="pag-modal-title">Cancelar recorrência</div>
+      <div class="pag-modal-sub" id="pagRecorrSub" style="margin-bottom:20px"></div>
+      <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:20px">
+        <button class="pag-btn" id="pagRecorrBtnSo" onclick="cancelRecorrSo()" style="justify-content:flex-start;text-align:left">
+          Apagar somente este mês
+        </button>
+        <button class="pag-btn" id="pagRecorrBtnFut" onclick="cancelRecorrFut()" style="justify-content:flex-start;text-align:left;color:var(--red);border-color:var(--red-bg)">
+          Apagar este e todos os meses seguintes
+        </button>
+      </div>
+      <div class="pag-modal-btns">
+        <button class="pag-btn" onclick="document.getElementById('pagRecorrModal').className='pag-modal-overlay'">Cancelar</button>
+      </div>
+    </div>
+  </div>
+
 </div>
 
 
-
-
-<!-- DASHBOARD -->
 <div class="page" id="page-dashboard">
   <div style="height:18px"></div>
   <div class="page-intro">
@@ -3069,6 +5379,7 @@ function showPage(name,el){
   if(location.hash.slice(1)!==name)history.replaceState(null,'','#'+name);
   closeSidebar();
   if(name==='publicidade')renderPublicidade();
+  if(name==='pagamentos')initPagamentos();
   if(name==='dre'){renderDRE();setDreView('mensal');}
   if(name==='movimentacao'){renderMovTopCards();renderHM();renderHP();}
   if(name==='full'){renderFullTopCards();renderHF();}
@@ -4403,6 +6714,637 @@ document.addEventListener('DOMContentLoaded',function(){
 });
 // ── THEME TOGGLE ─────────────────────────────────────────────
 var _isDark=true;
+
+
+// ══════════════════════════════════════════════════════════
+// PAGAMENTOS — JS
+// ══════════════════════════════════════════════════════════
+var STORE_PAG = 'pagamentosML_v1';
+var pagTab = 'fornecedores';
+var pagFornSort = {col:'vencimento', asc:true};
+var pagGeralSort = {col:'vencimento', asc:true};
+var pagGeralMes = 'todos'; // 'todos' ou 'YYYY-MM'
+var _pagEditId = null;
+var _pagEditType = null;
+var _pagRecorrId = null;
+
+var PAG_CATS = [
+  '🚚 Frete','📊 Contabilidade','🏢 Empresa','⚡ Energia',
+  '🌐 Internet','👥 Funcionários','📈 Investimentos','📣 Marketing',
+  '🎭 Lazer','📦 Outros'
+];
+
+// ── Estado
+function loadPag(){
+  try{
+    var s=localStorage.getItem(STORE_PAG);
+    return s?JSON.parse(s):{fornecedores:[],gerais:[]};
+  }catch(e){return {fornecedores:[],gerais:[]};}
+}
+function savePag(){
+  try{localStorage.setItem(STORE_PAG,JSON.stringify(pagData()));}catch(e){}
+}
+function pagData(){
+  return window._pagData||(window._pagData=loadPag());
+}
+
+// ── Tab
+function setPagTab(tab){
+  pagTab=tab;
+  document.getElementById('pagTabForn').className='pag-tab'+(tab==='fornecedores'?' active':'');
+  document.getElementById('pagTabGeral').className='pag-tab'+(tab==='gerais'?' active':'');
+  document.getElementById('pagViewForn').style.display=tab==='fornecedores'?'block':'none';
+  document.getElementById('pagViewGeral').style.display=tab==='gerais'?'block':'none';
+  renderPagKpis();
+  if(tab==='fornecedores')renderPagForn();
+  else renderPagGeral();
+}
+
+// ── KPIs
+function renderPagKpis(){
+  var d=pagData();
+  var items=pagTab==='fornecedores'?d.fornecedores:d.gerais;
+  var hoje=new Date(); hoje.setHours(0,0,0,0);
+  var total=0,pago=0,pendente=0,atrasado=0;
+  items.forEach(function(it){
+    total+=it.valor||0;
+    if(it.status==='pago')pago+=it.valor||0;
+    else if(it.status==='atrasado')atrasado+=it.valor||0;
+    else pendente+=it.valor||0;
+  });
+  var n=items.length;
+  document.getElementById('pagKpis').innerHTML=
+    kpi('TOTAL GERAL',BRL(total),n+' título'+(n!==1?'s':''),'')
+   +kpi('TOTAL PAGO',BRL(pago),total>0?(pago/total*100).toFixed(1)+'%':'0%','green')
+   +kpi('PENDENTE',BRL(pendente),total>0?(pendente/total*100).toFixed(1)+'%':'0%','amber')
+   +kpi('ATRASADO',BRL(atrasado),total>0?(atrasado/total*100).toFixed(1)+'%':'0%','red')
+   +kpi('Nº TÍTULOS',''+n,'','');
+}
+function kpi(lbl,val,sub,cls){
+  return '<div class="pag-kpi"><div class="pag-kpi-lbl">'+lbl+'</div>'
+    +'<div class="pag-kpi-val '+cls+'">'+val+'</div>'
+    +'<div class="pag-kpi-sub">'+sub+'</div></div>';
+}
+
+// ── Helpers
+function pagDias(venc, status){
+  if(status==='pago') return '<span class="pag-dias past">—</span>';
+  var hoje=new Date(); hoje.setHours(0,0,0,0);
+  var v=new Date(venc+'T00:00:00');
+  var diff=Math.round((v-hoje)/(1000*60*60*24));
+  var cls=diff<0?'danger':diff<=7?'warn':diff<=14?'warn':'ok';
+  var lbl=diff<0?Math.abs(diff)+'d atr.':diff+'d';
+  return '<span class="pag-dias '+cls+'">'+lbl+'</span>';
+}
+function pagStatusBadge(status){
+  return '<span class="pag-status '+status+'">'+status.charAt(0).toUpperCase()+status.slice(1)+'</span>';
+}
+function pagTruncCod(cod){
+  if(!cod)return '<span style="color:var(--text3);font-size:11px">—</span>';
+  var short=cod.length>20?cod.slice(0,18)+'…':cod;
+  return '<div class="pag-cod">'
+    +'<span class="pag-cod-txt" title="'+cod+'">'+short+'</span>'
+    +'<button class="pag-copy-btn" onclick="pagCopyCod(\''+cod.replace(/'/g,"\\'")+'\')" title="Copiar código">'
+    +'<svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>'
+    +'</button></div>';
+}
+function pagCopyCod(cod){
+  navigator.clipboard.writeText(cod).then(function(){showToast('Código copiado!');});
+}
+
+// ── Fornecedores
+function renderPagForn(){
+  var d=pagData();
+  var items=[].concat(d.fornecedores);
+  var q=(document.getElementById('pagFornSearch').value||'').toLowerCase();
+  var sf=document.getElementById('pagFornStatus').value;
+  if(q)items=items.filter(function(it){
+    return (it.fornecedor||'').toLowerCase().includes(q)
+      ||(it.nf||'').toLowerCase().includes(q)
+      ||(it.titulo||'').toLowerCase().includes(q);
+  });
+  if(sf)items=items.filter(function(it){return it.status===sf;});
+
+  // Sort
+  var col=pagFornSort.col, asc=pagFornSort.asc;
+  items.sort(function(a,b){
+    var va=a[col]||'', vb=b[col]||'';
+    if(col==='valor'||col==='dias'){va=+(a.valor||0);vb=+(b.valor||0);}
+    if(col==='vencimento'||col==='dataPag'){va=va||'9999';vb=vb||'9999';}
+    if(va<vb)return asc?-1:1;
+    if(va>vb)return asc?1:-1;
+    return 0;
+  });
+
+  var hoje=new Date(); hoje.setHours(0,0,0,0);
+  var tbody='';
+  if(!items.length){
+    tbody='<tr><td colspan="13"><div class="pag-empty">'
+      +'<svg width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.2" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>'
+      +'<div class="pag-empty-title">Nenhuma conta encontrada</div>'
+      +'<div class="pag-empty-sub">Adicione uma nova conta ou importe boletos PDF</div></div></td></tr>';
+  } else {
+    items.forEach(function(it){
+      var statusAtual=it.status;
+      // Auto-marcar atrasado
+      if(statusAtual==='pendente'&&it.vencimento){
+        var v=new Date(it.vencimento+'T00:00:00');
+        if(v<hoje)statusAtual='atrasado';
+      }
+      tbody+='<tr>'
+        +'<td class="bold">'+escHtml(it.fornecedor||'—')+'</td>'
+        +'<td class="mono">'+escHtml(it.nf||'—')+'</td>'
+        +'<td>'+escHtml(it.modalidade||'—')+'</td>'
+        +'<td>'+escHtml(it.titulo||'—')+'</td>'
+        +'<td class="mono">'+fmtDate(it.vencimento)+'</td>'
+        +'<td class="mono bold">'+BRL(it.valor||0)+'</td>'
+        +'<td>'+pagTruncCod(it.referencia)+'</td>'
+        +'<td class="mono">'+fmtDate(it.dataPag)+'</td>'
+        +'<td>'+pagStatusBadge(statusAtual)+'</td>'
+        +'<td>'+pagDias(it.vencimento,statusAtual)+'</td>'
+        +'<td style="font-size:11px;color:var(--text3);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escHtml(it.obs||'—')+'</td>'
+        +'<td>'+(it.boletoData
+          ?'<button class="pag-boleto-btn" onclick="verBoleto(\''+it.id+'\')" title="Ver boleto">'
+            +'<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>'
+            +'</button>'
+          :'<span style="color:var(--text3);font-size:11px">—</span>')+'</td>'
+        +'<td style="white-space:nowrap">'
+          +'<button class="pag-action-btn" onclick="editPagForn(\''+it.id+'\')" title="Editar">'
+            +'<svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>'
+          +'</button>'
+          +'<button class="pag-action-btn del" onclick="delPagForn(\''+it.id+'\')" title="Excluir">'
+            +'<svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>'
+          +'</button>'
+        +'</td>'
+        +'</tr>';
+    });
+  }
+  document.getElementById('pagFornBody').innerHTML=tbody;
+  renderPagFornSide(d.fornecedores);
+  renderPagKpis();
+}
+
+function renderPagFornSide(items){
+  var hoje=new Date(); hoje.setHours(0,0,0,0);
+  // Resumo por fornecedor
+  var byForn={};
+  items.forEach(function(it){
+    var f=it.fornecedor||'Outros';
+    if(!byForn[f])byForn[f]={pago:0,pend:0};
+    if(it.status==='pago')byForn[f].pago+=it.valor||0;
+    else byForn[f].pend+=it.valor||0;
+  });
+  var totalPago=0,totalPend=0;
+  var rows='';
+  Object.keys(byForn).sort().forEach(function(f){
+    totalPago+=byForn[f].pago;
+    totalPend+=byForn[f].pend;
+    rows+='<div class="pag-side-row">'
+      +'<span class="pag-side-row-name">'+escHtml(f)+'</span>'
+      +'<div class="pag-side-row-vals">'
+        +'<span class="pag-side-row-pago">'+BRL(byForn[f].pago)+'</span>'
+        +'<span class="pag-side-row-pend">'+BRL(byForn[f].pend)+'</span>'
+      +'</div></div>';
+  });
+
+  // Próximos vencimentos (pendentes, ordenados por data)
+  var proximos=items.filter(function(it){
+    return it.status!=='pago'&&it.vencimento;
+  }).sort(function(a,b){return a.vencimento>b.vencimento?1:-1;}).slice(0,5);
+  var proxHtml='';
+  proximos.forEach(function(it){
+    var v=new Date(it.vencimento+'T00:00:00');
+    var diff=Math.round((v-hoje)/(1000*60*60*24));
+    var cor=diff<0?'var(--red)':diff<=7?'var(--amber)':'var(--text3)';
+    proxHtml+='<div class="pag-prox-item">'
+      +'<div style="display:flex;justify-content:space-between">'
+        +'<span class="pag-prox-nome">'+escHtml(it.fornecedor||'—')+'</span>'
+        +'<span class="pag-prox-val">'+BRL(it.valor||0)+'</span>'
+      +'</div>'
+      +'<div class="pag-prox-info">'+escHtml(it.nf||'')+(it.titulo?' · '+escHtml(it.titulo):'')
+        +' <span style="color:'+cor+'">'+(diff<0?'atrasado '+Math.abs(diff)+'d':'em '+diff+'d')+'</span>'
+      +'</div></div>';
+  });
+
+  document.getElementById('pagFornSide').innerHTML=
+    '<div class="pag-side-card">'
+      +'<div class="pag-side-title">👥 Resumo por Fornecedor'
+        +'<div style="margin-left:auto;display:flex;gap:16px;font-size:9px">'
+          +'<span style="color:var(--green)">PAGO</span>'
+          +'<span style="color:var(--amber)">PENDENTE</span>'
+        +'</div></div>'
+      +'<div class="pag-side-body">'+rows+'</div>'
+      +'<div class="pag-side-total">'
+        +'<span>TOTAL</span>'
+        +'<div style="display:flex;gap:16px">'
+          +'<span class="pag-side-total-pago">'+BRL(totalPago)+'</span>'
+          +'<span class="pag-side-total-pend">'+BRL(totalPend)+'</span>'
+        +'</div>'
+      +'</div>'
+    +'</div>'
+    +'<div class="pag-side-card">'
+      +'<div class="pag-side-title">📅 Próximos Vencimentos</div>'
+      +'<div class="pag-side-body">'+(proxHtml||'<div style="padding:12px 14px;font-size:11px;color:var(--text3)">Nenhum vencimento pendente</div>')+'</div>'
+    +'</div>';
+}
+
+// ── Pagamentos Gerais
+function initPagGeralMes(){
+  var d=pagData();
+  var meses=new Set(['todos']);
+  var hoje=new Date();
+  // Incluir mês atual sempre
+  meses.add(hoje.getFullYear()+'-'+String(hoje.getMonth()+1).padStart(2,'0'));
+  d.gerais.forEach(function(it){if(it.vencimento)meses.add(it.vencimento.slice(0,7));});
+  var sel=document.getElementById('pagGeralMesSel');
+  sel.innerHTML='';
+  var sorted=Array.from(meses).filter(function(m){return m!=='todos';}).sort();
+  sel.innerHTML='<option value="todos">Todos os meses</option>'
+    +sorted.map(function(m){
+      var parts=m.split('-');
+      var label=MESES[parseInt(parts[1])-1]+' de '+parts[0];
+      return '<option value="'+m+'"'+( m===pagGeralMes?' selected':'')+'>'+label+'</option>';
+    }).join('');
+  if(pagGeralMes==='todos')sel.value='todos';
+  else sel.value=pagGeralMes;
+}
+
+function onPagGeralMesChange(){
+  pagGeralMes=document.getElementById('pagGeralMesSel').value;
+  renderPagGeral();
+}
+function pagGeralMesNav(dir){
+  if(pagGeralMes==='todos'){
+    var hoje=new Date();
+    pagGeralMes=hoje.getFullYear()+'-'+String(hoje.getMonth()+1+dir).padStart(2,'0');
+    // normalizar
+    var parts=pagGeralMes.split('-');
+    var d=new Date(parseInt(parts[0]),parseInt(parts[1])-1,1);
+    pagGeralMes=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+  } else {
+    var parts=pagGeralMes.split('-');
+    var d=new Date(parseInt(parts[0]),parseInt(parts[1])-1+dir,1);
+    pagGeralMes=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+  }
+  initPagGeralMes();
+  renderPagGeral();
+}
+function pagGeralMesTodos(){
+  pagGeralMes='todos';
+  document.getElementById('pagGeralMesSel').value='todos';
+  renderPagGeral();
+}
+
+function renderPagGeral(){
+  var d=pagData();
+  var items=[].concat(d.gerais);
+  var q=(document.getElementById('pagGeralSearch').value||'').toLowerCase();
+  var sf=document.getElementById('pagGeralStatus').value;
+  if(pagGeralMes!=='todos')items=items.filter(function(it){return (it.vencimento||'').slice(0,7)===pagGeralMes;});
+  if(q)items=items.filter(function(it){
+    return (it.descricao||'').toLowerCase().includes(q)||(it.categoria||'').toLowerCase().includes(q);
+  });
+  if(sf)items=items.filter(function(it){return it.status===sf;});
+
+  var col=pagGeralSort.col, asc=pagGeralSort.asc;
+  items.sort(function(a,b){
+    var va=a[col]||'', vb=b[col]||'';
+    if(col==='valor'){va=+(a.valor||0);vb=+(b.valor||0);}
+    if(col==='vencimento'||col==='dataPag'){va=va||'9999';vb=vb||'9999';}
+    if(va<vb)return asc?-1:1; if(va>vb)return asc?1:-1; return 0;
+  });
+
+  var hoje=new Date(); hoje.setHours(0,0,0,0);
+  var total=items.length;
+  var mesLabel=pagGeralMes==='todos'?'':'— '+total+' de '+d.gerais.length+' contas no mês';
+  document.getElementById('pagGeralCount').textContent=total+' conta'+(total!==1?'s':'')+mesLabel;
+
+  var tbody='';
+  if(!items.length){
+    tbody='<tr><td colspan="9"><div class="pag-empty">'
+      +'<svg width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>'
+      +'<div class="pag-empty-title">Nenhuma conta encontrada</div>'
+      +'<div class="pag-empty-sub">Adicione uma nova conta de pagamento</div></div></td></tr>';
+  } else {
+    items.forEach(function(it){
+      var statusAtual=it.status;
+      if(statusAtual==='pendente'&&it.vencimento){
+        var v=new Date(it.vencimento+'T00:00:00');
+        if(v<hoje)statusAtual='atrasado';
+      }
+      tbody+='<tr>'
+        +'<td class="bold">'+escHtml(it.descricao||'—')+'</td>'
+        +'<td><span class="pag-cat">'+escHtml(it.categoria||'—')+'</span></td>'
+        +'<td class="mono">'+fmtDate(it.vencimento)+'</td>'
+        +'<td class="mono bold">'+BRL(it.valor||0)+'</td>'
+        +'<td class="mono">'+fmtDate(it.dataPag)+'</td>'
+        +'<td>'+pagStatusBadge(statusAtual)+'</td>'
+        +'<td>'+pagDias(it.vencimento,statusAtual)+'</td>'
+        +'<td style="font-size:11px;color:var(--text3)">'+escHtml(it.obs||'—')
+          +(it.recorrente?'<span style="margin-left:4px;font-size:9px;background:var(--purple-bg);color:var(--purple);padding:1px 5px;border-radius:3px">↻ recorrente</span>':'')
+        +'</td>'
+        +'<td style="white-space:nowrap">'
+          +'<button class="pag-action-btn" onclick="editPagGeral(\''+it.id+'\')" title="Editar">'
+            +'<svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>'
+          +'</button>'
+          +'<button class="pag-action-btn del" onclick="delPagGeral(\''+it.id+'\')" title="Excluir">'
+            +'<svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>'
+          +'</button>'
+        +'</td>'
+        +'</tr>';
+    });
+  }
+  document.getElementById('pagGeralBody').innerHTML=tbody;
+  renderPagKpis();
+}
+
+// ── Sorting
+function sortPagForn(col){
+  if(pagFornSort.col===col)pagFornSort.asc=!pagFornSort.asc;
+  else{pagFornSort.col=col;pagFornSort.asc=true;}
+  renderPagForn();
+}
+function sortPagGeral(col){
+  if(pagGeralSort.col===col)pagGeralSort.asc=!pagGeralSort.asc;
+  else{pagGeralSort.col=col;pagGeralSort.asc=true;}
+  renderPagGeral();
+}
+
+// ── Modal
+function openPagModal(type, editId){
+  _pagEditType=type;
+  _pagEditId=editId||null;
+  var isForn=type==='forn';
+  document.getElementById('pagModalFornFields').style.display=isForn?'block':'none';
+  document.getElementById('pagModalGeralFields').style.display=isForn?'none':'block';
+  document.getElementById('pagModalTitle').textContent=editId?(isForn?'Editar Conta — Fornecedor':'Editar Conta — Geral'):(isForn?'Nova Conta — Fornecedor':'Nova Conta — Geral');
+  document.getElementById('pagModalSub').textContent='';
+
+  if(editId){
+    var d=pagData();
+    var arr=isForn?d.fornecedores:d.gerais;
+    var it=arr.find(function(x){return x.id===editId;});
+    if(it){
+      if(isForn){
+        document.getElementById('pmFornecedor').value=it.fornecedor||'';
+        document.getElementById('pmNF').value=it.nf||'';
+        document.getElementById('pmModalidade').value=it.modalidade||'Boleto';
+        document.getElementById('pmTitulo').value=it.titulo||'';
+        document.getElementById('pmValor').value=it.valor||'';
+        document.getElementById('pmVencimento').value=it.vencimento||'';
+        document.getElementById('pmReferencia').value=it.referencia||'';
+        document.getElementById('pmObsForn').value=it.obs||'';
+      } else {
+        document.getElementById('pmDescricao').value=it.descricao||'';
+        document.getElementById('pmCategoria').value=it.categoria||PAG_CATS[0];
+        document.getElementById('pmValorGeral').value=it.valor||'';
+        document.getElementById('pmVencimentoGeral').value=it.vencimento||'';
+        document.getElementById('pmStatusGeral').value=it.status||'pendente';
+        document.getElementById('pmObsGeral').value=it.obs||'';
+        document.getElementById('pmRecorrente').checked=it.recorrente||false;
+      }
+    }
+  } else {
+    // Limpar campos
+    if(isForn){
+      ['pmFornecedor','pmNF','pmTitulo','pmValor','pmVencimento','pmReferencia','pmObsForn'].forEach(function(id){document.getElementById(id).value='';});
+      document.getElementById('pmModalidade').value='Boleto';
+    } else {
+      ['pmDescricao','pmValorGeral','pmVencimentoGeral','pmObsGeral'].forEach(function(id){document.getElementById(id).value='';});
+      document.getElementById('pmCategoria').value=PAG_CATS[0];
+      document.getElementById('pmStatusGeral').value='pendente';
+      document.getElementById('pmRecorrente').checked=false;
+    }
+  }
+  document.getElementById('pagModal').className='pag-modal-overlay open';
+}
+function closePagModal(){
+  document.getElementById('pagModal').className='pag-modal-overlay';
+  _pagEditId=null; _pagEditType=null;
+}
+
+function savePagItem(){
+  var d=pagData();
+  var isForn=_pagEditType==='forn';
+  if(isForn){
+    var forn=(document.getElementById('pmFornecedor').value||'').trim();
+    var valor=+(document.getElementById('pmValor').value)||0;
+    var venc=document.getElementById('pmVencimento').value;
+    if(!forn||!valor||!venc){alert('Preencha os campos obrigatórios: Fornecedor, Valor e Vencimento.');return;}
+    var item={
+      id:_pagEditId||('forn_'+Date.now()),
+      fornecedor:forn,
+      nf:(document.getElementById('pmNF').value||'').trim(),
+      modalidade:document.getElementById('pmModalidade').value,
+      titulo:(document.getElementById('pmTitulo').value||'').trim(),
+      valor:valor,
+      vencimento:venc,
+      referencia:(document.getElementById('pmReferencia').value||'').trim(),
+      obs:(document.getElementById('pmObsForn').value||'').trim(),
+      status:'pendente',
+      dataPag:''
+    };
+    if(_pagEditId){
+      var idx=d.fornecedores.findIndex(function(x){return x.id===_pagEditId;});
+      if(idx>=0){item.status=d.fornecedores[idx].status;item.dataPag=d.fornecedores[idx].dataPag;item.boletoData=d.fornecedores[idx].boletoData;}
+      d.fornecedores[idx]=item;
+    } else {
+      d.fornecedores.push(item);
+    }
+  } else {
+    var desc=(document.getElementById('pmDescricao').value||'').trim();
+    var valor=+(document.getElementById('pmValorGeral').value)||0;
+    var venc=document.getElementById('pmVencimentoGeral').value;
+    if(!desc||!valor||!venc){alert('Preencha os campos obrigatórios: Descrição, Valor e Vencimento.');return;}
+    var recorr=document.getElementById('pmRecorrente').checked;
+    var item={
+      id:_pagEditId||('ger_'+Date.now()),
+      descricao:desc,
+      categoria:document.getElementById('pmCategoria').value,
+      valor:valor,
+      vencimento:venc,
+      status:document.getElementById('pmStatusGeral').value,
+      obs:(document.getElementById('pmObsGeral').value||'').trim(),
+      recorrente:recorr,
+      recorrGrupo:null,
+      dataPag:''
+    };
+    if(_pagEditId){
+      var idx=d.gerais.findIndex(function(x){return x.id===_pagEditId;});
+      if(idx>=0){item.recorrGrupo=d.gerais[idx].recorrGrupo;item.dataPag=d.gerais[idx].dataPag;}
+      d.gerais[idx]=item;
+    } else {
+      if(recorr){
+        // Criar lançamentos para 24 meses futuros
+        var grupoId='grp_'+Date.now();
+        item.recorrGrupo=grupoId;
+        d.gerais.push(item);
+        var base=new Date(venc+'T00:00:00');
+        for(var m=1;m<=24;m++){
+          var nd=new Date(base.getFullYear(),base.getMonth()+m,base.getDate());
+          var nVenc=nd.getFullYear()+'-'+String(nd.getMonth()+1).padStart(2,'0')+'-'+String(nd.getDate()).padStart(2,'0');
+          d.gerais.push(Object.assign({},item,{id:'ger_'+Date.now()+'_'+m,vencimento:nVenc,status:'pendente',dataPag:''}));
+        }
+      } else {
+        d.gerais.push(item);
+      }
+    }
+  }
+  window._pagData=d;
+  savePag();
+  closePagModal();
+  initPagGeralMes();
+  if(isForn)renderPagForn(); else renderPagGeral();
+}
+
+// ── Delete
+function delPagForn(id){
+  if(!confirm('Excluir esta conta?'))return;
+  var d=pagData();
+  d.fornecedores=d.fornecedores.filter(function(x){return x.id!==id;});
+  window._pagData=d; savePag(); renderPagForn();
+}
+function delPagGeral(id){
+  var d=pagData();
+  var it=d.gerais.find(function(x){return x.id===id;});
+  if(!it)return;
+  if(it.recorrente&&it.recorrGrupo){
+    _pagRecorrId=id;
+    document.getElementById('pagRecorrSub').textContent='Conta: '+it.descricao+' — '+fmtDate(it.vencimento);
+    document.getElementById('pagRecorrModal').className='pag-modal-overlay open';
+  } else {
+    if(!confirm('Excluir esta conta?'))return;
+    d.gerais=d.gerais.filter(function(x){return x.id!==id;});
+    window._pagData=d; savePag(); initPagGeralMes(); renderPagGeral();
+  }
+}
+function cancelRecorrSo(){
+  var d=pagData();
+  d.gerais=d.gerais.filter(function(x){return x.id!==_pagRecorrId;});
+  window._pagData=d; savePag();
+  document.getElementById('pagRecorrModal').className='pag-modal-overlay';
+  initPagGeralMes(); renderPagGeral();
+}
+function cancelRecorrFut(){
+  var d=pagData();
+  var it=d.gerais.find(function(x){return x.id===_pagRecorrId;});
+  if(!it){document.getElementById('pagRecorrModal').className='pag-modal-overlay';return;}
+  var vencRef=it.vencimento;
+  var grupo=it.recorrGrupo;
+  d.gerais=d.gerais.filter(function(x){
+    if(x.recorrGrupo!==grupo)return true;
+    return x.vencimento<vencRef;
+  });
+  window._pagData=d; savePag();
+  document.getElementById('pagRecorrModal').className='pag-modal-overlay';
+  initPagGeralMes(); renderPagGeral();
+}
+function editPagForn(id){openPagModal('forn',id);}
+function editPagGeral(id){openPagModal('geral',id);}
+
+// ── Importar Boleto PDF
+function importarBoleto(){
+  var input=document.createElement('input');
+  input.type='file'; input.accept='application/pdf'; input.multiple=true;
+  input.onchange=function(){
+    var files=Array.from(input.files);
+    if(!files.length)return;
+    showToast('Lendo '+files.length+' boleto(s)...');
+    files.forEach(function(file){
+      var reader=new FileReader();
+      reader.onload=function(e){
+        var data=e.target.result;
+        // Extrair código de barras do PDF via texto
+        extractBoletoCod(data, file.name, function(cod){
+          var d=pagData();
+          var item={
+            id:'forn_'+Date.now()+'_'+Math.random().toString(36).slice(2,6),
+            fornecedor:'',nf:'',modalidade:'Boleto',titulo:file.name.replace('.pdf',''),
+            valor:0,vencimento:'',referencia:cod||'',obs:'Importado de PDF: '+file.name,
+            status:'pendente',dataPag:'',boletoData:btoa(String.fromCharCode.apply(null,new Uint8Array(e.target.result instanceof ArrayBuffer?e.target.result:new ArrayBuffer(0))))
+          };
+          // Abrir modal pré-preenchido para confirmação
+          window._pagData=d;
+          openPagModal('forn');
+          if(cod)document.getElementById('pmReferencia').value=cod;
+          document.getElementById('pmTitulo').value=file.name.replace('.pdf','');
+          document.getElementById('pmObsForn').value='Importado de PDF: '+file.name;
+          showToast(cod?'Código de barras lido!':'PDF importado — preencha o código manualmente');
+        });
+      };
+      reader.readAsArrayBuffer(file);
+    });
+  };
+  input.click();
+}
+
+function extractBoletoCod(arrayBuffer, fileName, cb){
+  // Tenta extrair código de barras do texto do PDF
+  try{
+    var bytes=new Uint8Array(arrayBuffer);
+    var str='';
+    for(var i=0;i<Math.min(bytes.length,50000);i++)str+=String.fromCharCode(bytes[i]);
+    // Padrão linha digitável boleto bancário: sequências de dígitos com pontos/espaços
+    var m=str.match(/\d{5}\.\d{5}\s\d{5}\.\d{6}\s\d{5}\.\d{6}\s\d\s\d{14}/);
+    if(m){cb(m[0].replace(/\s/g,''));return;}
+    // Código de barras numérico 44-47 dígitos
+    var m2=str.match(/[0-9]{44,47}/);
+    if(m2){cb(m2[0]);return;}
+    cb('');
+  }catch(e){cb('');}
+}
+
+function verBoleto(id){
+  var d=pagData();
+  var it=d.fornecedores.find(function(x){return x.id===id;});
+  if(!it||!it.boletoData)return;
+  try{
+    var bin=atob(it.boletoData);
+    var bytes=new Uint8Array(bin.length);
+    for(var i=0;i<bin.length;i++)bytes[i]=bin.charCodeAt(i);
+    var blob=new Blob([bytes],{type:'application/pdf'});
+    window.open(URL.createObjectURL(blob),'_blank');
+  }catch(e){showToast('Erro ao abrir PDF');}
+}
+
+// ── Exportar CSV
+function exportPagCSV(tipo){
+  var d=pagData();
+  var rows,headers;
+  if(tipo==='forn'){
+    headers=['Fornecedor','NF','Modalidade','Título','Vencimento','Valor','Referência','Data Pagamento','Status','Observações'];
+    rows=d.fornecedores.map(function(it){return[it.fornecedor,it.nf,it.modalidade,it.titulo,it.vencimento,it.valor,it.referencia,it.dataPag,it.status,it.obs];});
+  } else {
+    headers=['Descrição','Categoria','Vencimento','Valor','Data Pagamento','Status','Observações','Recorrente'];
+    rows=d.gerais.map(function(it){return[it.descricao,it.categoria,it.vencimento,it.valor,it.dataPag,it.status,it.obs,it.recorrente?'Sim':'Não'];});
+  }
+  var csv=[headers].concat(rows).map(function(r){return r.map(function(c){return '"'+(c||'').toString().replace(/"/g,'""')+'"';}).join(',');}).join('\n');
+  var a=document.createElement('a');
+  a.href='data:text/csv;charset=utf-8,\uFEFF'+encodeURIComponent(csv);
+  a.download='pagamentos_'+(tipo==='forn'?'fornecedores':'gerais')+'_'+new Date().toISOString().slice(0,10)+'.csv';
+  a.click();
+}
+
+function salvarPag(){savePag();showToast('Pagamentos salvos!');}
+
+// ── Helpers
+function fmtDate(d){
+  if(!d)return '—';
+  var parts=d.split('-');
+  if(parts.length!==3)return d;
+  return parts[2]+'/'+parts[1]+'/'+parts[0];
+}
+function escHtml(s){
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Init pagamentos quando abre a página
+function initPagamentos(){
+  window._pagData=loadPag();
+  initPagGeralMes();
+  setPagTab('fornecedores');
+}
+
 </script>
 </body>
 </html>
