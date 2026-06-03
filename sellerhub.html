@@ -1175,7 +1175,6 @@ select.pag-form-inp{cursor:pointer;}
 .pag-empty svg{margin-bottom:12px;opacity:.3;}
 .pag-empty-title{font-size:14px;font-weight:600;color:var(--text2);margin-bottom:6px;}
 .pag-empty-sub{font-size:12px;}
-@keyframes dreSpinAnim{to{transform:rotate(360deg);}}
 
 @media(max-width:900px){
   .pag-kpis{grid-template-columns:repeat(3,1fr);}
@@ -1186,6 +1185,10 @@ select.pag-form-inp{cursor:pointer;}
   .pag-kpis{grid-template-columns:repeat(2,1fr);}
 }
 
+
+.dre-sync-spinner{display:inline-block;width:12px;height:12px;border:2px solid rgba(255,255,255,.3);
+  border-top-color:#fff;border-radius:50%;animation:dreSpinAnim 0.7s linear infinite;margin-right:5px;vertical-align:middle;}
+@keyframes dreSpinAnim{to{transform:rotate(360deg);}}
 </style>
 </head>
 <body>
@@ -1423,10 +1426,7 @@ select.pag-form-inp{cursor:pointer;}
 
 <!-- DRE -->
 <div class="page" id="page-dre">
-  <div id="dreLoadingOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:500;align-items:center;justify-content:center;flex-direction:column;gap:12px">
-    <div style="width:40px;height:40px;border:3px solid var(--bg4);border-top-color:var(--accent);border-radius:50%;animation:dreSpinAnim 0.8s linear infinite"></div>
-    <div style="color:var(--text2);font-size:13px;font-family:var(--font)" id="dreLoadingMsg">Sincronizando dados com o ML...</div>
-  </div>
+
   <div style="height:16px"></div>
   <!-- CONTROLES TOPO -->
   <div style="display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap;align-items:center">
@@ -2803,9 +2803,8 @@ function dreNav(dir){
   dreMonth+=dir;
   if(dreMonth<0){dreMonth=11;dreYear--;}
   if(dreMonth>11){dreMonth=0;dreYear++;}
-  buildYearSel('dreYearSel',dreYear,y=>{dreYear=y;renderDRE();setTimeout(function(){syncDREAPI(true);},300);});
+  buildYearSel('dreYearSel',dreYear,y=>{dreYear=y;renderDRE();});
   renderDRE();
-  setTimeout(function(){ syncDREAPI(true); }, 300);
 }
 
 function setDreView(v){
@@ -2943,30 +2942,22 @@ async function carregarDREAPI(mes, ano){
 
 async function syncDREAPI(silent){
   var btn = document.getElementById('dreSyncBtn');
-  if(btn){btn.textContent='⟳ Carregando...';btn.disabled=true;}
-  // Mostrar overlay de carregamento
-  var overlay = document.getElementById('dreLoadingOverlay');
-  if(overlay) overlay.style.display='flex';
+  if(btn){btn.innerHTML='<span class="dre-sync-spinner"></span>Sincronizando...';btn.disabled=true;}
   preencherDREAPI(dreMonth+1, dreYear).finally(function(){
-    if(btn){btn.textContent='⟳ Sincronizar API';btn.disabled=false;}
-    if(overlay) overlay.style.display='none';
+    if(btn){btn.innerHTML='⟳ Sincronizar API';btn.disabled=false;}
     if(!silent) showToast('DRE sincronizado · '+MESES[dreMonth]+' '+dreYear);
   });
 }
 
 async function syncDREAnual(){
   var btn = document.getElementById('dreSyncBtn');
-  if(btn){btn.textContent='⟳ Carregando...';btn.disabled=true;}
-  var overlay = document.getElementById('dreLoadingOverlay');
-  if(overlay) overlay.style.display='flex';
-  // Sincronizar todos os 12 meses em paralelo
+  if(btn){btn.innerHTML='<span class="dre-sync-spinner"></span>Sincronizando...';btn.disabled=true;}
   var promises = [];
   for(var m=1; m<=12; m++){
     promises.push(preencherDREAPIAnual(m, dreYear));
   }
   await Promise.all(promises);
-  if(btn){btn.textContent='⟳ Sincronizar API';btn.disabled=false;}
-  if(overlay) overlay.style.display='none';
+  if(btn){btn.innerHTML='⟳ Sincronizar API';btn.disabled=false;}
   renderDRE();
   showToast('DRE Anual sincronizado · '+dreYear);
 }
