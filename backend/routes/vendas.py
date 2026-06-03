@@ -274,7 +274,6 @@ async def get_dre(
     cancelamentos  = 0.0
     tarifa_ml      = 0.0
     frete_vendas   = 0.0
-    imposto_total  = 0.0
     pub_ml         = 0.0
     total_vendas   = 0
     total_cancelados = 0
@@ -288,8 +287,6 @@ async def get_dre(
             valor = round(float(item.get("unit_price", 0)) * qtde, 2)
             tarifa = round(float(item.get("sale_fee") or 0) * qtde, 2)
             frete_item = round(frete_vendedor / n_items, 2)
-            imposto = round(valor * (IMPOSTOGLOBAL / 100), 2)
-
             if cancelada:
                 cancelamentos += valor
                 total_cancelados += 1
@@ -297,7 +294,6 @@ async def get_dre(
                 faturamento   += valor
                 tarifa_ml     += tarifa
                 frete_vendas  += frete_item
-                imposto_total += imposto
                 total_vendas  += 1
 
                 # Publicidade ML (pedidos via canal advertising)
@@ -340,7 +336,7 @@ async def get_dre(
         "rec_liq":       round(rec_liq, 2),
         "tarifa_ml":     round(tarifa_ml, 2),
         "frete_vendas":  round(frete_vendas, 2),
-        "imposto":       round(imposto_total, 2),
+        
         "pub_ml":        round(pub_data["investimento"], 2),
         "receita_ads":   round(pub_data["receita_ads"], 2),
         "total_vendas":  total_vendas,
