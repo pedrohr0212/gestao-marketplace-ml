@@ -2935,8 +2935,7 @@ async function carregarDREAPI(mes, ano){
   }
 }
 
-async 
-function syncDREAPI(){
+async function syncDREAPI(){
   var btn = document.getElementById('dreSyncBtn');
   if(btn){btn.textContent='⟳ Carregando...';btn.disabled=true;}
   preencherDREAPI(dreMonth+1, dreYear).finally(function(){
