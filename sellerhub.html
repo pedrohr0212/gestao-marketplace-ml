@@ -1175,6 +1175,7 @@ select.pag-form-inp{cursor:pointer;}
 .pag-empty svg{margin-bottom:12px;opacity:.3;}
 .pag-empty-title{font-size:14px;font-weight:600;color:var(--text2);margin-bottom:6px;}
 .pag-empty-sub{font-size:12px;}
+@keyframes dreSpinAnim{to{transform:rotate(360deg);}}
 
 @media(max-width:900px){
   .pag-kpis{grid-template-columns:repeat(3,1fr);}
@@ -1422,6 +1423,10 @@ select.pag-form-inp{cursor:pointer;}
 
 <!-- DRE -->
 <div class="page" id="page-dre">
+  <div id="dreLoadingOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:500;align-items:center;justify-content:center;flex-direction:column;gap:12px">
+    <div style="width:40px;height:40px;border:3px solid var(--bg4);border-top-color:var(--accent);border-radius:50%;animation:dreSpinAnim 0.8s linear infinite"></div>
+    <div style="color:var(--text2);font-size:13px;font-family:var(--font)" id="dreLoadingMsg">Sincronizando dados com o ML...</div>
+  </div>
   <div style="height:16px"></div>
   <!-- CONTROLES TOPO -->
   <div style="display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap;align-items:center">
@@ -2798,8 +2803,9 @@ function dreNav(dir){
   dreMonth+=dir;
   if(dreMonth<0){dreMonth=11;dreYear--;}
   if(dreMonth>11){dreMonth=0;dreYear++;}
-  buildYearSel('dreYearSel',dreYear,y=>{dreYear=y;renderDRE();});
+  buildYearSel('dreYearSel',dreYear,y=>{dreYear=y;renderDRE();setTimeout(function(){syncDREAPI(true);},300);});
   renderDRE();
+  setTimeout(function(){ syncDREAPI(true); }, 300);
 }
 
 function setDreView(v){
@@ -2935,12 +2941,53 @@ async function carregarDREAPI(mes, ano){
   }
 }
 
-async function syncDREAPI(){
+async function syncDREAPI(silent){
   var btn = document.getElementById('dreSyncBtn');
   if(btn){btn.textContent='⟳ Carregando...';btn.disabled=true;}
+  // Mostrar overlay de carregamento
+  var overlay = document.getElementById('dreLoadingOverlay');
+  if(overlay) overlay.style.display='flex';
   preencherDREAPI(dreMonth+1, dreYear).finally(function(){
     if(btn){btn.textContent='⟳ Sincronizar API';btn.disabled=false;}
+    if(overlay) overlay.style.display='none';
+    if(!silent) showToast('DRE sincronizado · '+MESES[dreMonth]+' '+dreYear);
   });
+}
+
+async function syncDREAnual(){
+  var btn = document.getElementById('dreSyncBtn');
+  if(btn){btn.textContent='⟳ Carregando...';btn.disabled=true;}
+  var overlay = document.getElementById('dreLoadingOverlay');
+  if(overlay) overlay.style.display='flex';
+  // Sincronizar todos os 12 meses em paralelo
+  var promises = [];
+  for(var m=1; m<=12; m++){
+    promises.push(preencherDREAPIAnual(m, dreYear));
+  }
+  await Promise.all(promises);
+  if(btn){btn.textContent='⟳ Sincronizar API';btn.disabled=false;}
+  if(overlay) overlay.style.display='none';
+  renderDRE();
+  showToast('DRE Anual sincronizado · '+dreYear);
+}
+
+async function preencherDREAPIAnual(mes, ano){
+  var dados = await carregarDREAPI(mes, ano);
+  if(!dados) return;
+  ensureLanc();
+  // Usar chave do mês específico
+  var oldMonth = dreMonth;
+  dreMonth = mes - 1;
+  var key = lancKey();
+  dreMonth = oldMonth;
+  if(!lancamentos[key]) lancamentos[key] = getDefaultLanc();
+  var l = lancamentos[key];
+  l.fat          = dados.faturamento  || 0;
+  l.cancelamentos= dados.cancelamentos|| 0;
+  l.taxasMl      = dados.tarifa_ml    || 0;
+  l.freteVendas  = dados.frete_vendas || 0;
+  l.adsMeli      = dados.pub_ml       || 0;
+  saveLanc();
 }
 
 async function preencherDREAPI(mes, ano){
@@ -2953,15 +3000,12 @@ async function preencherDREAPI(mes, ano){
   if(!lancamentos[key]) lancamentos[key] = getDefaultLanc();
   var l = lancamentos[key];
 
-  // Campos que vêm da API (readonly)
+  // Campos que vêm da API (readonly) — nomes conforme getDefaultLanc
   l.fat          = dados.faturamento    || 0;
   l.cancelamentos= dados.cancelamentos  || 0;
-  l.devolucoes   = dados.devolucoes     || 0;
-  l.cmv          = dados.tarifa_ml      || 0;  // tarifa ML como proxy de CMV até ter custo real
-  l.tarifaML     = dados.tarifa_ml      || 0;
+  l.taxasMl      = dados.tarifa_ml      || 0;
   l.freteVendas  = dados.frete_vendas   || 0;
-  l.pubML        = dados.pub_ml         || 0;
-  l.receitaADS   = dados.receita_ads    || 0;
+  l.adsMeli      = dados.pub_ml         || 0;
 
   saveLanc();
   renderDRE();
@@ -3570,7 +3614,12 @@ function showPage(name,el){
   closeSidebar();
   if(name==='publicidade')renderPublicidade();
   if(name==='pagamentos')initPagamentos();
-  if(name==='dre'){renderDRE();setDreView('mensal');}
+  if(name==='dre'){
+    renderDRE();
+    setDreView('mensal');
+    // Sincronizar automaticamente ao abrir
+    setTimeout(function(){ syncDREAPI(true); }, 300);
+  }
   if(name==='movimentacao'){renderMovTopCards();renderHM();renderHP();}
   if(name==='full'){renderFullTopCards();renderHF();}
   if(name==='relatorios'){renderRelTopCards();initRelDates();}
