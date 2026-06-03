@@ -1427,6 +1427,7 @@ select.pag-form-inp{cursor:pointer;}
   <div style="display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap;align-items:center">
     <button class="pbtn active" id="dreVMensal" onclick="setDreView('mensal')">Mensal</button>
     <button class="pbtn" id="dreVAnual" onclick="setDreView('anual')">Anual</button>
+    <button class="pbtn" onclick="syncDREAPI()" id="dreSyncBtn" style="background:var(--accent);color:#fff;border-color:var(--accent)">⟳ Sincronizar API</button>
     <div style="flex:1"></div>
     <div id="dreNavControls" style="align-items:center;gap:7px;flex-wrap:wrap">
       <button class="dre-navbtn" onclick="dreNav(-1)">‹</button>
@@ -2913,6 +2914,60 @@ function renderGerBody(){
     '<button class="ger-item-del" onclick="delGerItem('+i+')" title="Remover">🗑️</button>'+
     '</div></div></div>'
   ).join(''):'<div class="ger-empty">Nenhum lançamento cadastrado.</div>';
+}
+
+
+// ── DRE API ──────────────────────────────────────────────
+var BACKEND_DRE = 'https://gestao-marketplace-ml-production.up.railway.app';
+
+async function carregarDREAPI(mes, ano){
+  var token = localStorage.getItem('ml_token');
+  var userId = localStorage.getItem('ml_user_id');
+  if(!token || !userId) return null;
+  try{
+    var url = BACKEND_DRE+'/api/vendas/dre?ml_user_id='+userId+'&mes='+mes+'&ano='+ano+'&token='+encodeURIComponent(token);
+    var r = await fetch(url, {headers:{'Authorization':'Bearer '+token}});
+    if(!r.ok) return null;
+    return await r.json();
+  }catch(e){
+    console.warn('[DRE API]', e);
+    return null;
+  }
+}
+
+async 
+function syncDREAPI(){
+  var btn = document.getElementById('dreSyncBtn');
+  if(btn){btn.textContent='⟳ Carregando...';btn.disabled=true;}
+  preencherDREAPI(dreMonth+1, dreYear).finally(function(){
+    if(btn){btn.textContent='⟳ Sincronizar API';btn.disabled=false;}
+  });
+}
+
+function preencherDREAPI(mes, ano){
+  var dados = await carregarDREAPI(mes, ano);
+  if(!dados) return;
+
+  // Preencher campos readonly da API no localStorage de lançamentos
+  ensureLanc();
+  var key = lancKey();
+  if(!lancamentos[key]) lancamentos[key] = getDefaultLanc();
+  var l = lancamentos[key];
+
+  // Campos que vêm da API (readonly)
+  l.fat          = dados.faturamento    || 0;
+  l.cancelamentos= dados.cancelamentos  || 0;
+  l.devolucoes   = dados.devolucoes     || 0;
+  l.cmv          = dados.tarifa_ml      || 0;  // tarifa ML como proxy de CMV até ter custo real
+  l.tarifaML     = dados.tarifa_ml      || 0;
+  l.freteVendas  = dados.frete_vendas   || 0;
+  l.pubML        = dados.pub_ml         || 0;
+  l.receitaADS   = dados.receita_ads    || 0;
+
+  saveLanc();
+  renderDRE();
+
+  showToast('DRE atualizado com dados reais do ML · '+MESES[mes-1]+' '+ano);
 }
 
 function renderDRE(){
