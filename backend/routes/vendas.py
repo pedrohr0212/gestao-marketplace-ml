@@ -226,6 +226,128 @@ async def get_vendas(
     }
 
 
+# Adicionar ao routes/vendas.py — endpoint /api/vendas/dre
+
+@router.get("/dre")
+async def get_dre(
+    ml_user_id: str = Query(...),
+    mes: int        = Query(...),   # 1-12
+    ano: int        = Query(...),
+):
+    """Retorna dados agregados para o DRE mensal."""
+    from datetime import datetime, timezone, timedelta
+
+    BRT = timezone(timedelta(hours=-3))
+    token = await get_valid_token(ml_user_id)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # Calcular range do mês
+    start_brt = datetime(ano, mes, 1, 0, 0, 0, tzinfo=BRT)
+    if mes == 12:
+        end_brt = datetime(ano + 1, 1, 1, 0, 0, 0, tzinfo=BRT) - timedelta(seconds=1)
+    else:
+        end_brt = datetime(ano, mes + 1, 1, 0, 0, 0, tzinfo=BRT) - timedelta(seconds=1)
+
+    async with httpx.AsyncClient(timeout=15) as client:
+        me = await client.get(f"{ML_API}/users/me", headers=headers)
+    if me.status_code != 200:
+        raise HTTPException(status_code=401, detail="Erro ao autenticar com o ML")
+    seller_id = me.json().get("id")
+
+    start_utc = start_brt.astimezone(timezone.utc)
+    end_utc   = end_brt.astimezone(timezone.utc)
+
+    orders = await buscar_todos_pedidos(headers, seller_id, start_utc, end_utc)
+
+    import asyncio
+    semaphore = asyncio.Semaphore(10)
+
+    async def enriquecer(order):
+        async with semaphore:
+            shipping_id = (order.get("shipping") or {}).get("id")
+            frete = await buscar_frete_vendedor(headers, shipping_id)
+            return order, frete
+
+    enriched = await asyncio.gather(*[enriquecer(o) for o in orders])
+
+    faturamento    = 0.0
+    cancelamentos  = 0.0
+    tarifa_ml      = 0.0
+    frete_vendas   = 0.0
+    imposto_total  = 0.0
+    pub_ml         = 0.0
+    total_vendas   = 0
+    total_cancelados = 0
+
+    for order, frete_vendedor in enriched:
+        cancelada = order.get("status") == "cancelled"
+        n_items   = len(order.get("order_items", [])) or 1
+
+        for item in order.get("order_items", []):
+            qtde  = item.get("quantity", 1)
+            valor = round(float(item.get("unit_price", 0)) * qtde, 2)
+            tarifa = round(float(item.get("sale_fee") or 0) * qtde, 2)
+            frete_item = round(frete_vendedor / n_items, 2)
+            imposto = round(valor * (IMPOSTOGLOBAL / 100), 2)
+
+            if cancelada:
+                cancelamentos += valor
+                total_cancelados += 1
+            else:
+                faturamento   += valor
+                tarifa_ml     += tarifa
+                frete_vendas  += frete_item
+                imposto_total += imposto
+                total_vendas  += 1
+
+                # Publicidade ML (pedidos via canal advertising)
+                if (order.get("context") or {}).get("channel") == "advertising":
+                    pub_ml += valor * 0.0  # investimento ADS não disponível aqui
+
+    # Buscar publicidade separado
+    pub_data = {"investimento": 0, "receita_ads": 0}
+    try:
+        periodo_str = f"{ano}-{mes:02d}"
+        async with httpx.AsyncClient(timeout=10) as client:
+            r = await client.get(
+                f"{ML_API}/advertising/product_ads/metrics",
+                headers=headers,
+                params={
+                    "user_id": seller_id,
+                    "date_from": start_brt.strftime("%Y-%m-%d"),
+                    "date_to": end_brt.strftime("%Y-%m-%d"),
+                    "granularity": "MONTHLY",
+                    "metrics": "SPEND,SALES"
+                }
+            )
+            if r.status_code == 200:
+                rdata = r.json()
+                results = rdata.get("results", [])
+                if results:
+                    pub_data["investimento"] = sum(float(x.get("SPEND", 0)) for x in results)
+                    pub_data["receita_ads"]  = sum(float(x.get("SALES", 0)) for x in results)
+    except Exception as e:
+        print(f"[DRE] ADS error: {e}")
+
+    rec_liq = faturamento - cancelamentos
+
+    return {
+        "mes":           mes,
+        "ano":           ano,
+        "faturamento":   round(faturamento, 2),
+        "cancelamentos": round(cancelamentos, 2),
+        "devolucoes":    0.0,   # não disponível via API ML
+        "rec_liq":       round(rec_liq, 2),
+        "tarifa_ml":     round(tarifa_ml, 2),
+        "frete_vendas":  round(frete_vendas, 2),
+        "imposto":       round(imposto_total, 2),
+        "pub_ml":        round(pub_data["investimento"], 2),
+        "receita_ads":   round(pub_data["receita_ads"], 2),
+        "total_vendas":  total_vendas,
+        "total_cancelados": total_cancelados,
+    }
+
+
 @router.get("/debug-order")
 async def debug_order(
     ml_user_id: str = Query(...),
