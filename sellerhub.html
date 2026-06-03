@@ -2920,7 +2920,7 @@ function renderGerBody(){
 // ── DRE API ──────────────────────────────────────────────
 var BACKEND_DRE = 'https://gestao-marketplace-ml-production.up.railway.app';
 
-async function carregarDREAPI(mes, ano){
+async async function carregarDREAPI(mes, ano){
   var token = localStorage.getItem('ml_token');
   var userId = localStorage.getItem('ml_user_id');
   if(!token || !userId) return null;
@@ -2944,7 +2944,7 @@ function syncDREAPI(){
   });
 }
 
-function preencherDREAPI(mes, ano){
+async function preencherDREAPI(mes, ano){
   var dados = await carregarDREAPI(mes, ano);
   if(!dados) return;
 
