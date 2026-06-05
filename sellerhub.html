@@ -1420,7 +1420,7 @@ select.pag-form-inp{cursor:pointer;}
   </div>
   <div class="sec">Performance por campanha</div>
   <div class="tw" id="campTw">
-    <table><thead><tr><th>Campanha</th><th style="text-align:right">Investimento</th><th style="text-align:right">Receita</th><th style="text-align:right">Impressões</th><th style="text-align:right">Cliques</th><th style="text-align:right">ROAS</th><th style="text-align:right">ACOS</th><th style="text-align:right">TACOS</th><th style="text-align:right">CPC</th><th>Status</th></tr></thead><tbody id="campTbody"></tbody></table>
+    <table><thead><tr><th>Campanha</th><th style="text-align:right">Investimento</th><th style="text-align:right">Receita</th><th style="text-align:right">Impressões</th><th style="text-align:right">Cliques</th><th style="text-align:right">ROAS</th><th style="text-align:right">ACOS</th><th style="text-align:right">CPC</th><th>Status</th></tr></thead><tbody id="campTbody"></tbody></table>
   </div>
 </div>
 
@@ -2703,8 +2703,7 @@ function _renderAdsUI(dados, loading){
       (loading?'Carregando campanhas...':'Nenhuma campanha encontrada')+'</td></tr>';
   } else {
     document.getElementById('campTbody').innerHTML=campanhas.map(function(c){
-      // TACOS real = investimento / faturamento total dos produtos da campanha (cruzado com vendas)
-      var tc = c.tacos !== undefined ? c.tacos : 0;
+
       var cpc = c.cliques>0 ? +(c.investimento/c.cliques).toFixed(2) : 0;
       var statusLabel = c.status==='active'?'Ativa':c.status==='paused'?'Pausada':'Inativa';
       var statusCls   = c.status==='active'?'org':'cancel';
@@ -2716,7 +2715,7 @@ function _renderAdsUI(dados, loading){
         +'<td style="text-align:right;font-family:var(--mono)">'+c.cliques.toLocaleString('pt-BR')+'</td>'
         +'<td style="text-align:right;font-family:var(--mono);font-weight:600;color:var(--green)">'+c.roas.toFixed(2)+'x</td>'
         +'<td style="text-align:right;font-family:var(--mono)">'+c.acos.toFixed(2)+'%</td>'
-        +'<td style="text-align:right;font-family:var(--mono);color:var(--purple)" title="Fat. produtos: R$ '+(c.fat_produtos||0)+'">'+tc+'%</td>'
+        
         +'<td style="text-align:right;font-family:var(--mono)">R$ '+cpc.toFixed(2)+'</td>'
         +'<td><span class="badge '+statusCls+'">'+statusLabel+'</span></td>'
         +'</tr>';
