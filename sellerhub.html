@@ -1949,7 +1949,7 @@ select.pag-form-inp{cursor:pointer;}
     <table id="invTable">
       <thead>
         <tr>
-          <th>SKU / Produto</th>
+          <th style="text-align:center">SKU</th><th>Produto</th>
           <th style="text-align:right">Físico</th>
           <th style="text-align:right">Transf.</th>
           <th style="text-align:right">Full ML</th>
@@ -3841,6 +3841,94 @@ function calcMargem(p){
   return{pv,custo,comissaoVal,taxaPlat,taxaFrete,impostoVal,mc,mcPct};
 }
 
+
+// ── ESTOQUE API SYNC ─────────────────────────────────
+var BACKEND_EST = 'https://gestao-marketplace-ml-production.up.railway.app';
+
+async function syncEstoqueAPI(){
+  var token  = localStorage.getItem('ml_token');
+  var userId = localStorage.getItem('ml_user_id');
+  if(!token || !userId) return;
+
+  var btn = document.getElementById('estSyncBtn');
+  if(btn) btn.innerHTML = '<span class="dre-sync-spinner"></span>Sincronizando...';
+
+  try{
+    // Buscar produtos e vendas 30d em paralelo
+    var [rEst, rVend] = await Promise.all([
+      fetch(BACKEND_EST+'/api/estoque?ml_user_id='+userId,
+        {headers:{'Authorization':'Bearer '+token}}),
+      fetch(BACKEND_EST+'/api/vendas/resumo?ml_user_id='+userId+'&periodo=30d',
+        {headers:{'Authorization':'Bearer '+token}})
+    ]);
+
+    var estData  = rEst.ok  ? await rEst.json()  : null;
+    var vendData = rVend.ok ? await rVend.json() : null;
+
+    if(!estData || !estData.produtos) return;
+
+    // Buscar vendas detalhadas para calcular média por SKU
+    var rVendDet = await fetch(
+      BACKEND_EST+'/api/vendas?ml_user_id='+userId+'&periodo=30d',
+      {headers:{'Authorization':'Bearer '+token}}
+    );
+    var vendDet = rVendDet.ok ? await rVendDet.json() : [];
+
+    // Calcular vendas por SKU nos últimos 30d
+    var vendPorSku = {};
+    if(Array.isArray(vendDet)){
+      vendDet.forEach(function(v){
+        if(v.cancelada) return;
+        var sku = v.sku || v.ml_item_id || '';
+        vendPorSku[sku] = (vendPorSku[sku]||0) + (v.qtde||1);
+      });
+    }
+
+    // Mesclar dados da API com dados locais (preservando custo, estFisico, prazo)
+    var dadosLocais = state.data || [];
+    var localMap = {};
+    dadosLocais.forEach(function(p){ localMap[p.sku] = p; });
+
+    var novos = estData.produtos.map(function(p){
+      // ml_item_id como fallback de SKU
+      var sku = p.sku || p.ml_item_id || '';
+      var local = localMap[sku] || localMap[p.ml_item_id] || {};
+      var v30 = vendPorSku[sku] || vendPorSku[p.ml_item_id] || 0;
+      var vdEf = v30 > 0 ? Math.max(1, Math.round(v30/30)) : (local.vdEf || local.vd || 1);
+
+      return {
+        sku:          sku,
+        ml_item_id:   p.ml_item_id || '',
+        nome:         p.nome || local.nome || '',
+        cat:          local.cat || '',
+        forn:         local.forn || '',
+        custo:        local.custo || 0,
+        precoVenda:   p.preco || local.precoVenda || 0,
+        comissao:     local.comissao || 14,
+        taxaPlat:     local.taxaPlat || 5,
+        taxaFrete:    local.taxaFrete || 0,
+        estFisico:    local.estFisico || 0,   // manual
+        estTransf:    local.estTransf || 0,
+        estFull:      p.estoque || 0,          // API
+        v30:          v30,
+        vd:           vdEf,
+        vdEf:         vdEf,
+        prazo:        local.prazo || leadTime,
+        prazoOverride: local.prazoOverride || null,
+      };
+    });
+
+    state.data = novos;
+    saveState();
+    renderAll();
+    showToast('Estoque sincronizado · '+novos.length+' produtos');
+  } catch(e){
+    console.warn('[EST SYNC]', e);
+    showToast('Erro ao sincronizar estoque');
+  }
+  if(btn) btn.innerHTML = '⟳ Sincronizar';
+}
+
 function renderAll(){saveState();
   setTimeout(initDragScrollAll,50);
   const prods=data.map(calcProd).sort((a,b)=>PO[a.status]-PO[b.status]);
@@ -4001,7 +4089,8 @@ function renderInvTable(prods,filter){
     const dias=p.diasRup>=999?'90+':p.diasRup;
     const dCor=p.diasRup<=7?'var(--red)':p.diasRup<=14?'var(--amber)':p.diasRup<=30?'#d97706':'var(--green)';
     return '<tr>'+
-      '<td><div style="font-family:var(--mono);color:var(--accent2);font-size:10px">'+p.sku+'</div><div style="color:var(--text);font-weight:500;font-size:12px;margin-top:1px">'+p.nome+'</div></td>'+
+      '<td style="text-align:center;font-family:var(--mono);color:var(--accent2);font-size:11px;white-space:nowrap">'+p.sku+'</td>'+
+      '<td style="font-weight:500;font-size:12px">'+p.nome+'</td>'+
       '<td style="text-align:right;font-family:var(--mono)">'+p.estFisico+'</td>'+
       '<td style="text-align:right;font-family:var(--mono);color:'+(p.estTransf>0?'var(--amber)':'var(--text2)')+'">'+p.estTransf+'</td>'+
       '<td style="text-align:right;font-family:var(--mono);color:var(--blue)">'+p.estFull+'</td>'+
