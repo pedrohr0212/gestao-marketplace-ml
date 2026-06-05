@@ -78,7 +78,7 @@ async def get_publicidade(
     # ── 2. Buscar campanhas COM métricas em uma única chamada
     async with httpx.AsyncClient(timeout=30) as client:
         resp = await client.get(
-            f"{ML_API}/marketplace/advertising/{SITE_ID}/advertisers/{advertiser_id}/product_ads/campaigns",
+            f"{ML_API}/marketplace/advertising/{SITE_ID}/advertisers/{advertiser_id}/product_ads/campaigns/search",
             headers=headers,
             params={
                 "limit":          50,
