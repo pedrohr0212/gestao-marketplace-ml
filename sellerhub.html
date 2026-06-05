@@ -1944,7 +1944,7 @@ select.pag-form-inp{cursor:pointer;}
   </div>
 
   <!-- Tabela de inventário -->
-  <div class="fbar" id="finFilters"></div>
+  <div class="fbar" id="finFilters" style="display:flex;align-items:center;flex-wrap:wrap;gap:4px"></div>
   <div class="tw">
     <table id="invTable">
       <thead>
@@ -3965,7 +3965,6 @@ function buildFilters(sel,prods,fn){
   opts.forEach(o=>h+='<button class="fb'+(sel===o.k?' active':'')+'" onclick="'+fn+'(\''+o.k+'\')">'+o.l+'</button>');
   h+='<span class="fl" style="margin-left:6px">Fornecedor:</span>';
   forns.forEach(f=>h+='<button class="fb'+(sel===f?' active':'')+'" onclick="'+fn+'(\''+encodeURIComponent(f)+'\')">'+f+'</button>');
-  h+='<button onclick="syncEstoqueAPI()" id="estSyncBtn" style="margin-left:auto;padding:5px 12px;border-radius:20px;border:0.5px solid var(--accent);background:var(--accent);color:#fff;font-family:var(--font);font-size:12px;cursor:pointer">&#8635; Sincronizar</button>';
   return h;
 }
 
@@ -4068,6 +4067,7 @@ function renderFinanceiro(prods){
   fh+='<span class="fl" style="margin-left:6px">Ordenar:</span>';
   fh+='<button class="fb'+(finFilter==='valor'?' active':'')+'" onclick="setFF(\'valor\')">Maior capital</button>';
   fh+='<button class="fb'+(finFilter==='cob'?' active':'')+'" onclick="setFF(\'cob\')">Menor cobertura</button>';
+  fh+='<button onclick="syncEstoqueAPI()" id="estSyncBtn" style="margin-left:auto;padding:5px 12px;border-radius:20px;border:0.5px solid var(--accent);background:var(--accent);color:#fff;font-family:var(--font);font-size:12px;cursor:pointer">&#8635; Sincronizar</button>';
   document.getElementById('finFilters').innerHTML=fh;
   renderInvTable(prods,finFilter);
 }
