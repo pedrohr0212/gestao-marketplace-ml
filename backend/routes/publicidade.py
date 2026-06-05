@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 
 router = APIRouter(prefix="/api/publicidade", tags=["publicidade"])
 ML_API  = "https://api.mercadolibre.com"
-SITE_ID = "MLB"  # Brasil
+SITE_ID = "MLB"
 
 BRT = timezone(timedelta(hours=-3))
 
@@ -16,7 +16,7 @@ def get_date_range(periodo: str):
         start = now.replace(hour=0, minute=0, second=0, microsecond=0)
         end   = now.replace(hour=23, minute=59, second=59, microsecond=0)
     elif periodo == "ontem":
-        d     = now - timedelta(days=1)
+        d = now - timedelta(days=1)
         start = d.replace(hour=0, minute=0, second=0, microsecond=0)
         end   = d.replace(hour=23, minute=59, second=59, microsecond=0)
     elif periodo == "7d":
@@ -41,50 +41,60 @@ async def get_publicidade(
     periodo:    str = Query("30d"),
 ):
     token   = await get_valid_token(ml_user_id)
-    headers = {
-        "Authorization": f"Bearer {token}",
-        "Api-Version": "2",
-    }
-
-    async with httpx.AsyncClient(timeout=15) as client:
-        me = await client.get(f"{ML_API}/users/me", headers=headers)
-    if me.status_code != 200:
-        raise HTTPException(status_code=401, detail="Erro ao autenticar com o ML")
-    seller_id = me.json().get("id")
+    headers_v1 = {"Authorization": f"Bearer {token}", "Content-Type": "application/json", "Api-Version": "1"}
+    headers_v2 = {"Authorization": f"Bearer {token}", "Content-Type": "application/json", "api-version": "2"}
 
     date_from, date_to = get_date_range(periodo)
 
-    # ── 1. Listar campanhas (nova API v2)
+    # ── 1. Buscar advertiser_id (diferente do user_id)
+    async with httpx.AsyncClient(timeout=15) as client:
+        resp_adv = await client.get(
+            f"{ML_API}/advertising/advertisers",
+            headers=headers_v1,
+            params={"product_id": "PADS"}
+        )
+    print(f"[ADS] advertisers status={resp_adv.status_code} body={resp_adv.text[:300]}")
+
+    if resp_adv.status_code != 200:
+        return {
+            "campanhas": [], "investimento": 0, "receita_ads": 0,
+            "impressoes": 0, "cliques": 0, "roas": 0, "acos": 0,
+            "mensagem": f"Erro ao buscar advertiser_id (status {resp_adv.status_code}): {resp_adv.text[:100]}",
+        }
+
+    advertisers = resp_adv.json().get("advertisers", [])
+    # Filtrar pelo site_id MLB
+    adv_mlb = [a for a in advertisers if a.get("site_id") == SITE_ID]
+    if not adv_mlb:
+        return {
+            "campanhas": [], "investimento": 0, "receita_ads": 0,
+            "impressoes": 0, "cliques": 0, "roas": 0, "acos": 0,
+            "mensagem": f"Nenhum advertiser MLB encontrado. Advertisers: {advertisers}",
+        }
+
+    advertiser_id = adv_mlb[0]["advertiser_id"]
+    print(f"[ADS] advertiser_id={advertiser_id}")
+
+    # ── 2. Buscar campanhas (API v2)
     async with httpx.AsyncClient(timeout=15) as client:
         resp_camp = await client.get(
-            f"{ML_API}/marketplace/advertising/{SITE_ID}/advertisers/{seller_id}/product_ads/campaigns",
-            headers=headers,
-            params={"status": "active", "limit": 50}
+            f"{ML_API}/marketplace/advertising/{SITE_ID}/advertisers/{advertiser_id}/product_ads/campaigns/search",
+            headers=headers_v2,
+            params={"limit": 50, "offset": 0}
         )
-
-    print(f"[ADS] campaigns status={resp_camp.status_code}")
-
-    # Fallback para API v1 se v2 não funcionar
-    if resp_camp.status_code != 200:
-        headers_v1 = {"Authorization": f"Bearer {token}"}
-        async with httpx.AsyncClient(timeout=15) as client:
-            resp_camp = await client.get(
-                f"{ML_API}/advertising/product_ads/advertisers/{seller_id}/campaigns",
-                headers=headers_v1,
-            )
-        print(f"[ADS] campaigns v1 fallback status={resp_camp.status_code}")
+    print(f"[ADS] campaigns v2 status={resp_camp.status_code} body={resp_camp.text[:300]}")
 
     if resp_camp.status_code != 200:
         return {
             "campanhas": [], "investimento": 0, "receita_ads": 0,
             "impressoes": 0, "cliques": 0, "roas": 0, "acos": 0,
-            "mensagem": f"ADS não disponível (status {resp_camp.status_code})",
+            "mensagem": f"Erro ao buscar campanhas (status {resp_camp.status_code}): {resp_camp.text[:200]}",
         }
 
-    camp_data  = resp_camp.json()
-    camp_list  = camp_data.get("results", camp_data if isinstance(camp_data, list) else [])
+    camp_list = resp_camp.json().get("results", [])
+    print(f"[ADS] {len(camp_list)} campanhas encontradas")
 
-    # ── 2. Buscar métricas por campanha
+    # ── 3. Buscar métricas por campanha
     campanhas    = []
     investimento = 0.0
     receita_ads  = 0.0
@@ -96,63 +106,41 @@ async def get_publicidade(
         if not camp_id:
             continue
 
-        # Tentar nova API de métricas
         async with httpx.AsyncClient(timeout=15) as client:
             resp_m = await client.get(
-                f"{ML_API}/marketplace/advertising/{SITE_ID}/advertisers/{seller_id}/product_ads/campaigns/{camp_id}/metrics",
-                headers=headers,
+                f"{ML_API}/marketplace/advertising/{SITE_ID}/advertisers/{advertiser_id}/product_ads/campaigns/{camp_id}/metrics",
+                headers=headers_v2,
                 params={"date_from": date_from, "date_to": date_to, "granularity": "TOTAL"}
             )
-
-        if resp_m.status_code != 200:
-            # Fallback v1
-            async with httpx.AsyncClient(timeout=15) as client:
-                resp_m = await client.get(
-                    f"{ML_API}/advertising/product_ads/advertisers/{seller_id}/campaigns/{camp_id}",
-                    headers={"Authorization": f"Bearer {token}"},
-                    params={"date_from": date_from, "date_to": date_to}
-                )
-
         print(f"[ADS] metrics camp={camp_id} status={resp_m.status_code} body={resp_m.text[:200]}")
 
         m_data = resp_m.json() if resp_m.status_code == 200 else {}
-        # Tentar diferentes formatos de resposta
         results = m_data.get("results", [m_data] if m_data else [])
-        if not results:
-            results = [m_data]
 
-        inv = 0.0
-        rec = 0.0
-        imp = 0
-        cli = 0
-        for r in results:
-            inv += float(r.get("cost",        r.get("spend",       r.get("investment", 0))) or 0)
-            rec += float(r.get("revenue",      r.get("sales",       r.get("income",     0))) or 0)
-            imp += int(  r.get("impressions",  r.get("prints",      0)) or 0)
-            cli += int(  r.get("clicks",       0) or 0)
+        inv = sum(float(r.get("cost", r.get("spend", 0)) or 0) for r in results)
+        rec = sum(float(r.get("revenue", r.get("sales", 0)) or 0) for r in results)
+        imp = sum(int(r.get("impressions", r.get("prints", 0)) or 0) for r in results)
+        cli = sum(int(r.get("clicks", 0) or 0) for r in results)
 
         investimento += inv
         receita_ads  += rec
         impressoes   += imp
         cliques      += cli
 
-        roas_c = rec / inv if inv > 0 else 0
-        acos_c = (inv / rec * 100) if rec > 0 else 0
-
         campanhas.append({
-            "id":          camp_id,
-            "nome":        c.get("name", f"Campanha {camp_id}"),
-            "status":      c.get("status", "active"),
+            "id":           camp_id,
+            "nome":         c.get("name", f"Campanha {camp_id}"),
+            "status":       c.get("status", "active"),
             "investimento": round(inv, 2),
-            "receita":     round(rec, 2),
-            "impressoes":  imp,
-            "cliques":     cli,
-            "roas":        round(roas_c, 2),
-            "acos":        round(acos_c, 2),
+            "receita":      round(rec, 2),
+            "impressoes":   imp,
+            "cliques":      cli,
+            "roas":         round(rec / inv, 2) if inv > 0 else 0,
+            "acos":         round(inv / rec * 100, 2) if rec > 0 else 0,
         })
 
-    roas  = receita_ads / investimento if investimento > 0 else 0
-    acos  = (investimento / receita_ads * 100) if receita_ads > 0 else 0
+    roas = receita_ads / investimento if investimento > 0 else 0
+    acos = (investimento / receita_ads * 100) if receita_ads > 0 else 0
 
     return {
         "campanhas":    campanhas,
@@ -163,6 +151,7 @@ async def get_publicidade(
         "roas":         round(roas, 2),
         "acos":         round(acos, 2),
         "tacos":        round(acos, 2),
+        "advertiser_id": advertiser_id,
         "date_from":    date_from,
         "date_to":      date_to,
     }
