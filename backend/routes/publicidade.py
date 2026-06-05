@@ -70,21 +70,37 @@ async def buscar_pedidos_ml(headers, seller_id, date_from, date_to):
             break
     return all_orders
 
-async def buscar_item_ids_campanha(client, headers, advertiser_id, camp_id):
-    """Busca os item_ids anunciados em uma campanha."""
-    try:
-        resp = await client.get(
-            f"{ML_API}/marketplace/advertising/{SITE_ID}/advertisers/{advertiser_id}/product_ads/campaigns/{camp_id}/ad_products/search",
-            headers=headers,
-            params={"limit": 100, "offset": 0}
-        )
-        print(f"[ADS] ad_products camp={camp_id} status={resp.status_code} body={resp.text[:200]}")
-        if resp.status_code == 200:
-            results = resp.json().get("results", [])
-            return [str(r.get("item_id", "")).replace("MLB", "").strip() for r in results if r.get("item_id")]
-    except Exception as e:
-        print(f"[ADS] ad_products error camp={camp_id}: {e}")
-    return []
+async def buscar_todos_ad_items(client, headers, advertiser_id):
+    """Busca todos os itens anunciados do advertiser com seus campaign_ids."""
+    item_camp_map = {}  # item_id -> [campaign_ids]
+    offset = 0
+    while True:
+        try:
+            resp = await client.get(
+                f"{ML_API}/marketplace/advertising/{SITE_ID}/advertisers/{advertiser_id}/product_ads/search",
+                headers=headers,
+                params={"limit": 100, "offset": offset}
+            )
+            print(f"[ADS] ad_items status={resp.status_code} body={resp.text[:200]}")
+            if resp.status_code != 200:
+                break
+            data    = resp.json()
+            results = data.get("results", [])
+            for r in results:
+                iid   = str(r.get("item_id", "")).replace("MLB", "").strip()
+                cid   = str(r.get("campaign_id", ""))
+                if iid:
+                    if iid not in item_camp_map:
+                        item_camp_map[iid] = []
+                    if cid and cid not in item_camp_map[iid]:
+                        item_camp_map[iid].append(cid)
+            if len(results) < 100:
+                break
+            offset += 100
+        except Exception as e:
+            print(f"[ADS] ad_items error: {e}")
+            break
+    return item_camp_map
 
 
 @router.get("")
@@ -163,10 +179,16 @@ async def get_publicidade(
 
     headers_v1_auth = {"Authorization": f"Bearer {token}"}
 
+    # Buscar todos os itens anunciados e seus campaign_ids em uma única chamada
     async with httpx.AsyncClient(timeout=30) as client:
-        tasks = [buscar_item_ids_campanha(client, headers, advertiser_id, c.get("id"))
-                 for c in camp_list if c.get("id")]
-        item_ids_por_camp = await asyncio.gather(*tasks)
+        item_camp_map = await buscar_todos_ad_items(client, headers, advertiser_id)
+    # Montar: camp_id -> [item_ids]
+    camp_items_map = {}
+    for iid, cids in item_camp_map.items():
+        for cid in cids:
+            if cid not in camp_items_map:
+                camp_items_map[cid] = []
+            camp_items_map[cid].append(iid)
 
     # Buscar pedidos diretamente da API ML para cruzamento
     orders = []
@@ -195,7 +217,8 @@ async def get_publicidade(
     impressoes   = 0
     cliques      = 0
 
-    for c, item_ids in zip(camp_list, item_ids_por_camp):
+    for c in camp_list:
+        item_ids = camp_items_map.get(str(c.get("id","")), [])
         m   = c.get("metrics") or c.get("metrics_summary") or {}
         inv = float(m.get("cost", 0) or 0)
         rec = float(m.get("total_amount", m.get("direct_amount", 0)) or 0)
