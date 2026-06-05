@@ -1407,7 +1407,7 @@ select.pag-form-inp{cursor:pointer;}
 <!-- PUBLICIDADE -->
 <div class="page" id="page-publicidade">
   <div style="height:16px"></div>
-  <div class="period-bar" id="adsPeriodBar"></div>
+  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><div class="period-bar" id="adsPeriodBar" style="flex:1;min-width:0"></div><button class="pbtn" id="adsSyncBtn" onclick="carregarPublicidadeAPI(adsPeriod)" style="background:var(--accent);color:#fff;border-color:var(--accent);flex-shrink:0">⟳ Atualizar</button></div>
   <button class="pbtn" id="adsSyncBtn" onclick="carregarPublicidadeAPI(adsPeriod)" style="background:var(--accent);color:#fff;border-color:var(--accent);margin-left:8px">⟳ Atualizar</button>
   <div class="custom-dates" id="adsCustomDates">
     <span style="font-size:12px;color:var(--text3)">De:</span><input type="date" id="adsDtDe">
@@ -2704,7 +2704,9 @@ function _renderAdsUI(dados, loading){
       (loading?'Carregando campanhas...':'Nenhuma campanha encontrada')+'</td></tr>';
   } else {
     document.getElementById('campTbody').innerHTML=campanhas.map(function(c){
-      var tc = c.receita>0 ? +(c.investimento/c.receita*100).toFixed(2) : 0;
+      // TACOS = investimento / faturamento total do período
+      var fatTot = window._adsFatTotal || 0;
+      var tc = fatTot>0 ? +(c.investimento/fatTot*100).toFixed(4) : 0;
       var cpc = c.cliques>0 ? +(c.investimento/c.cliques).toFixed(2) : 0;
       var statusLabel = c.status==='active'?'Ativa':c.status==='paused'?'Pausada':'Inativa';
       var statusCls   = c.status==='active'?'org':'cancel';
