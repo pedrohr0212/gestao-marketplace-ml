@@ -10,30 +10,24 @@ ML_API = "https://api.mercadolibre.com"
 
 
 async def buscar_inventory_item(client, headers, item_id):
-    """Busca estoques por tipo: available, not_available (em transferência), etc."""
+    """Busca estoque Full e em transferência do item."""
+    full = 0
+    transf = 0
     try:
+        # Tentar endpoint de inventário fulfillment
         resp = await client.get(
-            f"{ML_API}/inventories/items/{item_id}/stock/fulfillment",
+            f"{ML_API}/items/{item_id}/fulfillment_stock",
             headers=headers
         )
+        print(f"[EST] fulfillment_stock item={item_id} status={resp.status_code} body={resp.text[:200]}")
         if resp.status_code == 200:
             data = resp.json()
-            # available = estoque disponível no Full
-            # not_available = em transferência ou reservado
-            total          = data.get("total", 0)
-            available      = data.get("available_quantity", 0)
-            not_available  = data.get("not_available_quantity", 0)
-            # not_available_detail pode ter: transfer (em transferência), reserved, damaged
-            details        = data.get("not_available_detail", [])
-            transfer = sum(d.get("quantity", 0) for d in details if d.get("status") == "transfer")
-            return {
-                "full":      available,
-                "transf":    transfer,
-                "not_avail": not_available,
-            }
+            # Tentar diferentes formatos de resposta
+            full   = data.get("available_quantity", data.get("full_quantity", 0))
+            transf = data.get("not_available_quantity", data.get("transfer_quantity", 0))
     except Exception as e:
-        print(f"[EST] inventory error item={item_id}: {e}")
-    return {"full": 0, "transf": 0, "not_avail": 0}
+        print(f"[EST] fulfillment error item={item_id}: {e}")
+    return {"full": full, "transf": transf}
 
 
 @router.get("")
@@ -116,17 +110,24 @@ async def get_estoque(ml_user_id: str = Query(...)):
 
         print(f"[EST] {item['id']} sku={repr(seller_sku)} full={estoque_full} transf={estoque_transf}")
 
+        # Se inventory não retornou nada, usar available_quantity como estoque Full
+        avail = item.get("available_quantity", 0)
+        if estoque_full == 0 and avail > 0:
+            estoque_full = avail
+
+        print(f"[EST] {item['id']} sku={repr(seller_sku)} full={estoque_full} transf={estoque_transf} avail={avail}")
+
         produtos.append({
-            "sku":           seller_sku or item["id"],
-            "ml_item_id":    item["id"],
-            "nome":          item.get("title", ""),
-            "preco":         float(item.get("price", 0)),
-            "estoque":       estoque_full,
+            "sku":            seller_sku or item["id"],
+            "ml_item_id":     item["id"],
+            "nome":           item.get("title", ""),
+            "preco":          float(item.get("price", 0)),
+            "estoque":        estoque_full,
             "estoque_transf": estoque_transf,
-            "estoque_total": item.get("available_quantity", 0),
-            "status":        item.get("status", ""),
-            "thumbnail":     item.get("thumbnail", ""),
-            "permalink":     item.get("permalink", ""),
+            "estoque_total":  avail,
+            "status":         item.get("status", ""),
+            "thumbnail":      item.get("thumbnail", ""),
+            "permalink":      item.get("permalink", ""),
         })
 
     return {"produtos": produtos, "total": len(produtos)}
