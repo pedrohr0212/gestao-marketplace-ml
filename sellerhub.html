@@ -1939,6 +1939,7 @@ select.pag-form-inp{cursor:pointer;}
       <input type="number" id="leadTimeInput" class="lead-input" min="1" max="180" value="7" onkeydown="if(event.key==='Enter')applyLeadTime()">
       <span class="lead-unit">dias</span>
       <button class="lead-apply-btn" onclick="applyLeadTime()" id="leadApplyBtn">Atualizar</button>
+      <button onclick="syncEstoqueAPI()" id="estSyncBtn" style="margin-left:8px;padding:6px 14px;border-radius:8px;background:var(--bg3);border:0.5px solid var(--border2);color:var(--text2);font-family:var(--font);font-size:12px;cursor:pointer">&#8635; Sincronizar</button>
       <span class="lead-hint" id="leadHint"></span>
     </div>
   </div>
