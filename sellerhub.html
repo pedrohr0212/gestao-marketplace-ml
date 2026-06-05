@@ -1421,7 +1421,7 @@ select.pag-form-inp{cursor:pointer;}
   </div>
   <div class="sec">Performance por campanha</div>
   <div class="tw" id="campTw">
-    <table><thead><tr><th>Campanha</th><th style="text-align:right">Investimento</th><th style="text-align:right">Receita</th><th style="text-align:right">Vendas</th><th style="text-align:right">ROAS</th><th style="text-align:right">ACOS</th><th style="text-align:right">TACOS</th><th style="text-align:right">CPC</th><th>Status</th></tr></thead><tbody id="campTbody"></tbody></table>
+    <table><thead><tr><th>Campanha</th><th style="text-align:right">Investimento</th><th style="text-align:right">Receita</th><th style="text-align:right">Impressões</th><th style="text-align:right">Cliques</th><th style="text-align:right">ROAS</th><th style="text-align:right">ACOS</th><th style="text-align:right">TACOS</th><th style="text-align:right">CPC</th><th>Status</th></tr></thead><tbody id="campTbody"></tbody></table>
   </div>
 </div>
 
@@ -2638,9 +2638,16 @@ async function carregarPublicidadeAPI(periodo){
     return;
   }
   try{
-    var url = 'https://gestao-marketplace-ml-production.up.railway.app/api/publicidade?ml_user_id='+userId+'&periodo='+periodo;
-    var r = await fetch(url, {headers:{'Authorization':'Bearer '+token}});
-    var dados = r.ok ? await r.json() : null;
+    // Buscar publicidade e resumo de vendas em paralelo
+    var urlPub = 'https://gestao-marketplace-ml-production.up.railway.app/api/publicidade?ml_user_id='+userId+'&periodo='+periodo;
+    var urlRes = 'https://gestao-marketplace-ml-production.up.railway.app/api/vendas/resumo?ml_user_id='+userId+'&periodo='+periodo;
+    var [rPub, rRes] = await Promise.all([
+      fetch(urlPub, {headers:{'Authorization':'Bearer '+token}}),
+      fetch(urlRes, {headers:{'Authorization':'Bearer '+token}})
+    ]);
+    var dados    = rPub.ok ? await rPub.json() : null;
+    var resumo   = rRes.ok ? await rRes.json() : null;
+    window._adsFatTotal = resumo ? (resumo.faturamento || 0) : 0;
     _renderAdsUI(dados, false);
   }catch(e){
     console.warn('[ADS API]', e);
@@ -2658,10 +2665,8 @@ function _renderAdsUI(dados, loading){
   var acos     = dados ? (dados.acos         || 0) : 0;
   var campanhas= dados ? (dados.campanhas    || []) : [];
 
-  // Faturamento total do período (do módulo de vendas)
-  var fatTotal = vendas && vendas.length
-    ? vendas.filter(function(v){return !v.cancelada;}).reduce(function(s,v){return s+v.valor;},0)
-    : 0;
+  // Faturamento total: usar resumo da API para o período correto
+  var fatTotal = window._adsFatTotal || 0;
   var tacos = fatTotal > 0 ? inv/fatTotal*100 : (dados ? dados.tacos||0 : 0);
 
   document.getElementById('adsCards').innerHTML=[
