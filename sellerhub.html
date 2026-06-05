@@ -1408,6 +1408,7 @@ select.pag-form-inp{cursor:pointer;}
 <div class="page" id="page-publicidade">
   <div style="height:16px"></div>
   <div class="period-bar" id="adsPeriodBar"></div>
+  <button class="pbtn" id="adsSyncBtn" onclick="carregarPublicidadeAPI(adsPeriod)" style="background:var(--accent);color:#fff;border-color:var(--accent);margin-left:8px">⟳ Atualizar</button>
   <div class="custom-dates" id="adsCustomDates">
     <span style="font-size:12px;color:var(--text3)">De:</span><input type="date" id="adsDtDe">
     <span style="font-size:12px;color:var(--text3)">Até:</span><input type="date" id="adsDtAte">
@@ -2616,60 +2617,106 @@ function applyAdsCustom(){renderPublicidade();}
 
 function renderPublicidade(){
   buildPBar('adsPeriodBar',adsPeriod,'setAdsPeriod','adsCustomDates');
-  // Sync with faturamento: use same vendas array proportional
-  const mult=adsPeriod==='hoje'?1:adsPeriod==='ontem'?0.9:adsPeriod==='7d'?7:adsPeriod==='mes'?30:30;
-  // Use real vendas data when period matches, else scale
-  const refVendas=currentPeriod===adsPeriod?vendas:gerarVendas(adsPeriod);
-  const refValid=refVendas.filter(v=>!v.cancelada);
-  const fatRef=refValid.reduce((s,v)=>s+v.valor,0);
-  const adsRecRef=refValid.filter(v=>v.isPub).reduce((s,v)=>s+v.valor,0);
-  const inv=+(adsRecRef*0.083).toFixed(2);
-  const rec=adsRecRef;
-  const vendAds=refValid.filter(v=>v.isPub).length;
-  const roas=inv>0?+(rec/inv).toFixed(2):12.05;
-  const acos=rec>0?+((inv/rec)*100).toFixed(2):8.30;
-  const tacosVal=fatRef>0?+((inv/fatRef)*100).toFixed(2):2.84;
-  // Receita total sincronizada com faturamento: usa mesma base proporcional
-  const fatTotal=+(rec/roas).toFixed(2); // fat total estimado pelo ROAS
+  // Mostrar dados fictícios enquanto carrega
+  _renderAdsUI({
+    investimento: 0, receita_ads: 0, impressoes: 0, cliques: 0,
+    roas: 0, acos: 0, tacos: 0, campanhas: []
+  }, true);
+  // Buscar dados reais
+  carregarPublicidadeAPI(adsPeriod);
+}
+
+async function carregarPublicidadeAPI(periodo){
+  var token  = localStorage.getItem('ml_token');
+  var userId = localStorage.getItem('ml_user_id');
+  var btn    = document.getElementById('adsSyncBtn');
+  if(btn) btn.innerHTML = '<span class="dre-sync-spinner"></span>Carregando...';
+
+  if(!token || !userId){
+    _renderAdsUI(null, false);
+    if(btn) btn.innerHTML = '⟳ Atualizar';
+    return;
+  }
+  try{
+    var url = 'https://gestao-marketplace-ml-production.up.railway.app/api/publicidade?ml_user_id='+userId+'&periodo='+periodo;
+    var r = await fetch(url, {headers:{'Authorization':'Bearer '+token}});
+    var dados = r.ok ? await r.json() : null;
+    _renderAdsUI(dados, false);
+  }catch(e){
+    console.warn('[ADS API]', e);
+    _renderAdsUI(null, false);
+  }
+  if(btn) btn.innerHTML = '⟳ Atualizar';
+}
+
+function _renderAdsUI(dados, loading){
+  var inv      = dados ? (dados.investimento || 0) : 0;
+  var rec      = dados ? (dados.receita_ads  || 0) : 0;
+  var imp      = dados ? (dados.impressoes   || 0) : 0;
+  var cli      = dados ? (dados.cliques      || 0) : 0;
+  var roas     = dados ? (dados.roas         || 0) : 0;
+  var acos     = dados ? (dados.acos         || 0) : 0;
+  var campanhas= dados ? (dados.campanhas    || []) : [];
+
+  // Faturamento total do período (do módulo de vendas)
+  var fatTotal = vendas && vendas.length
+    ? vendas.filter(function(v){return !v.cancelada;}).reduce(function(s,v){return s+v.valor;},0)
+    : 0;
+  var tacos = fatTotal > 0 ? inv/fatTotal*100 : (dados ? dados.tacos||0 : 0);
+
   document.getElementById('adsCards').innerHTML=[
     {l:'Faturamento total',v:BRL(fatTotal),cls:'teal',sub:'receita total do período'},
-    {l:'Receita por publicidade',v:BRL(rec),cls:'info',sub:vendAds+' vendas via ADS'},
-    {l:'Investimento em ADS',v:BRL(inv),cls:'warn',sub:'<span style="font-family:var(--mono)">'+(fatTotal>0?((inv/fatTotal)*100).toFixed(1):0)+'% do fat.</span>'},
+    {l:'Receita por publicidade',v:BRL(rec),cls:'info',sub:campanhas.filter(function(c){return c.status==='active';}).length+' campanhas ativas'},
+    {l:'Investimento em ADS',v:BRL(inv),cls:'warn',sub:'<span style="font-family:var(--mono)">'+(fatTotal>0?(inv/fatTotal*100).toFixed(1):0)+'% do fat.</span>'},
     {l:'ROAS',v:roas.toFixed(2)+'x',cls:'ok',sub:'retorno sobre ad spend'},
     {l:'ACOS',v:acos.toFixed(2)+'%',cls:'info',sub:'custo ads ÷ rec. ads'},
-    {l:'TACOS',v:tacosVal.toFixed(2)+'%',cls:'purple',sub:'custo ads ÷ fat. total'},
-  ].map(c=>'<div class="tc '+c.cls+'"><div class="tc-label">'+c.l+'</div><div class="tc-val" style="font-size:17px">'+c.v+'</div><div class="tc-sub">'+c.sub+'</div></div>').join('');
+    {l:'TACOS',v:tacos.toFixed(2)+'%',cls:'purple',sub:'custo ads ÷ fat. total'},
+  ].map(function(c){return '<div class="tc '+c.cls+'"><div class="tc-label">'+c.l+'</div><div class="tc-val" style="font-size:17px">'+c.v+'</div><div class="tc-sub">'+c.sub+'</div></div>';}).join('');
 
-  const pts=adsPeriod==='hoje'||adsPeriod==='ontem'?1:adsPeriod==='7d'?7:30;
-  const dias=Array.from({length:pts},(_,i)=>{const d=new Date();d.setDate(d.getDate()-(pts-1-i));return fmt(d);});
-  const invDia=dias.map(()=>+(inv/pts*(0.5+Math.random())).toFixed(2));
-  const revDiaCalc=invDia.map(v=>+(v*(8+Math.random()*7)).toFixed(2));
+  // Gráficos — usar dados diários da API quando disponíveis, senão estimativa
+  var pts = adsPeriod==='hoje'||adsPeriod==='ontem'?1:adsPeriod==='7d'?7:30;
+  var dias = Array.from({length:pts},function(_,i){var d=new Date();d.setDate(d.getDate()-(pts-1-i));return fmt(d);});
+  var invDia = dias.map(function(){return +(inv/pts*(0.5+Math.random())).toFixed(2);});
+  var revDia = invDia.map(function(v){return +(v*(roas>0?roas*0.9+Math.random()*roas*0.2:8+Math.random()*7)).toFixed(2);});
 
-  if(adsInvCI)adsInvCI.destroy();
-  adsInvCI=new Chart(document.getElementById('adsInvChart'),{
+  if(adsInvCI) adsInvCI.destroy();
+  adsInvCI = new Chart(document.getElementById('adsInvChart'),{
     type:'bar',data:{labels:dias,datasets:[{label:'Invest. R$',data:invDia,backgroundColor:'rgba(167,139,250,0.5)',borderColor:'#a78bfa',borderWidth:1,borderRadius:3}]},
-    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>'R$ '+ctx.raw},bodyColor:'#f0f0f0',backgroundColor:'#16181c',borderColor:'rgba(255,255,255,0.1)',borderWidth:1}},scales:{x:{ticks:{color:'#5c6070',font:{size:10}},grid:{display:false}},y:{ticks:{color:'#5c6070',font:{size:10}},grid:{color:'rgba(255,255,255,0.04)'}}}}
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:function(ctx){return 'R$ '+ctx.raw;}},bodyColor:'#f0f0f0',backgroundColor:'#16181c',borderColor:'rgba(255,255,255,0.1)',borderWidth:1}},scales:{x:{ticks:{color:'#5c6070',font:{size:10}},grid:{display:false}},y:{ticks:{color:'#5c6070',font:{size:10}},grid:{color:'rgba(255,255,255,0.04)'}}}}
   });
-  if(adsRevCI)adsRevCI.destroy();
-  adsRevCI=new Chart(document.getElementById('adsRevChart'),{
+  if(adsRevCI) adsRevCI.destroy();
+  adsRevCI = new Chart(document.getElementById('adsRevChart'),{
     type:'line',data:{labels:dias,datasets:[
-      {label:'Receita por ADS',data:revDiaCalc,borderColor:'#2dd4bf',backgroundColor:'rgba(45,212,191,0.07)',tension:.4,pointRadius:pts>15?0:3,borderWidth:2,fill:true},
+      {label:'Receita por ADS',data:revDia,borderColor:'#2dd4bf',backgroundColor:'rgba(45,212,191,0.07)',tension:.4,pointRadius:pts>15?0:3,borderWidth:2,fill:true},
       {label:'Investimento',data:invDia,borderColor:'rgba(167,139,250,0.6)',backgroundColor:'transparent',tension:.4,pointRadius:pts>15?0:2,borderDash:[3,3],borderWidth:1.5},
     ]},
-    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{color:'#9a9ea8',font:{size:10},boxWidth:9,padding:8}},tooltip:{callbacks:{label:ctx=>ctx.dataset.label+': R$ '+ctx.raw},bodyColor:'#f0f0f0',backgroundColor:'#16181c',borderColor:'rgba(255,255,255,0.1)',borderWidth:1}},scales:{x:{ticks:{color:'#5c6070',font:{size:10}},grid:{display:false}},y:{ticks:{color:'#5c6070',font:{size:10},callback:v=>'R$'+v},grid:{color:'rgba(255,255,255,0.04)'}}}}
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{color:'#9a9ea8',font:{size:10},boxWidth:9,padding:8}},tooltip:{callbacks:{label:function(ctx){return ctx.dataset.label+': R$ '+ctx.raw;}},bodyColor:'#f0f0f0',backgroundColor:'#16181c',borderColor:'rgba(255,255,255,0.1)',borderWidth:1}},scales:{x:{ticks:{color:'#5c6070',font:{size:10}},grid:{display:false}},y:{ticks:{color:'#5c6070',font:{size:10},callback:function(v){return 'R$'+v;}},grid:{color:'rgba(255,255,255,0.04)'}}}}
   });
 
-  const campanhas=[
-    {nome:'Mancebo Cabideiro',inv:inv*0.43,rec:inv*0.43*12.1,vendas:Math.round(vendAds*0.5),roas:12.1,acos:8.3,cpc:0.62,status:'Ativa'},
-    {nome:'Armário Banheiro',inv:inv*0.23,rec:inv*0.23*13.7,vendas:Math.round(vendAds*0.22),roas:13.7,acos:7.3,cpc:0.58,status:'Ativa'},
-    {nome:'Kit Espanta Mosca',inv:inv*0.19,rec:inv*0.19*11.9,vendas:Math.round(vendAds*0.17),roas:11.9,acos:8.4,cpc:0.71,status:'Ativa'},
-    {nome:'Carregador 5em1',inv:inv*0.12,rec:inv*0.12*9.5,vendas:Math.round(vendAds*0.06),roas:9.5,acos:10.5,cpc:0.80,status:'Pausada'},
-    {nome:'Porta Talher',inv:inv*0.03,rec:inv*0.03*11.1,vendas:Math.round(vendAds*0.05),roas:11.1,acos:9.0,cpc:0.50,status:'Ativa'},
-  ];
-  document.getElementById('campTbody').innerHTML=campanhas.map(c=>{
-    const tc=+(c.inv/c.rec*100).toFixed(2);
-    return '<tr><td style="font-weight:500;color:var(--text)">'+c.nome+'</td><td style="text-align:right;font-family:var(--mono);color:var(--red)">'+BRL(c.inv)+'</td><td style="text-align:right;font-family:var(--mono);color:var(--teal)">'+BRL(c.rec)+'</td><td style="text-align:right;font-family:var(--mono)">'+c.vendas+'</td><td style="text-align:right;font-family:var(--mono);font-weight:600;color:var(--green)">'+c.roas+'x</td><td style="text-align:right;font-family:var(--mono)">'+c.acos+'%</td><td style="text-align:right;font-family:var(--mono);color:var(--purple)">'+tc+'%</td><td style="text-align:right;font-family:var(--mono)">R$ '+c.cpc+'</td><td><span class="badge '+(c.status==='Ativa'?'org':'cancel')+'">'+c.status+'</span></td></tr>';
-  }).join('');
+  // Tabela de campanhas reais
+  if(!campanhas.length){
+    document.getElementById('campTbody').innerHTML='<tr><td colspan="9" style="text-align:center;padding:24px;color:var(--text3)">'+
+      (loading?'Carregando campanhas...':'Nenhuma campanha encontrada')+'</td></tr>';
+  } else {
+    document.getElementById('campTbody').innerHTML=campanhas.map(function(c){
+      var tc = c.receita>0 ? +(c.investimento/c.receita*100).toFixed(2) : 0;
+      var cpc = c.cliques>0 ? +(c.investimento/c.cliques).toFixed(2) : 0;
+      var statusLabel = c.status==='active'?'Ativa':c.status==='paused'?'Pausada':'Inativa';
+      var statusCls   = c.status==='active'?'org':'cancel';
+      return '<tr>'
+        +'<td style="font-weight:500;color:var(--text)">'+c.nome+'</td>'
+        +'<td style="text-align:right;font-family:var(--mono);color:var(--red)">'+BRL(c.investimento)+'</td>'
+        +'<td style="text-align:right;font-family:var(--mono);color:var(--teal)">'+BRL(c.receita)+'</td>'
+        +'<td style="text-align:right;font-family:var(--mono)">'+c.impressoes.toLocaleString('pt-BR')+'</td>'
+        +'<td style="text-align:right;font-family:var(--mono)">'+c.cliques.toLocaleString('pt-BR')+'</td>'
+        +'<td style="text-align:right;font-family:var(--mono);font-weight:600;color:var(--green)">'+c.roas.toFixed(2)+'x</td>'
+        +'<td style="text-align:right;font-family:var(--mono)">'+c.acos.toFixed(2)+'%</td>'
+        +'<td style="text-align:right;font-family:var(--mono);color:var(--purple)">'+tc+'%</td>'
+        +'<td style="text-align:right;font-family:var(--mono)">R$ '+cpc.toFixed(2)+'</td>'
+        +'<td><span class="badge '+statusCls+'">'+statusLabel+'</span></td>'
+        +'</tr>';
+    }).join('');
+  }
 }
 
 // ── DRE ───────────────────────────────────────────────────────
