@@ -1904,7 +1904,7 @@ select.pag-form-inp{cursor:pointer;}
   </div>
   <div class="g4" id="topCards"></div>
   <div class="sec">Filtrar por status ou fornecedor</div>
-  <div class="fbar" id="dashFilters"></div>
+  <div class="fbar" id="dashFilters" style="display:flex;align-items:center;flex-wrap:wrap;gap:4px"></div>
   <div class="sec" id="dashChartTitle">Cobertura de estoque — todos os produtos</div>
   <div class="cc">
     <div class="cleg">
@@ -1939,7 +1939,6 @@ select.pag-form-inp{cursor:pointer;}
       <input type="number" id="leadTimeInput" class="lead-input" min="1" max="180" value="7" onkeydown="if(event.key==='Enter')applyLeadTime()">
       <span class="lead-unit">dias</span>
       <button class="lead-apply-btn" onclick="applyLeadTime()" id="leadApplyBtn">Atualizar</button>
-      <button onclick="syncEstoqueAPI()" id="estSyncBtn" style="margin-left:8px;padding:6px 14px;border-radius:8px;background:var(--bg3);border:0.5px solid var(--border2);color:var(--text2);font-family:var(--font);font-size:12px;cursor:pointer">&#8635; Sincronizar</button>
       <span class="lead-hint" id="leadHint"></span>
     </div>
   </div>
@@ -3886,40 +3885,39 @@ async function syncEstoqueAPI(){
     }
 
     // Mesclar dados da API com dados locais (preservando custo, estFisico, prazo)
-    var dadosLocais = state.data || [];
+    // 'data' é a variável global do estoque (array de produtos)
     var localMap = {};
-    dadosLocais.forEach(function(p){ localMap[p.sku] = p; });
+    data.forEach(function(p){ localMap[p.sku] = p; if(p.ml_item_id) localMap[p.ml_item_id] = p; });
 
     var novos = estData.produtos.map(function(p){
-      // ml_item_id como fallback de SKU
       var sku = p.sku || p.ml_item_id || '';
       var local = localMap[sku] || localMap[p.ml_item_id] || {};
       var v30 = vendPorSku[sku] || vendPorSku[p.ml_item_id] || 0;
       var vdEf = v30 > 0 ? Math.max(1, Math.round(v30/30)) : (local.vdEf || local.vd || 1);
 
       return {
-        sku:          sku,
-        ml_item_id:   p.ml_item_id || '',
-        nome:         p.nome || local.nome || '',
-        cat:          local.cat || '',
-        forn:         local.forn || '',
-        custo:        local.custo || 0,
-        precoVenda:   p.preco || local.precoVenda || 0,
-        comissao:     local.comissao || 14,
-        taxaPlat:     local.taxaPlat || 5,
-        taxaFrete:    local.taxaFrete || 0,
-        estFisico:    local.estFisico || 0,   // manual
-        estTransf:    local.estTransf || 0,
-        estFull:      p.estoque || 0,          // API
-        v30:          v30,
-        vd:           vdEf,
-        vdEf:         vdEf,
-        prazo:        local.prazo || leadTime,
+        sku:           sku,
+        ml_item_id:    p.ml_item_id || '',
+        nome:          p.nome || local.nome || '',
+        cat:           local.cat || '',
+        forn:          local.forn || '',
+        custo:         local.custo || 0,
+        precoVenda:    p.preco || local.precoVenda || 0,
+        comissao:      local.comissao || 14,
+        taxaPlat:      local.taxaPlat || 5,
+        taxaFrete:     local.taxaFrete || 0,
+        estFisico:     local.estFisico || 0,
+        estTransf:     local.estTransf || 0,
+        estFull:       p.estoque || 0,
+        v30:           v30 || local.v30 || 0,
+        vd:            vdEf,
+        vdEf:          vdEf,
+        prazo:         local.prazo || leadTime,
         prazoOverride: local.prazoOverride || null,
       };
     });
 
-    state.data = novos;
+    data = novos;
     saveState();
     renderAll();
     showToast('Estoque sincronizado · '+novos.length+' produtos');
@@ -3967,6 +3965,7 @@ function buildFilters(sel,prods,fn){
   opts.forEach(o=>h+='<button class="fb'+(sel===o.k?' active':'')+'" onclick="'+fn+'(\''+o.k+'\')">'+o.l+'</button>');
   h+='<span class="fl" style="margin-left:6px">Fornecedor:</span>';
   forns.forEach(f=>h+='<button class="fb'+(sel===f?' active':'')+'" onclick="'+fn+'(\''+encodeURIComponent(f)+'\')">'+f+'</button>');
+  h+='<button onclick="syncEstoqueAPI()" id="estSyncBtn" style="margin-left:auto;padding:5px 12px;border-radius:20px;border:0.5px solid var(--accent);background:var(--accent);color:#fff;font-family:var(--font);font-size:12px;cursor:pointer">&#8635; Sincronizar</button>';
   return h;
 }
 
