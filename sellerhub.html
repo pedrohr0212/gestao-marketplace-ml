@@ -3898,7 +3898,7 @@ async function syncEstoqueAPI(){
       return {
         sku:           sku,
         ml_item_id:    p.ml_item_id || '',
-        nome:          p.nome || local.nome || '',
+        nome:          local.nome || p.nome || '',  // manual — preservar local
         cat:           local.cat || '',
         forn:          local.forn || '',
         custo:         local.custo || 0,
