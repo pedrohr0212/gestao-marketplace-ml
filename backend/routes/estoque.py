@@ -44,8 +44,16 @@ async def get_estoque(ml_user_id: str = Query(...)):
             if entry.get("code") != 200:
                 continue
             item = entry["body"]
+            seller_sku = item.get("seller_sku") or ""
+            # seller_sku pode estar em attributes se não estiver no nível raiz
+            if not seller_sku:
+                for attr in (item.get("attributes") or []):
+                    if attr.get("id") == "SELLER_SKU":
+                        seller_sku = attr.get("value_name") or ""
+                        break
+            print(f"[EST] item={item['id']} seller_sku={repr(seller_sku)}")
             produtos.append({
-                "sku":           item.get("seller_sku") or item["id"],
+                "sku":           seller_sku or item["id"],
                 "ml_item_id":    item["id"],
                 "nome":          item.get("title", ""),
                 "preco":         float(item.get("price", 0)),
