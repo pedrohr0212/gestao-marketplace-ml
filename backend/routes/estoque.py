@@ -9,25 +9,7 @@ router = APIRouter(prefix="/api/estoque", tags=["estoque"])
 ML_API = "https://api.mercadolibre.com"
 
 
-async def buscar_inventory_item(client, headers, item_id):
-    """Busca estoque Full e em transferência do item."""
-    full = 0
-    transf = 0
-    try:
-        # Tentar endpoint de inventário fulfillment
-        resp = await client.get(
-            f"{ML_API}/items/{item_id}/fulfillment_stock",
-            headers=headers
-        )
-        print(f"[EST] fulfillment_stock item={item_id} status={resp.status_code} body={resp.text[:200]}")
-        if resp.status_code == 200:
-            data = resp.json()
-            # Tentar diferentes formatos de resposta
-            full   = data.get("available_quantity", data.get("full_quantity", 0))
-            transf = data.get("not_available_quantity", data.get("transfer_quantity", 0))
-    except Exception as e:
-        print(f"[EST] fulfillment error item={item_id}: {e}")
-    return {"full": full, "transf": transf}
+
 
 
 @router.get("")
