@@ -217,6 +217,7 @@ async def get_vendas(
                 "id":          order["id"],
                 "sku":         raw_sku,
                 "ml_item_id":  item["item"].get("id", ""),
+                "variation_id": str(item["item"].get("variation_id", "") or ""),
                 "nome":        item["item"].get("title", ""),
                 "valor":       valor,
                 "qtde":        qtde,
