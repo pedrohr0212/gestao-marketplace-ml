@@ -3885,13 +3885,10 @@ async function syncEstoqueAPI(){
       vendDet.forEach(function(v){
         if(v.cancelada) return;
         var qtde = v.qtde || 1;
-        // Indexar por SKU interno e por ml_item_id para garantir o match
+        // Indexar por SKU interno (acumula vendas de todos os anúncios do mesmo SKU)
         if(v.sku) vendPorSku[v.sku] = (vendPorSku[v.sku]||0) + qtde;
+        // Indexar por ml_item_id como fallback
         if(v.ml_item_id) vendPorSku[v.ml_item_id] = (vendPorSku[v.ml_item_id]||0) + qtde;
-        if(v.titulo && !v.sku) {
-          var iid = (v.id||'').replace('VDA-','');
-          if(iid) vendPorSku[iid] = (vendPorSku[iid]||0) + qtde;
-        }
       });
     }
 
