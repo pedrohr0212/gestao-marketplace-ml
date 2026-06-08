@@ -89,7 +89,7 @@ async def get_estoque(ml_user_id: str = Query(...)):
                     if combo_str:
                         var_nome = f"{var_nome} — {combo_str}"
 
-                    print(f"[EST] {item['id']} var={var.get('id')} sku={repr(var_sku)} avail={var_avail}")
+                    print(f"[EST] {item['id']} var={var.get('id')} sku={repr(var_sku)} avail={var_avail} custom_field={repr(var.get('seller_custom_field'))} combos={var.get('attribute_combinations',[])[0] if var.get('attribute_combinations') else 'none'}")
 
                     produtos.append({
                         "sku":            var_sku,
