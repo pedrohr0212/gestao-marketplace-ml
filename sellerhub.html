@@ -3936,7 +3936,7 @@ async function syncEstoqueAPI(){
         taxaFrete:     local.taxaFrete || 0,
         estFisico:     local.estFisico || 0,
         estTransf:     p.estoque_transf || local.estTransf || 0,   // API
-        estFull:       p.estoque || 0,                              // API
+        estFull:       g.estFull,                                    // API (max entre anúncios)
         v30:           v30 || local.v30 || 0,
         v90:           vendPorSku90[p.sku] || vendPorSku90[p.ml_item_id] || local.v90 || 0,
         vd:            vdEf,
