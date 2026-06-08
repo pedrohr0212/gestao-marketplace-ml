@@ -8,6 +8,28 @@ router = APIRouter(prefix="/api/estoque", tags=["estoque"])
 ML_API = "https://api.mercadolibre.com"
 
 
+async def buscar_variacao_sku(client, headers, item_id, var_id):
+    """Busca SKU de uma variação específica."""
+    try:
+        resp = await client.get(
+            f"{ML_API}/items/{item_id}/variations/{var_id}",
+            headers=headers
+        )
+        if resp.status_code == 200:
+            data = resp.json()
+            # Tentar seller_custom_field primeiro
+            sku = data.get("seller_custom_field") or ""
+            if not sku:
+                for attr in (data.get("attribute_combinations") or []):
+                    if attr.get("id") == "SELLER_SKU":
+                        sku = attr.get("value_name") or ""
+                        break
+            return sku
+    except Exception as e:
+        print(f"[EST] var sku error {item_id}/{var_id}: {e}")
+    return ""
+
+
 @router.get("")
 async def get_estoque(ml_user_id: str = Query(...)):
     token   = await get_valid_token(ml_user_id)
@@ -18,7 +40,7 @@ async def get_estoque(ml_user_id: str = Query(...)):
         me = await client.get(f"{ML_API}/users/me", headers=headers)
     seller_id = me.json().get("id")
 
-    # Buscar todos os anúncios ativos + pausados (para ver ruptura)
+    # Buscar todos os anúncios ativos + pausados
     item_ids = []
     for status in ["active", "paused"]:
         offset = 0
@@ -38,10 +60,9 @@ async def get_estoque(ml_user_id: str = Query(...)):
     if not item_ids:
         return {"produtos": [], "total": 0}
 
-    # Deduplicar item_ids
     item_ids = list(dict.fromkeys(item_ids))
 
-    # Buscar detalhes em batch (máx 20 por vez) em paralelo
+    # Buscar detalhes em batch
     semaphore = asyncio.Semaphore(5)
 
     async def buscar_batch(batch):
@@ -51,10 +72,7 @@ async def get_estoque(ml_user_id: str = Query(...)):
                 det = await client.get(
                     f"{ML_API}/items",
                     headers=headers,
-                    params={
-                        "ids": ids,
-                        "attributes": "id,title,price,available_quantity,seller_sku,status,thumbnail,permalink,variations,attributes"
-                    }
+                    params={"ids": ids}
                 )
         return det.json()
 
@@ -62,6 +80,7 @@ async def get_estoque(ml_user_id: str = Query(...)):
     all_details = await asyncio.gather(*[buscar_batch(b) for b in batches])
 
     produtos = []
+
     for batch_result in all_details:
         for entry in batch_result:
             if entry.get("code") != 200:
@@ -70,45 +89,52 @@ async def get_estoque(ml_user_id: str = Query(...)):
             variations = item.get("variations") or []
 
             if variations:
-                # Produto com variações — criar uma linha por variação com SKU próprio
+                # Produto com variações — buscar SKU de cada variação individualmente
                 for var in variations:
+                    var_id    = var.get("id", "")
+                    var_avail = var.get("available_quantity", 0)
+
+                    # Tentar SKU direto da variação primeiro
                     var_sku = var.get("seller_custom_field") or ""
                     if not var_sku:
                         for attr in (var.get("attribute_combinations") or []):
                             if attr.get("id") == "SELLER_SKU":
                                 var_sku = attr.get("value_name") or ""
                                 break
-                    # Fallback: SKU do item pai + sufixo da variação
-                    if not var_sku:
-                        parent_sku = item.get("seller_sku") or ""
-                        var_id = str(var.get("id",""))
-                        var_sku = f"{parent_sku}-{var_id}" if parent_sku else item["id"]
 
-                    var_avail = var.get("available_quantity", 0)
-                    var_nome  = item.get("title","")
-                    # Adicionar atributos da variação ao nome
+                    # Se ainda vazio, buscar individualmente
+                    if not var_sku and var_id:
+                        async with httpx.AsyncClient(timeout=10) as client:
+                            var_sku = await buscar_variacao_sku(client, headers, item["id"], var_id)
+
+                    # Montar nome com atributos da variação
                     combos = var.get("attribute_combinations") or []
-                    combo_str = " / ".join([c.get("value_name","") for c in combos if c.get("value_name")])
+                    combo_str = " / ".join([
+                        c.get("value_name", "")
+                        for c in combos
+                        if c.get("value_name") and c.get("id") != "SELLER_SKU"
+                    ])
+                    var_nome = item.get("title", "")
                     if combo_str:
                         var_nome = f"{var_nome} — {combo_str}"
 
-                    print(f"[EST] {item['id']} var={var.get('id')} sku={repr(var_sku)} avail={var_avail} custom_field={repr(var.get('seller_custom_field'))} combos={var.get('attribute_combinations',[])[0] if var.get('attribute_combinations') else 'none'}")
+                    print(f"[EST] {item['id']} var={var_id} sku={repr(var_sku)} avail={var_avail}")
 
                     produtos.append({
-                        "sku":            var_sku,
-                        "ml_item_id":     item["id"],
-                        "ml_variation_id": str(var.get("id","")),
-                        "nome":           var_nome,
-                        "preco":          float(var.get("price") or item.get("price", 0)),
-                        "estoque":        var_avail,
-                        "estoque_transf": 0,
-                        "estoque_total":  var_avail,
-                        "status":         item.get("status", ""),
-                        "thumbnail":      item.get("thumbnail", ""),
-                        "permalink":      item.get("permalink", ""),
+                        "sku":             var_sku or f"{item['id']}-{var_id}",
+                        "ml_item_id":      item["id"],
+                        "ml_variation_id": str(var_id),
+                        "nome":            var_nome,
+                        "preco":           float(var.get("price") or item.get("price", 0)),
+                        "estoque":         var_avail,
+                        "estoque_transf":  0,
+                        "estoque_total":   var_avail,
+                        "status":          item.get("status", ""),
+                        "thumbnail":       item.get("thumbnail", ""),
+                        "permalink":       item.get("permalink", ""),
                     })
             else:
-                # Produto simples — extrair SKU normalmente
+                # Produto simples
                 seller_sku = item.get("seller_sku") or ""
                 if not seller_sku:
                     for attr in (item.get("attributes") or []):
@@ -120,17 +146,17 @@ async def get_estoque(ml_user_id: str = Query(...)):
                 print(f"[EST] {item['id']} sku={repr(seller_sku)} avail={avail}")
 
                 produtos.append({
-                    "sku":            seller_sku or item["id"],
-                    "ml_item_id":     item["id"],
+                    "sku":             seller_sku or item["id"],
+                    "ml_item_id":      item["id"],
                     "ml_variation_id": "",
-                    "nome":           item.get("title", ""),
-                    "preco":          float(item.get("price", 0)),
-                    "estoque":        avail,
-                    "estoque_transf": 0,
-                    "estoque_total":  avail,
-                    "status":         item.get("status", ""),
-                    "thumbnail":      item.get("thumbnail", ""),
-                    "permalink":      item.get("permalink", ""),
+                    "nome":            item.get("title", ""),
+                    "preco":           float(item.get("price", 0)),
+                    "estoque":         avail,
+                    "estoque_transf":  0,
+                    "estoque_total":   avail,
+                    "status":          item.get("status", ""),
+                    "thumbnail":       item.get("thumbnail", ""),
+                    "permalink":       item.get("permalink", ""),
                 })
 
     return {"produtos": produtos, "total": len(produtos)}
