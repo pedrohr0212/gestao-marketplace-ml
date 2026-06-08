@@ -1,10 +1,9 @@
 import httpx
 import asyncio
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 from auth import get_valid_token
 
 router = APIRouter()
-
 ML_API = "https://api.mercadolibre.com"
 
 async def fetch_json(client: httpx.AsyncClient, url: str, token: str):
@@ -14,23 +13,18 @@ async def fetch_json(client: httpx.AsyncClient, url: str, token: str):
     return {}
 
 async def get_skus_for_item(client: httpx.AsyncClient, item_id: str, token: str) -> dict:
-    """Busca SKU de cada variação via /items/{id}"""
     data = await fetch_json(client, f"{ML_API}/items/{item_id}?attributes=id,variations,seller_sku,attributes", token)
     result = {}
-
-    # SKU raiz
     item_sku = data.get("seller_sku") or ""
     if not item_sku:
         for attr in data.get("attributes", []):
             if attr.get("id") == "SELLER_SKU":
                 item_sku = attr.get("value_name", "")
                 break
-
     variations = data.get("variations", [])
     if not variations:
         result[""] = item_sku
         return result
-
     for v in variations:
         vid = str(v.get("id", ""))
         sku = v.get("seller_custom_field") or ""
@@ -45,8 +39,28 @@ async def get_skus_for_item(client: httpx.AsyncClient, item_id: str, token: str)
                     sku = attr.get("value_name", "")
                     break
         result[vid] = sku or item_sku or ""
-
     return result
+
+async def fetch_all_ids_by_status(client, ml_user_id, token, status):
+    """Busca todos os IDs de anúncios de um determinado status"""
+    ids = []
+    offset = 0
+    limit  = 100
+    total  = None
+    while True:
+        url  = f"{ML_API}/users/{ml_user_id}/items/search?status={status}&limit={limit}&offset={offset}"
+        data = await fetch_json(client, url, token)
+        if total is None:
+            total = data.get("paging", {}).get("total", 0)
+            print(f"[ESTOQUE] status={status} total={total}")
+        batch = data.get("results", [])
+        if not batch:
+            break
+        ids.extend(batch)
+        offset += len(batch)
+        if offset >= total or offset >= 1000:
+            break
+    return ids
 
 @router.get("/api/estoque")
 async def get_estoque(ml_user_id: str):
@@ -54,68 +68,41 @@ async def get_estoque(ml_user_id: str):
 
     async with httpx.AsyncClient() as client:
 
-        # ── 1. Buscar TODOS os IDs de itens ativos (com paginação correta) ──
-        all_item_ids = []
-        offset = 0
-        limit  = 100
-        total  = None
-
-        while True:
-            url  = f"{ML_API}/users/{ml_user_id}/items/search?status=active&limit={limit}&offset={offset}"
-            data = await fetch_json(client, url, token)
-
-            if total is None:
-                total = data.get("paging", {}).get("total", 0)
-                print(f"[ESTOQUE] total itens ativos no ML: {total}")
-
-            ids = data.get("results", [])
-            if not ids:
-                break
-
-            all_item_ids.extend(ids)
-            offset += len(ids)
-
-            if offset >= total:
-                break
-            # Segurança: ML limita offset a 1000
-            if offset >= 1000:
-                print(f"[ESTOQUE] atenção: limite ML de 1000 atingido, total real={total}")
-                break
-
-        print(f"[ESTOQUE] IDs coletados: {len(all_item_ids)} de {total}")
+        # ── 1. Buscar IDs de active + paused (anúncios que o vendedor gerencia) ──
+        ids_active, ids_paused = await asyncio.gather(
+            fetch_all_ids_by_status(client, ml_user_id, token, "active"),
+            fetch_all_ids_by_status(client, ml_user_id, token, "paused"),
+        )
+        all_item_ids = list(dict.fromkeys(ids_active + ids_paused))  # dedup preservando ordem
+        print(f"[ESTOQUE] total IDs: active={len(ids_active)} paused={len(ids_paused)} total={len(all_item_ids)}")
 
         if not all_item_ids:
             return {"produtos": []}
 
         # ── 2. Buscar detalhes em lotes de 20 ────────────────────────────
         raw_items = []
-        lote_size = 20
-        for i in range(0, len(all_item_ids), lote_size):
-            lote    = all_item_ids[i:i+lote_size]
-            ids_str = ",".join(lote)
-            url     = f"{ML_API}/items?ids={ids_str}&attributes=id,title,price,available_quantity,seller_sku,attributes,variations,status"
+        for i in range(0, len(all_item_ids), 20):
+            lote    = all_item_ids[i:i+20]
+            url     = f"{ML_API}/items?ids={','.join(lote)}&attributes=id,title,price,available_quantity,seller_sku,attributes,variations,status"
             resp    = await fetch_json(client, url, token)
-
             if isinstance(resp, list):
-                for item in resp:
-                    if item.get("code") == 200:
-                        raw_items.append(item.get("body", {}))
+                raw_items.extend(item.get("body", {}) for item in resp if item.get("code") == 200)
             elif isinstance(resp, dict) and "results" in resp:
                 raw_items.extend(resp["results"])
 
-        print(f"[ESTOQUE] detalhes recebidos: {len(raw_items)}")
+        print(f"[ESTOQUE] detalhes: {len(raw_items)}")
 
         # ── 3. Buscar SKUs de variações em paralelo ───────────────────────
-        tasks_coroutines = []
-        tasks_items      = []
+        tasks_items = []
+        tasks_coros = []
         for item in raw_items:
             if item.get("variations"):
                 tasks_items.append((item, True))
-                tasks_coroutines.append(get_skus_for_item(client, item.get("id",""), token))
+                tasks_coros.append(get_skus_for_item(client, item.get("id",""), token))
             else:
                 tasks_items.append((item, False))
 
-        sku_results = await asyncio.gather(*tasks_coroutines, return_exceptions=True)
+        sku_results = await asyncio.gather(*tasks_coros, return_exceptions=True)
 
         # ── 4. Montar lista de produtos ───────────────────────────────────
         produtos = []
@@ -128,7 +115,6 @@ async def get_estoque(ml_user_id: str):
             avail_qty = item.get("available_quantity", 0)
             status    = item.get("status", "active")
 
-            # SKU raiz do item
             item_sku = item.get("seller_sku") or ""
             if not item_sku:
                 for attr in item.get("attributes", []):
