@@ -1,203 +1,184 @@
-# routes/estoque.py — Nexora Gestão Marketplace ML
 import httpx
 import asyncio
-from fastapi import APIRouter, Query
-from auth import get_valid_token
+from fastapi import APIRouter, HTTPException
+from config import get_settings
 
-router = APIRouter(prefix="/api/estoque", tags=["estoque"])
+router = APIRouter()
+settings = get_settings()
+
 ML_API = "https://api.mercadolibre.com"
 
-
-async def buscar_variacao_sku(client, headers, item_id, var_id):
-    """Busca SKU de uma variação específica."""
+async def get_token(ml_user_id: str) -> str:
+    import asyncpg
+    conn = await asyncpg.connect(settings.database_url)
     try:
-        resp = await client.get(
-            f"{ML_API}/items/{item_id}/variations/{var_id}",
-            headers=headers
+        row = await conn.fetchrow(
+            "SELECT access_token FROM ml_tokens WHERE ml_user_id=$1 ORDER BY updated_at DESC LIMIT 1",
+            str(ml_user_id)
         )
-        if resp.status_code == 200:
-            data = resp.json()
-            # Tentar seller_custom_field primeiro
-            sku = data.get("seller_custom_field") or ""
-            if not sku:
-                for attr in (data.get("attribute_combinations") or []):
-                    if attr.get("id") == "SELLER_SKU":
-                        sku = attr.get("value_name") or ""
-                        break
-            return sku
-    except Exception as e:
-        print(f"[EST] var sku error {item_id}/{var_id}: {e}")
-    return ""
+        if not row:
+            raise HTTPException(status_code=401, detail="Usuário não encontrado")
+        return row["access_token"]
+    finally:
+        await conn.close()
 
+async def fetch_json(client: httpx.AsyncClient, url: str, token: str) -> dict:
+    r = await client.get(url, headers={"Authorization": f"Bearer {token}"}, timeout=15)
+    if r.status_code == 200:
+        return r.json()
+    return {}
 
-@router.get("")
-async def get_estoque(ml_user_id: str = Query(...)):
-    token   = await get_valid_token(ml_user_id)
-    headers = {"Authorization": f"Bearer {token}"}
+async def get_seller_skus_from_variations(client: httpx.AsyncClient, item_id: str, token: str) -> dict:
+    """Busca SKU de cada variação diretamente via /items/{id} — campo seller_custom_field ou attributes"""
+    data = await fetch_json(client, f"{ML_API}/items/{item_id}?attributes=id,variations,seller_sku", token)
+    result = {}
+    
+    # SKU no nível do item (sem variação)
+    item_sku = data.get("seller_sku") or ""
+    if not item_sku:
+        for attr in data.get("attributes", []):
+            if attr.get("id") == "SELLER_SKU":
+                item_sku = attr.get("value_name", "")
+                break
 
-    # Buscar ID do vendedor
-    async with httpx.AsyncClient(timeout=15) as client:
-        me = await client.get(f"{ML_API}/users/me", headers=headers)
-    seller_id = me.json().get("id")
+    variations = data.get("variations", [])
+    if not variations:
+        # Produto sem variação — retorna SKU do item
+        result[""] = item_sku
+        return result
 
-    # Buscar todos os anúncios ativos + pausados
-    item_ids = []
-    for status in ["active", "paused"]:
+    for v in variations:
+        vid = str(v.get("id", ""))
+        sku = v.get("seller_custom_field") or ""
+        if not sku:
+            for attr in v.get("attribute_combinations", []):
+                if attr.get("id") == "SELLER_SKU":
+                    sku = attr.get("value_name", "")
+                    break
+        if not sku:
+            for attr in v.get("attributes", []):
+                if attr.get("id") == "SELLER_SKU":
+                    sku = attr.get("value_name", "")
+                    break
+        result[vid] = sku or item_sku or ""
+
+    return result
+
+@router.get("/api/estoque")
+async def get_estoque(ml_user_id: str):
+    token = await get_token(ml_user_id)
+
+    async with httpx.AsyncClient() as client:
+        # 1. Buscar todos os itens ativos do vendedor
+        all_items = []
         offset = 0
         while True:
-            async with httpx.AsyncClient(timeout=15) as client:
-                resp = await client.get(
-                    f"{ML_API}/users/{seller_id}/items/search",
-                    headers=headers,
-                    params={"status": status, "limit": 100, "offset": offset}
-                )
-            results = resp.json().get("results", [])
-            item_ids.extend(results)
-            if len(results) < 100:
+            url = f"{ML_API}/users/{ml_user_id}/items/search?status=active&limit=100&offset={offset}"
+            data = await fetch_json(client, url, token)
+            ids = data.get("results", [])
+            if not ids:
+                break
+            all_items.extend(ids)
+            if len(ids) < 100:
                 break
             offset += 100
 
-    if not item_ids:
-        return {"produtos": [], "total": 0}
+        if not all_items:
+            return {"produtos": []}
 
-    item_ids = list(dict.fromkeys(item_ids))
+        # 2. Buscar detalhes em lotes de 20
+        produtos = []
+        lote_size = 20
+        for i in range(0, len(all_items), lote_size):
+            lote = all_items[i:i+lote_size]
+            ids_str = ",".join(lote)
+            url = f"{ML_API}/items?ids={ids_str}&attributes=id,title,price,available_quantity,seller_sku,attributes,variations,status"
+            data = await fetch_json(client, url, token)
+            
+            items_lote = []
+            if isinstance(data, list):
+                items_lote = [item.get("body", {}) for item in data if item.get("code") == 200]
+            elif isinstance(data, dict) and "results" in data:
+                items_lote = data["results"]
 
-    # Buscar mapa variation_id -> seller_sku via pedidos recentes
-    var_sku_map = {}
-    try:
-        from datetime import datetime, timedelta, timezone
-        BRT = timezone(timedelta(hours=-3))
-        dt_from = (datetime.now(BRT) - timedelta(days=90)).strftime("%Y-%m-%dT00:00:00.000-03:00")
-        dt_to   = datetime.now(BRT).strftime("%Y-%m-%dT23:59:59.999-03:00")
-        offset_p = 0
-        while True:
-            async with httpx.AsyncClient(timeout=20) as client:
-                rp = await client.get(
-                    f"{ML_API}/orders/search",
-                    headers={"Authorization": f"Bearer {token}"},
-                    params={"seller": seller_id, "sort": "date_desc",
-                            "offset": offset_p, "limit": 50,
-                            "order.status": "paid",
-                            "order.date_created.from": dt_from,
-                            "order.date_created.to":   dt_to}
-                )
-            orders = rp.json().get("results", []) if rp.status_code == 200 else []
-            for order in orders:
-                for oi in order.get("order_items", []):
-                    it     = oi.get("item", {})
-                    var_id = str(it.get("variation_id", "") or "")
-                    sku    = it.get("seller_sku", "") or ""
-                    if not sku:
-                        for attr in (it.get("variation_attributes") or []):
-                            if attr.get("id") == "SELLER_SKU":
-                                sku = attr.get("value_name", "") or ""
-                                break
-                    if var_id and sku:
-                        var_sku_map[var_id] = sku
-            if len(orders) < 50:
-                break
-            offset_p += 50
-            if offset_p > 2000:
-                break
-        print(f"[EST] var_sku_map: {len(var_sku_map)} variacoes mapeadas")
-    except Exception as e:
-        print(f"[EST] var_sku_map error: {e}")
+            # 3. Para cada item, resolver SKUs de variações
+            tasks = []
+            for item in items_lote:
+                item_id = item.get("id", "")
+                has_variations = bool(item.get("variations"))
+                if has_variations:
+                    tasks.append((item, get_seller_skus_from_variations(client, item_id, token)))
+                else:
+                    tasks.append((item, None))
 
-        # Buscar detalhes em batch
-    semaphore = asyncio.Semaphore(5)
+            # Executar buscas de variação em paralelo
+            variation_results = await asyncio.gather(
+                *[t[1] for t in tasks if t[1] is not None],
+                return_exceptions=True
+            )
 
-    async def buscar_batch(batch):
-        ids = ",".join(batch)
-        async with semaphore:
-            async with httpx.AsyncClient(timeout=15) as client:
-                det = await client.get(
-                    f"{ML_API}/items",
-                    headers=headers,
-                    params={"ids": ids}
-                )
-        return det.json()
+            var_idx = 0
+            for item, task in tasks:
+                item_id = item.get("id", "")
+                title = item.get("title", "")
+                price = item.get("price", 0)
+                avail_qty = item.get("available_quantity", 0)
+                item_status = item.get("status", "active")
 
-    batches = [item_ids[i:i+20] for i in range(0, len(item_ids), 20)]
-    all_details = await asyncio.gather(*[buscar_batch(b) for b in batches])
-
-    produtos = []
-
-    for batch_result in all_details:
-        for entry in batch_result:
-            if entry.get("code") != 200:
-                continue
-            item = entry["body"]
-            variations = item.get("variations") or []
-
-            if variations:
-                # Produto com variações — buscar SKU de cada variação individualmente
-                for var in variations:
-                    var_id    = var.get("id", "")
-                    var_avail = var.get("available_quantity", 0)
-
-                    # Tentar SKU direto da variação primeiro
-                    var_sku = var.get("seller_custom_field") or ""
-                    if not var_sku:
-                        for attr in (var.get("attribute_combinations") or []):
-                            if attr.get("id") == "SELLER_SKU":
-                                var_sku = attr.get("value_name") or ""
-                                break
-
-                    # Se ainda vazio, buscar individualmente
-                    if not var_sku and var_id:
-                        async with httpx.AsyncClient(timeout=10) as client:
-                            var_sku = await buscar_variacao_sku(client, headers, item["id"], var_id)
-
-                    # Montar nome com atributos da variação
-                    combos = var.get("attribute_combinations") or []
-                    combo_str = " / ".join([
-                        c.get("value_name", "")
-                        for c in combos
-                        if c.get("value_name") and c.get("id") != "SELLER_SKU"
-                    ])
-                    var_nome = item.get("title", "")
-                    if combo_str:
-                        var_nome = f"{var_nome} — {combo_str}"
-
-                    print(f"[EST] {item['id']} var={var_id} sku={repr(var_sku)} avail={var_avail}")
-
-                    produtos.append({
-                        "sku":             var_sku,  # vazio se não cadastrado no ML
-                        "ml_item_id":      item["id"],
-                        "ml_variation_id": str(var_id),
-                        "nome":            var_nome,
-                        "preco":           float(var.get("price") or item.get("price", 0)),
-                        "estoque":         var_avail,
-                        "estoque_transf":  0,
-                        "estoque_total":   var_avail,
-                        "status":          item.get("status", ""),
-                        "thumbnail":       item.get("thumbnail", ""),
-                        "permalink":       item.get("permalink", ""),
-                    })
-            else:
-                # Produto simples
-                seller_sku = item.get("seller_sku") or ""
-                if not seller_sku:
-                    for attr in (item.get("attributes") or []):
+                # SKU do item (sem variação)
+                item_sku = item.get("seller_sku") or ""
+                if not item_sku:
+                    for attr in item.get("attributes", []):
                         if attr.get("id") == "SELLER_SKU":
-                            seller_sku = attr.get("value_name") or ""
+                            item_sku = attr.get("value_name", "")
                             break
 
-                avail = item.get("available_quantity", 0)
-                print(f"[EST] {item['id']} sku={repr(seller_sku)} avail={avail}")
+                variations = item.get("variations", [])
 
-                produtos.append({
-                    "sku":             seller_sku or item["id"],
-                    "ml_item_id":      item["id"],
-                    "ml_variation_id": "",
-                    "nome":            item.get("title", ""),
-                    "preco":           float(item.get("price", 0)),
-                    "estoque":         avail,
-                    "estoque_transf":  0,
-                    "estoque_total":   avail,
-                    "status":          item.get("status", ""),
-                    "thumbnail":       item.get("thumbnail", ""),
-                    "permalink":       item.get("permalink", ""),
-                })
+                if task is not None:
+                    sku_map = variation_results[var_idx] if not isinstance(variation_results[var_idx], Exception) else {}
+                    var_idx += 1
 
-    return {"produtos": produtos, "total": len(produtos)}
+                    if variations:
+                        for v in variations:
+                            vid = str(v.get("id", ""))
+                            v_qty = v.get("available_quantity", 0)
+                            v_sku = sku_map.get(vid, "") or item_sku or ""
+                            produtos.append({
+                                "sku": v_sku,
+                                "ml_item_id": item_id,
+                                "ml_variation_id": vid,
+                                "nome": title,
+                                "preco": price,
+                                "estoque": v_qty,
+                                "estoque_transf": 0,
+                                "estoque_total": v_qty,
+                                "status": item_status,
+                            })
+                    else:
+                        sku = sku_map.get("", "") or item_sku or ""
+                        produtos.append({
+                            "sku": sku,
+                            "ml_item_id": item_id,
+                            "ml_variation_id": "",
+                            "nome": title,
+                            "preco": price,
+                            "estoque": avail_qty,
+                            "estoque_transf": 0,
+                            "estoque_total": avail_qty,
+                            "status": item_status,
+                        })
+                else:
+                    produtos.append({
+                        "sku": item_sku,
+                        "ml_item_id": item_id,
+                        "ml_variation_id": "",
+                        "nome": title,
+                        "preco": price,
+                        "estoque": avail_qty,
+                        "estoque_transf": 0,
+                        "estoque_total": avail_qty,
+                        "status": item_status,
+                    })
+
+        return {"produtos": produtos}
