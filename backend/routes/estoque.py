@@ -155,3 +155,31 @@ async def get_estoque(ml_user_id: str):
 
         print(f"[ESTOQUE] produtos retornados: {len(produtos)}")
         return {"produtos": produtos}
+
+@router.get("/api/estoque/debug_item")
+async def debug_item(ml_user_id: str, item_id: str):
+    """Debug: retorna JSON raw do item para inspecionar campos de SKU"""
+    token = await get_valid_token(ml_user_id)
+    async with httpx.AsyncClient() as client:
+        # Buscar sem filtro de attributes para ver tudo
+        r = await client.get(
+            f"{ML_API}/items/{item_id}",
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=30
+        )
+        data = r.json()
+        # Retornar só campos relevantes para não poluir
+        result = {
+            "id": data.get("id"),
+            "seller_sku": data.get("seller_sku"),
+            "attributes": [a for a in data.get("attributes", []) if "SKU" in a.get("id","").upper()],
+            "variations": []
+        }
+        for v in data.get("variations", []):
+            result["variations"].append({
+                "id": v.get("id"),
+                "seller_custom_field": v.get("seller_custom_field"),
+                "attribute_combinations": v.get("attribute_combinations", []),
+                "attributes": [a for a in v.get("attributes", []) if "SKU" in a.get("id","").upper()],
+            })
+        return result
