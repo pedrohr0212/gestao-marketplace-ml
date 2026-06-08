@@ -1946,7 +1946,6 @@ select.pag-form-inp{cursor:pointer;}
   <!-- Tabela de inventário -->
   <div class="fbar" id="finFilters" style="display:flex;align-items:center;flex-wrap:wrap;gap:4px"></div>
   <div style="display:flex;align-items:center;gap:8px;padding:8px 0 4px" id="invSearchWrap"></div>
-  <div id="invPagination"></div>
   <div class="tw">
     <table id="invTable">
       <thead>
@@ -1969,6 +1968,7 @@ select.pag-form-inp{cursor:pointer;}
       <tfoot id="finTFoot"></tfoot>
     </table>
   </div>
+  <div id="invPagination"></div>
 </div>
 
 <!-- MOVIMENTAÇÃO -->
@@ -4111,7 +4111,7 @@ function renderInvSearchBar(){
   if(!wrap) return;
   wrap.innerHTML=
     '<input id="invSearchInput" type="text" placeholder="Filtrar por produto, SKU..." '+
-    'style="flex:1;min-width:180px;padding:6px 10px;border-radius:8px;background:var(--bg3);border:0.5px solid var(--border2);color:var(--text);font-family:var(--font);font-size:12px" '+
+    'style="width:280px;padding:6px 10px;border-radius:8px;background:var(--bg3);border:0.5px solid var(--border2);color:var(--text);font-family:var(--font);font-size:12px" '+
     'oninput="onInvSearch(this.value)" value="'+_invSearch+'">'+
     '<select id="invPerPageSel" style="padding:5px 10px;border-radius:8px;background:var(--bg3);border:0.5px solid var(--border2);color:var(--text2);font-family:var(--font);font-size:12px;cursor:pointer" onchange="onInvPerPage(this.value)">'+
     '<option value="10"'  +(_invPerPage===10?  ' selected':'')+'>10 por pagina</option>'+
