@@ -200,9 +200,23 @@ async def get_vendas(
             mc    = round(valor - tarifa - frete_item - imposto, 2)
             mcPct = round((mc / valor * 100), 1) if valor else 0
 
+            # Extrair SKU: tenta item pai, depois variation_attributes, depois attributes
+            raw_sku = item["item"].get("seller_sku", "")
+            if not raw_sku:
+                for attr in (item["item"].get("variation_attributes") or []):
+                    if attr.get("id") == "SELLER_SKU":
+                        raw_sku = attr.get("value_name", "")
+                        break
+            if not raw_sku:
+                for attr in (item["item"].get("attributes") or []):
+                    if attr.get("id") == "SELLER_SKU":
+                        raw_sku = attr.get("value_name", "")
+                        break
+
             vendas.append({
                 "id":          order["id"],
-                "sku":         item["item"].get("seller_sku", ""),
+                "sku":         raw_sku,
+                "ml_item_id":  item["item"].get("id", ""),
                 "nome":        item["item"].get("title", ""),
                 "valor":       valor,
                 "qtde":        qtde,
