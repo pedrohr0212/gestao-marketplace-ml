@@ -4118,9 +4118,8 @@ function renderInvTable(prods,filter){
     const dias=p.diasRup>=999?'90+':p.diasRup;
     const dCor=p.diasRup<=7?'var(--red)':p.diasRup<=14?'var(--amber)':p.diasRup<=30?'#d97706':'var(--green)';
     return '<tr>'+
-      '<td style="text-align:center;font-family:var(--mono);color:var(--accent2);font-size:11px;white-space:nowrap;cursor:pointer" '+
-        'title="Clique para copiar" onclick="navigator.clipboard.writeText(\''+(p.sku||'').replace(/\'/g,\'\')+'\').then(function(){showToast(\'SKU copiado!\')})">'+p.sku+'</td>'+
-      '<td style="font-weight:500;font-size:12px;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+p.nome.replace(/"/g,\'&quot;\')+'">'+(p.nome.length>45?p.nome.substring(0,45)+'…':p.nome)+'</td>'+
+      '<td style="text-align:center;font-family:var(--mono);color:var(--accent2);font-size:11px;white-space:nowrap;cursor:pointer" onclick="(function(){navigator.clipboard.writeText(\''+(p.sku||'')+'\')})()" title="Clique para copiar">'+( p.sku||'')+'</td>'+
+      '<td style="font-weight:500;font-size:12px;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+(p.nome||'').replace(/"/g,\"&quot;\")+'">'+(( p.nome||'').length>45?(p.nome||'').substring(0,45)+'…':(p.nome||''))+'</td>'+
       '<td style="text-align:right;font-family:var(--mono)">'+p.estFisico+'</td>'+
       '<td style="text-align:right;font-family:var(--mono);color:'+(p.estTransf>0?'var(--amber)':'var(--text2)')+'">'+p.estTransf+'</td>'+
       '<td style="text-align:right;font-family:var(--mono);color:var(--blue)">'+p.estFull+'</td>'+
