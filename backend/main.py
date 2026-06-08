@@ -20,24 +20,25 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Nexora — Gestão Marketplace ML",
     version="1.0.0",
-    description="Backend para gestão de vendas, estoque e publicidade no Mercado Livre",
     lifespan=lifespan,
 )
 
-# CORS — permite o frontend do GitHub Pages chamar a API
+# CORS — permite GitHub Pages e desenvolvimento local
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "https://pedrohr0212.github.io",
+        "https://pedrohr0212.github.io/gestao-marketplace-ml",
         "http://localhost:3000",
+        "http://localhost:5500",
         "http://127.0.0.1:5500",
+        "http://localhost:8080",
     ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Registrar rotas
 app.include_router(auth_router)
 app.include_router(vendas_router)
 app.include_router(estoque_router)
@@ -46,12 +47,7 @@ app.include_router(webhooks_router)
 
 @app.get("/")
 async def root():
-    return {
-        "app":     "Nexora Gestão Marketplace ML",
-        "versao":  "1.0.0",
-        "status":  "online",
-        "docs":    "/docs",
-    }
+    return {"app": "Nexora Gestão Marketplace ML", "versao": "1.0.0", "status": "online"}
 
 @app.get("/health")
 async def health():
