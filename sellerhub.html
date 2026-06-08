@@ -3814,10 +3814,10 @@ function calcProd(p){
   const daysOrd=Math.max(0,diasRup>=999?999:diasRup-ltEf);
   const dataComp=new Date(TODAY);dataComp.setDate(dataComp.getDate()+daysOrd);
   let status;
-  // Inativo: sem vendas nos últimos 90 dias (v30=0 por 3 meses consecutivos)
+  // Inativo: sem nenhuma venda nos últimos 90 dias
   const v90=p.v90||0;
-  const semVendas=(!p.v30||p.v30===0)&&(!v90||v90===0);
-  if(semVendas&&estBase===0)status='inativo';
+  const semVendas90=(!v90||v90===0);
+  if(semVendas90)status='inativo';
   else if(estBase===0&&estPed===0)status='ruptura';
   else if(diasRup<=7)status='urgente';
   else if(diasRup<=14)status='critico';
@@ -3873,12 +3873,15 @@ async function syncEstoqueAPI(){
 
     if(!estData || !estData.produtos) return;
 
-    // Buscar vendas detalhadas para calcular média por SKU
-    var rVendDet = await fetch(
-      BACKEND_EST+'/api/vendas?ml_user_id='+userId+'&periodo=30d',
-      {headers:{'Authorization':'Bearer '+token}}
-    );
+    // Buscar vendas 30d (média/dia) e 90d (inatividade) em paralelo
+    var [rVendDet, rVend90] = await Promise.all([
+      fetch(BACKEND_EST+'/api/vendas?ml_user_id='+userId+'&periodo=30d',
+        {headers:{'Authorization':'Bearer '+token}}),
+      fetch(BACKEND_EST+'/api/vendas?ml_user_id='+userId+'&periodo=90d',
+        {headers:{'Authorization':'Bearer '+token}})
+    ]);
     var vendDetRaw = rVendDet.ok ? await rVendDet.json() : [];
+    var vend90Raw  = rVend90.ok  ? await rVend90.json()  : [];
     // /api/vendas retorna {vendas:[...]} ou array direto
     var vendDet = Array.isArray(vendDetRaw) ? vendDetRaw : (vendDetRaw.vendas || []);
     console.log('[SYNC] rVendDet.ok='+rVendDet.ok+' vendDetRaw type='+typeof vendDetRaw+' vendDet.length='+vendDet.length);
@@ -3891,14 +3894,21 @@ async function syncEstoqueAPI(){
       vendDet.forEach(function(v){
         if(v.cancelada) return;
         var qtde = v.qtde || 1;
-        // Indexar por SKU (acumula vendas de todos os anúncios do mesmo SKU)
         if(v.sku) vendPorSku[v.sku] = (vendPorSku[v.sku]||0) + qtde;
-        // Indexar por ml_item_id como fallback
         if(v.ml_item_id) vendPorSku[v.ml_item_id] = (vendPorSku[v.ml_item_id]||0) + qtde;
-        // Indexar por variation_id se disponível
         if(v.variation_id) vendPorSku[String(v.variation_id)] = (vendPorSku[String(v.variation_id)]||0) + qtde;
       });
     }
+    // Calcular vendas por SKU nos últimos 90d — determina inatividade
+    var vend90Det = Array.isArray(vend90Raw) ? vend90Raw : (vend90Raw.vendas || []);
+    var vendPorSku90 = {};
+    vend90Det.forEach(function(v){
+      if(v.cancelada) return;
+      var qtde = v.qtde || 1;
+      if(v.sku) vendPorSku90[v.sku] = (vendPorSku90[v.sku]||0) + qtde;
+      if(v.ml_item_id) vendPorSku90[v.ml_item_id] = (vendPorSku90[v.ml_item_id]||0) + qtde;
+      if(v.variation_id) vendPorSku90[String(v.variation_id)] = (vendPorSku90[String(v.variation_id)]||0) + qtde;
+    });
 
     // Mesclar dados da API com dados locais (preservando custo, estFisico, prazo)
     // 'data' é a variável global do estoque (array de produtos)
@@ -3927,6 +3937,7 @@ async function syncEstoqueAPI(){
         estTransf:     p.estoque_transf || local.estTransf || 0,   // API
         estFull:       p.estoque || 0,                              // API
         v30:           v30 || local.v30 || 0,
+        v90:           vendPorSku90[p.sku] || vendPorSku90[p.ml_item_id] || local.v90 || 0,
         vd:            vdEf,
         vdEf:          vdEf,
         prazo:         local.prazo || leadTime,
