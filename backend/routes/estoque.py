@@ -1,26 +1,11 @@
 import httpx
 import asyncio
 from fastapi import APIRouter, HTTPException
-from config import get_settings
+from auth import get_valid_token
 
 router = APIRouter()
-settings = get_settings()
 
 ML_API = "https://api.mercadolibre.com"
-
-async def get_token(ml_user_id: str) -> str:
-    import asyncpg
-    conn = await asyncpg.connect(settings.database_url)
-    try:
-        row = await conn.fetchrow(
-            "SELECT access_token FROM ml_tokens WHERE ml_user_id=$1 ORDER BY updated_at DESC LIMIT 1",
-            str(ml_user_id)
-        )
-        if not row:
-            raise HTTPException(status_code=401, detail="Usuário não encontrado")
-        return row["access_token"]
-    finally:
-        await conn.close()
 
 async def fetch_json(client: httpx.AsyncClient, url: str, token: str) -> dict:
     r = await client.get(url, headers={"Authorization": f"Bearer {token}"}, timeout=15)
@@ -29,11 +14,11 @@ async def fetch_json(client: httpx.AsyncClient, url: str, token: str) -> dict:
     return {}
 
 async def get_seller_skus_from_variations(client: httpx.AsyncClient, item_id: str, token: str) -> dict:
-    """Busca SKU de cada variação diretamente via /items/{id} — campo seller_custom_field ou attributes"""
-    data = await fetch_json(client, f"{ML_API}/items/{item_id}?attributes=id,variations,seller_sku", token)
+    """Busca SKU de cada variação diretamente via /items/{id}"""
+    data = await fetch_json(client, f"{ML_API}/items/{item_id}?attributes=id,variations,seller_sku,attributes", token)
     result = {}
-    
-    # SKU no nível do item (sem variação)
+
+    # SKU no nível do item
     item_sku = data.get("seller_sku") or ""
     if not item_sku:
         for attr in data.get("attributes", []):
@@ -43,7 +28,6 @@ async def get_seller_skus_from_variations(client: httpx.AsyncClient, item_id: st
 
     variations = data.get("variations", [])
     if not variations:
-        # Produto sem variação — retorna SKU do item
         result[""] = item_sku
         return result
 
@@ -66,7 +50,7 @@ async def get_seller_skus_from_variations(client: httpx.AsyncClient, item_id: st
 
 @router.get("/api/estoque")
 async def get_estoque(ml_user_id: str):
-    token = await get_token(ml_user_id)
+    token = await get_valid_token(ml_user_id)
 
     async with httpx.AsyncClient() as client:
         # 1. Buscar todos os itens ativos do vendedor
@@ -94,38 +78,35 @@ async def get_estoque(ml_user_id: str):
             ids_str = ",".join(lote)
             url = f"{ML_API}/items?ids={ids_str}&attributes=id,title,price,available_quantity,seller_sku,attributes,variations,status"
             data = await fetch_json(client, url, token)
-            
+
             items_lote = []
             if isinstance(data, list):
                 items_lote = [item.get("body", {}) for item in data if item.get("code") == 200]
             elif isinstance(data, dict) and "results" in data:
                 items_lote = data["results"]
 
-            # 3. Para cada item, resolver SKUs de variações
-            tasks = []
+            # 3. Para itens com variação, buscar SKUs em paralelo
+            tasks_with_items = []
+            tasks_coroutines = []
             for item in items_lote:
                 item_id = item.get("id", "")
-                has_variations = bool(item.get("variations"))
-                if has_variations:
-                    tasks.append((item, get_seller_skus_from_variations(client, item_id, token)))
+                if item.get("variations"):
+                    tasks_with_items.append((item, True))
+                    tasks_coroutines.append(get_seller_skus_from_variations(client, item_id, token))
                 else:
-                    tasks.append((item, None))
+                    tasks_with_items.append((item, False))
 
-            # Executar buscas de variação em paralelo
-            variation_results = await asyncio.gather(
-                *[t[1] for t in tasks if t[1] is not None],
-                return_exceptions=True
-            )
-
+            variation_results = await asyncio.gather(*tasks_coroutines, return_exceptions=True)
             var_idx = 0
-            for item, task in tasks:
-                item_id = item.get("id", "")
-                title = item.get("title", "")
-                price = item.get("price", 0)
-                avail_qty = item.get("available_quantity", 0)
-                item_status = item.get("status", "active")
 
-                # SKU do item (sem variação)
+            for item, has_var in tasks_with_items:
+                item_id   = item.get("id", "")
+                title     = item.get("title", "")
+                price     = item.get("price", 0)
+                avail_qty = item.get("available_quantity", 0)
+                status    = item.get("status", "active")
+
+                # SKU do item raiz
                 item_sku = item.get("seller_sku") or ""
                 if not item_sku:
                     for attr in item.get("attributes", []):
@@ -133,52 +114,35 @@ async def get_estoque(ml_user_id: str):
                             item_sku = attr.get("value_name", "")
                             break
 
-                variations = item.get("variations", [])
-
-                if task is not None:
+                if has_var:
                     sku_map = variation_results[var_idx] if not isinstance(variation_results[var_idx], Exception) else {}
                     var_idx += 1
-
-                    if variations:
-                        for v in variations:
-                            vid = str(v.get("id", ""))
-                            v_qty = v.get("available_quantity", 0)
-                            v_sku = sku_map.get(vid, "") or item_sku or ""
-                            produtos.append({
-                                "sku": v_sku,
-                                "ml_item_id": item_id,
-                                "ml_variation_id": vid,
-                                "nome": title,
-                                "preco": price,
-                                "estoque": v_qty,
-                                "estoque_transf": 0,
-                                "estoque_total": v_qty,
-                                "status": item_status,
-                            })
-                    else:
-                        sku = sku_map.get("", "") or item_sku or ""
+                    for v in item.get("variations", []):
+                        vid   = str(v.get("id", ""))
+                        v_qty = v.get("available_quantity", 0)
+                        v_sku = sku_map.get(vid, "") or item_sku or ""
                         produtos.append({
-                            "sku": sku,
-                            "ml_item_id": item_id,
-                            "ml_variation_id": "",
-                            "nome": title,
-                            "preco": price,
-                            "estoque": avail_qty,
-                            "estoque_transf": 0,
-                            "estoque_total": avail_qty,
-                            "status": item_status,
+                            "sku":             v_sku,
+                            "ml_item_id":      item_id,
+                            "ml_variation_id": vid,
+                            "nome":            title,
+                            "preco":           price,
+                            "estoque":         v_qty,
+                            "estoque_transf":  0,
+                            "estoque_total":   v_qty,
+                            "status":          status,
                         })
                 else:
                     produtos.append({
-                        "sku": item_sku,
-                        "ml_item_id": item_id,
+                        "sku":             item_sku,
+                        "ml_item_id":      item_id,
                         "ml_variation_id": "",
-                        "nome": title,
-                        "preco": price,
-                        "estoque": avail_qty,
-                        "estoque_transf": 0,
-                        "estoque_total": avail_qty,
-                        "status": item_status,
+                        "nome":            title,
+                        "preco":           price,
+                        "estoque":         avail_qty,
+                        "estoque_transf":  0,
+                        "estoque_total":   avail_qty,
+                        "status":          status,
                     })
 
         return {"produtos": produtos}
