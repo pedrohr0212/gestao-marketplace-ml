@@ -31,10 +31,12 @@ async def build_sku_map_from_orders(ml_user_id: str, token: str) -> tuple:
             )
             r = await client.get(url, headers=headers, timeout=30)
             if r.status_code != 200:
-                print(f"[ESTOQUE] orders/search erro: {r.status_code}")
+                print(f"[ESTOQUE] orders/search erro: {r.status_code} url={url[:150]}")
                 break
             data    = r.json()
+            total_pg = data.get("paging", {}).get("total", 0)
             results = data.get("results", [])
+            print(f"[ESTOQUE] orders offset={offset} total={total_pg} results={len(results)}")
             if not results:
                 break
 
