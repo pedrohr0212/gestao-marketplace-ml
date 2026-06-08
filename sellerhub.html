@@ -4125,22 +4125,38 @@ function onInvSearch(v){ _invSearch=v.toLowerCase(); _invPage=1; setFF(finFilter
 function onInvPerPage(v){ _invPerPage=Number(v); _invPage=1; setFF(finFilter); }
 
 function renderInvTable(prods,filter){
-  let rows=[...prods];
-  if(filter==='valor')rows.sort((a,b)=>b.valorTotal-a.valorTotal);
-  else if(filter==='cob')rows.sort((a,b)=>a.diasRup-b.diasRup);
-  else if(!['todos','valor','cob','ruptura','urgente','critico','atencao','ok','inativo'].includes(filter))rows=rows.filter(p=>p.forn===filter);
-  else if(['ruptura','urgente','critico','atencao','ok'].includes(filter))rows=rows.filter(p=>p.status===filter);
-  const tv=prods.reduce((s,p)=>s+p.valorTotal,0);
+  var rows=[...prods];
+  if(filter==='valor')rows.sort(function(a,b){return b.valorTotal-a.valorTotal;});
+  else if(filter==='cob')rows.sort(function(a,b){return a.diasRup-b.diasRup;});
+  else if(!['todos','valor','cob','ruptura','urgente','critico','atencao','ok','inativo'].includes(filter))rows=rows.filter(function(p){return p.forn===filter;});
+  else if(['ruptura','urgente','critico','atencao','ok','inativo'].includes(filter))rows=rows.filter(function(p){return p.status===filter;});
+  // Inativos sempre no final quando filtro nao for 'inativo'
+  if(filter!=='inativo'){
+    var ativos=rows.filter(function(p){return p.status!=='inativo';});
+    var inat  =rows.filter(function(p){return p.status==='inativo';});
+    rows=ativos.concat(inat);
+  }
+  // Filtro de busca
+  if(_invSearch){
+    var q=_invSearch;
+    rows=rows.filter(function(p){return (p.sku||'').toLowerCase().indexOf(q)>=0||(p.nome||'').toLowerCase().indexOf(q)>=0;});
+  }
+  var total=rows.length;
+  var perPage=_invPerPage>=9999?total:_invPerPage;
+  var totalPages=Math.max(1,Math.ceil(total/(perPage||1)));
+  if(_invPage>totalPages)_invPage=totalPages;
+  var start=(_invPage-1)*(perPage||total);
+  var pageRows=rows.slice(start,start+(perPage||total));
 
-  document.getElementById('finTBody').innerHTML=rows.map(p=>{
-    const estSeg=Math.round(p.vdEf*leadTime);
-    const proj45=Math.round(p.vdEf*45);
-    const v30=p.v30||Math.round(p.vdEf*30);
-    const dias=p.diasRup>=999?'90+':p.diasRup;
-    const dCor=p.diasRup<=7?'var(--red)':p.diasRup<=14?'var(--amber)':p.diasRup<=30?'#d97706':'var(--green)';
+  document.getElementById('finTBody').innerHTML=pageRows.map(function(p){
+    var estSeg=Math.round(p.vdEf*leadTime);
+    var proj45=Math.round(p.vdEf*45);
+    var v30=p.v30||Math.round(p.vdEf*30);
+    var dias=p.diasRup>=999?'90+':p.diasRup;
+    var dCor=p.diasRup<=7?'var(--red)':p.diasRup<=14?'var(--amber)':p.diasRup<=30?'#d97706':'var(--green)';
     return '<tr>'+
-      '<td style="text-align:center;font-family:var(--mono);color:var(--accent2);font-size:11px;white-space:nowrap;cursor:pointer" onclick="(function(){navigator.clipboard.writeText(\''+(p.sku||'')+'\')})()" title="Clique para copiar">'+( p.sku||'')+'</td>'+
-      '<td style="font-weight:500;font-size:12px;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+( p.nome||'')+'">'+((p.nome||'').length>45?(p.nome||'').substring(0,45)+'...':(p.nome||''))+'</td>'+
+      '<td style="text-align:center;font-family:var(--mono);color:var(--accent2);font-size:11px;white-space:nowrap;cursor:pointer" onclick="navigator.clipboard.writeText(\''+( p.sku||'').replace(/'/g,"\\'")+'\');showToast(\'SKU copiado!\')" title="Clique para copiar">'+(p.sku||'')+'</td>'+
+      '<td style="font-weight:500;font-size:12px;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+(p.nome||'')+'">'+(( p.nome||'').length>45?(p.nome||'').substring(0,45)+'...':(p.nome||''))+'</td>'+
       '<td style="text-align:right;font-family:var(--mono)">'+p.estFisico+'</td>'+
       '<td style="text-align:right;font-family:var(--mono);color:'+(p.estTransf>0?'var(--amber)':'var(--text2)')+'">'+p.estTransf+'</td>'+
       '<td style="text-align:right;font-family:var(--mono);color:var(--blue)">'+p.estFull+'</td>'+
@@ -4155,25 +4171,25 @@ function renderInvTable(prods,filter){
       '</tr>';
   }).join('');
 
-  const totU=rows.reduce((s,p)=>s+p.estBase,0);
-  const totV=rows.reduce((s,p)=>s+p.valorTotal,0);
-  const tot30=rows.reduce((s,p)=>s+(p.v30||Math.round(p.vdEf*30)),0);
-  // Paginação — rodapé
+  // Rodape paginacao
   var pgHtml='';
   if(totalPages>1){
     pgHtml='<div style="display:flex;align-items:center;justify-content:center;gap:6px;padding:10px 0;flex-wrap:wrap">';
-    pgHtml+='<span style="font-size:11px;color:var(--text3)">'+total+' itens · pág '+_invPage+'/'+totalPages+'</span>';
-    pgHtml+='<button onclick="onInvGoPage('+Math.max(1,_invPage-1)+')" style="padding:4px 10px;border-radius:6px;background:var(--bg3);border:0.5px solid var(--border2);color:var(--text2);cursor:pointer;font-size:12px"'+(_invPage===1?' disabled':'')+'>‹</button>';
-    var pStart=Math.max(1,_invPage-2), pEnd=Math.min(totalPages,_invPage+2);
+    pgHtml+='<span style="font-size:11px;color:var(--text3)">'+total+' itens &middot; pag '+_invPage+'/'+totalPages+'</span>';
+    pgHtml+='<button onclick="onInvGoPage('+Math.max(1,_invPage-1)+')" style="padding:4px 10px;border-radius:6px;background:var(--bg3);border:0.5px solid var(--border2);color:var(--text2);cursor:pointer;font-size:12px"'+(_invPage===1?' disabled':'')+'>&lsaquo;</button>';
+    var pStart=Math.max(1,_invPage-2),pEnd=Math.min(totalPages,_invPage+2);
     for(var pi=pStart;pi<=pEnd;pi++){
       pgHtml+='<button onclick="onInvGoPage('+pi+')" style="padding:4px 10px;border-radius:6px;background:'+(pi===_invPage?'var(--accent)':'var(--bg3)')+';border:0.5px solid '+(pi===_invPage?'var(--accent)':'var(--border2)')+';color:'+(pi===_invPage?'#fff':'var(--text2)')+';cursor:pointer;font-size:12px">'+pi+'</button>';
     }
-    pgHtml+='<button onclick="onInvGoPage('+Math.min(totalPages,_invPage+1)+')" style="padding:4px 10px;border-radius:6px;background:var(--bg3);border:0.5px solid var(--border2);color:var(--text2);cursor:pointer;font-size:12px"'+(_invPage===totalPages?' disabled':'')+'>›</button>';
+    pgHtml+='<button onclick="onInvGoPage('+Math.min(totalPages,_invPage+1)+')" style="padding:4px 10px;border-radius:6px;background:var(--bg3);border:0.5px solid var(--border2);color:var(--text2);cursor:pointer;font-size:12px"'+(_invPage===totalPages?' disabled':'')+'>&rsaquo;</button>';
     pgHtml+='</div>';
   }
   var pgEl=document.getElementById('invPagination');
-  if(pgEl) pgEl.innerHTML=pgHtml;
+  if(pgEl)pgEl.innerHTML=pgHtml;
 
+  var totU=rows.reduce(function(s,p){return s+p.estBase;},0);
+  var totV=rows.reduce(function(s,p){return s+p.valorTotal;},0);
+  var tot30=rows.reduce(function(s,p){return s+(p.v30||Math.round(p.vdEf*30));},0);
   document.getElementById('finTFoot').innerHTML=
     '<tr style="background:var(--bg3)">'+
     '<td style="padding:8px 10px;font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase">Total ('+rows.length+' produtos)</td>'+
@@ -4181,8 +4197,11 @@ function renderInvTable(prods,filter){
     '<td style="text-align:right;padding:8px 10px;font-family:var(--mono);font-weight:600;color:var(--text)">'+totU+'</td>'+
     '<td style="padding:8px 10px"></td>'+
     '<td style="text-align:right;padding:8px 10px;font-family:var(--mono);font-weight:600;color:var(--teal)">'+BRL(totV)+'</td>'+
-    '<td style="text-align:right;padding:8px 10px;font-family:var(--mono);color:var(--text2)">'+tot30+'</td>'+
-    '<td colspan="4" style="padding:8px 10px"></td>'+
+    '<td style="text-align:right;padding:8px 10px;font-family:var(--mono);font-weight:600;color:var(--text)">'+tot30+'</td>'+
+    '<td style="padding:8px 10px"></td>'+
+    '<td style="padding:8px 10px"></td>'+
+    '<td style="padding:8px 10px"></td>'+
+    '<td style="padding:8px 10px"></td>'+
     '</tr>';
 }
 
