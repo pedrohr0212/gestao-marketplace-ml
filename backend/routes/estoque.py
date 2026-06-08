@@ -51,7 +51,10 @@ async def get_estoque(ml_user_id: str = Query(...)):
                 det = await client.get(
                     f"{ML_API}/items",
                     headers=headers,
-                    params={"ids": ids}
+                    params={
+                        "ids": ids,
+                        "attributes": "id,title,price,available_quantity,seller_sku,status,thumbnail,permalink,variations,attributes"
+                    }
                 )
         return det.json()
 
