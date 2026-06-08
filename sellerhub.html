@@ -3815,8 +3815,9 @@ function calcProd(p){
   const dataComp=new Date(TODAY);dataComp.setDate(dataComp.getDate()+daysOrd);
   let status;
   // Inativo: sem nenhuma venda nos últimos 90 dias
-  const v90=p.v90||0;
-  const semVendas90=(!v90||v90===0);
+  // Só aplica se v90 foi calculado via sync (p.v90 !== undefined)
+  const v90=p.v90;
+  const semVendas90=(v90!==undefined && v90!==null && v90===0);
   if(semVendas90)status='inativo';
   else if(estBase===0&&estPed===0)status='ruptura';
   else if(diasRup<=7)status='urgente';
