@@ -22,9 +22,12 @@ async def build_sku_map_from_orders(ml_user_id: str, token: str) -> tuple:
 
     async with httpx.AsyncClient() as client:
         while offset < 2000:
+            from datetime import datetime, timedelta, timezone
+            data_90d = (datetime.now(timezone.utc) - timedelta(days=90)).strftime("%Y-%m-%dT%H:%M:%S.000-00:00")
             url = (
                 f"{ML_API}/orders/search?seller={ml_user_id}"
-                f"&order.status=paid&limit=50&offset={offset}&sort=date_desc"
+                f"&order.status=paid&order.date_created.from={data_90d}"
+                f"&limit=50&offset={offset}&sort=date_desc"
             )
             r = await client.get(url, headers=headers, timeout=30)
             if r.status_code != 200:
