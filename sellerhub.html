@@ -681,7 +681,7 @@ img{max-width:100%}
 .badge.ruptura,.badge.urgente{background:var(--red-bg);color:var(--red)}
 .badge.critico{background:var(--amber-bg);color:var(--amber)}
 .badge.atencao{background:rgba(245,158,11,0.08);color:#d97706}
-.badge.ok{background:var(--green-bg);color:var(--green)}
+.badge.ok{background:var(--green-bg);color:var(--green)}.badge.inativo{background:var(--bg4);color:var(--text3)}
 .oc-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;padding:8px 0;border-top:0.5px solid var(--border);border-bottom:0.5px solid var(--border);margin-bottom:8px}
 .osl{font-size:10px;color:var(--text3);margin-bottom:2px;text-transform:uppercase;letter-spacing:.03em}
 .osv{font-size:12px;font-weight:500;font-family:var(--mono);color:var(--text)}
@@ -1945,6 +1945,8 @@ select.pag-form-inp{cursor:pointer;}
 
   <!-- Tabela de inventário -->
   <div class="fbar" id="finFilters" style="display:flex;align-items:center;flex-wrap:wrap;gap:4px"></div>
+  <div style="display:flex;align-items:center;gap:8px;padding:8px 0 4px" id="invSearchWrap"></div>
+  <div id="invPagination"></div>
   <div class="tw">
     <table id="invTable">
       <thead>
@@ -3812,7 +3814,11 @@ function calcProd(p){
   const daysOrd=Math.max(0,diasRup>=999?999:diasRup-ltEf);
   const dataComp=new Date(TODAY);dataComp.setDate(dataComp.getDate()+daysOrd);
   let status;
-  if(estBase===0&&estPed===0)status='ruptura';
+  // Inativo: sem vendas nos últimos 90 dias (v30=0 por 3 meses consecutivos)
+  const v90=p.v90||0;
+  const semVendas=(!p.v30||p.v30===0)&&(!v90||v90===0);
+  if(semVendas&&estBase===0)status='inativo';
+  else if(estBase===0&&estPed===0)status='ruptura';
   else if(diasRup<=7)status='urgente';
   else if(diasRup<=14)status='critico';
   else if(diasRup<=30)status='atencao';
@@ -3824,9 +3830,9 @@ function calcProd(p){
     pedido30:Math.max(0,Math.round(vdEf*30)-est)};
 }
 
-var SL={ruptura:'Em ruptura',urgente:'Urgente',critico:'Crítico',atencao:'Atenção',ok:'Saudável'};
-var PO={ruptura:0,urgente:1,critico:2,atencao:3,ok:4};
-var sCols={ruptura:'var(--red)',urgente:'var(--red)',critico:'var(--amber)',atencao:'#d97706',ok:'var(--green)'};
+var SL={ruptura:'Em ruptura',urgente:'Urgente',critico:'Crítico',atencao:'Atenção',ok:'Saudável',inativo:'Inativo'};
+var PO={ruptura:0,urgente:1,critico:2,atencao:3,ok:4,inativo:5};
+var sCols={ruptura:'var(--red)',urgente:'var(--red)',critico:'var(--amber)',atencao:'#d97706',ok:'var(--green)',inativo:'var(--text3)'};
 
 // ── RENDER ALL ────────────────────────────────────────────────
 function calcMargem(p){
@@ -3971,7 +3977,7 @@ function renderTopCards(prods){
 
 function buildFilters(sel,prods,fn){
   const forns=[...new Set(prods.map(p=>p.forn))];
-  const opts=[{k:'todos',l:'Todos'},{k:'ruptura',l:'Ruptura'},{k:'urgente',l:'Urgente'},{k:'critico',l:'Crítico'},{k:'atencao',l:'Atenção'},{k:'ok',l:'Saudável'}];
+  const opts=[{k:'todos',l:'Todos'},{k:'ruptura',l:'Ruptura'},{k:'urgente',l:'Urgente'},{k:'critico',l:'Crítico'},{k:'atencao',l:'Atenção'},{k:'ok',l:'Saudável'},{k:'inativo',l:'Inativo'}];
   let h='<span class="fl">Status:</span>';
   opts.forEach(o=>h+='<button class="fb'+(sel===o.k?' active':'')+'" onclick="'+fn+'(\''+o.k+'\')">'+o.l+'</button>');
   h+='<span class="fl" style="margin-left:6px">Fornecedor:</span>';
@@ -4074,12 +4080,13 @@ function renderFinanceiro(prods){
   // Filter bar
   const forns=[...new Set(prods.map(p=>p.forn))];
   let fh='<span class="fl">Status:</span>';
-  [{k:'todos',l:'Todos'},{k:'ruptura',l:'Ruptura'},{k:'urgente',l:'Urgente'},{k:'critico',l:'Crítico'},{k:'atencao',l:'Atenção'},{k:'ok',l:'Saudável'}].forEach(o=>fh+='<button class="fb'+(finFilter===o.k?' active':'')+'" onclick="setFF(\''+o.k+'\')">'+ o.l+'</button>');
+  [{k:'todos',l:'Todos'},{k:'ruptura',l:'Ruptura'},{k:'urgente',l:'Urgente'},{k:'critico',l:'Crítico'},{k:'atencao',l:'Atenção'},{k:'ok',l:'Saudável'},{k:'inativo',l:'Inativo'}].forEach(o=>fh+='<button class="fb'+(finFilter===o.k?' active':'')+'" onclick="setFF(\''+o.k+'\')">'+ o.l+'</button>');
   fh+='<span class="fl" style="margin-left:6px">Ordenar:</span>';
   fh+='<button class="fb'+(finFilter==='valor'?' active':'')+'" onclick="setFF(\'valor\')">Maior capital</button>';
   fh+='<button class="fb'+(finFilter==='cob'?' active':'')+'" onclick="setFF(\'cob\')">Menor cobertura</button>';
   fh+='<button onclick="syncEstoqueAPI()" id="estSyncBtn" style="margin-left:auto;padding:5px 12px;border-radius:20px;border:0.5px solid var(--accent);background:var(--accent);color:#fff;font-family:var(--font);font-size:12px;cursor:pointer">&#8635; Sincronizar</button>';
   document.getElementById('finFilters').innerHTML=fh;
+  renderInvSearchBar();
   renderInvTable(prods,finFilter);
 }
 
@@ -4089,7 +4096,7 @@ function renderInvTable(prods,filter){
   let rows=[...prods];
   if(filter==='valor')rows.sort((a,b)=>b.valorTotal-a.valorTotal);
   else if(filter==='cob')rows.sort((a,b)=>a.diasRup-b.diasRup);
-  else if(!['todos','valor','cob','ruptura','urgente','critico','atencao','ok'].includes(filter))rows=rows.filter(p=>p.forn===filter);
+  else if(!['todos','valor','cob','ruptura','urgente','critico','atencao','ok','inativo'].includes(filter))rows=rows.filter(p=>p.forn===filter);
   else if(['ruptura','urgente','critico','atencao','ok'].includes(filter))rows=rows.filter(p=>p.status===filter);
   const tv=prods.reduce((s,p)=>s+p.valorTotal,0);
 
@@ -4100,8 +4107,9 @@ function renderInvTable(prods,filter){
     const dias=p.diasRup>=999?'90+':p.diasRup;
     const dCor=p.diasRup<=7?'var(--red)':p.diasRup<=14?'var(--amber)':p.diasRup<=30?'#d97706':'var(--green)';
     return '<tr>'+
-      '<td style="text-align:center;font-family:var(--mono);color:var(--accent2);font-size:11px;white-space:nowrap">'+p.sku+'</td>'+
-      '<td style="font-weight:500;font-size:12px">'+p.nome+'</td>'+
+      '<td style="text-align:center;font-family:var(--mono);color:var(--accent2);font-size:11px;white-space:nowrap;cursor:pointer" '+
+        'title="Clique para copiar" onclick="navigator.clipboard.writeText(\''+(p.sku||'').replace(/\'/g,\'\')+'\').then(function(){showToast(\'SKU copiado!\')})">'+p.sku+'</td>'+
+      '<td style="font-weight:500;font-size:12px;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+p.nome.replace(/"/g,\'&quot;\')+'">'+(p.nome.length>45?p.nome.substring(0,45)+'…':p.nome)+'</td>'+
       '<td style="text-align:right;font-family:var(--mono)">'+p.estFisico+'</td>'+
       '<td style="text-align:right;font-family:var(--mono);color:'+(p.estTransf>0?'var(--amber)':'var(--text2)')+'">'+p.estTransf+'</td>'+
       '<td style="text-align:right;font-family:var(--mono);color:var(--blue)">'+p.estFull+'</td>'+
@@ -4119,6 +4127,22 @@ function renderInvTable(prods,filter){
   const totU=rows.reduce((s,p)=>s+p.estBase,0);
   const totV=rows.reduce((s,p)=>s+p.valorTotal,0);
   const tot30=rows.reduce((s,p)=>s+(p.v30||Math.round(p.vdEf*30)),0);
+  // Paginação — rodapé
+  var pgHtml='';
+  if(totalPages>1){
+    pgHtml='<div style="display:flex;align-items:center;justify-content:center;gap:6px;padding:10px 0;flex-wrap:wrap">';
+    pgHtml+='<span style="font-size:11px;color:var(--text3)">'+total+' itens · pág '+_invPage+'/'+totalPages+'</span>';
+    pgHtml+='<button onclick="onInvGoPage('+Math.max(1,_invPage-1)+')" style="padding:4px 10px;border-radius:6px;background:var(--bg3);border:0.5px solid var(--border2);color:var(--text2);cursor:pointer;font-size:12px"'+(_invPage===1?' disabled':'')+'>‹</button>';
+    var pStart=Math.max(1,_invPage-2), pEnd=Math.min(totalPages,_invPage+2);
+    for(var pi=pStart;pi<=pEnd;pi++){
+      pgHtml+='<button onclick="onInvGoPage('+pi+')" style="padding:4px 10px;border-radius:6px;background:'+(pi===_invPage?'var(--accent)':'var(--bg3)')+';border:0.5px solid '+(pi===_invPage?'var(--accent)':'var(--border2)')+';color:'+(pi===_invPage?'#fff':'var(--text2)')+';cursor:pointer;font-size:12px">'+pi+'</button>';
+    }
+    pgHtml+='<button onclick="onInvGoPage('+Math.min(totalPages,_invPage+1)+')" style="padding:4px 10px;border-radius:6px;background:var(--bg3);border:0.5px solid var(--border2);color:var(--text2);cursor:pointer;font-size:12px"'+(_invPage===totalPages?' disabled':'')+'>›</button>';
+    pgHtml+='</div>';
+  }
+  var pgEl=document.getElementById('invPagination');
+  if(pgEl) pgEl.innerHTML=pgHtml;
+
   document.getElementById('finTFoot').innerHTML=
     '<tr style="background:var(--bg3)">'+
     '<td style="padding:8px 10px;font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase">Total ('+rows.length+' produtos)</td>'+
