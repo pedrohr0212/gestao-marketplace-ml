@@ -3890,14 +3890,20 @@ async function syncEstoqueAPI(){
     if(vendDet.length > 0) console.log('[SYNC] exemplo venda[0]:', JSON.stringify(vendDet[0]).substring(0,200));
 
     // Calcular vendas por SKU nos últimos 30d
+    // Com variação: indexar por SKU + variation_id (NÃO ml_item_id — evita somar todas as variações)
+    // Sem variação: indexar por SKU + ml_item_id como fallback
     var vendPorSku = {};
     if(vendDet.length > 0){
       vendDet.forEach(function(v){
         if(v.cancelada) return;
         var qtde = v.qtde || 1;
+        var temVar = !!(v.variation_id);
         if(v.sku) vendPorSku[v.sku] = (vendPorSku[v.sku]||0) + qtde;
-        if(v.ml_item_id) vendPorSku[v.ml_item_id] = (vendPorSku[v.ml_item_id]||0) + qtde;
-        if(v.variation_id) vendPorSku[String(v.variation_id)] = (vendPorSku[String(v.variation_id)]||0) + qtde;
+        if(temVar){
+          vendPorSku[String(v.variation_id)] = (vendPorSku[String(v.variation_id)]||0) + qtde;
+        } else {
+          if(v.ml_item_id) vendPorSku[v.ml_item_id] = (vendPorSku[v.ml_item_id]||0) + qtde;
+        }
       });
     }
     // Calcular vendas por SKU nos últimos 90d — determina inatividade
@@ -3906,9 +3912,13 @@ async function syncEstoqueAPI(){
     vend90Det.forEach(function(v){
       if(v.cancelada) return;
       var qtde = v.qtde || 1;
+      var temVar = !!(v.variation_id);
       if(v.sku) vendPorSku90[v.sku] = (vendPorSku90[v.sku]||0) + qtde;
-      if(v.ml_item_id) vendPorSku90[v.ml_item_id] = (vendPorSku90[v.ml_item_id]||0) + qtde;
-      if(v.variation_id) vendPorSku90[String(v.variation_id)] = (vendPorSku90[String(v.variation_id)]||0) + qtde;
+      if(temVar){
+        vendPorSku90[String(v.variation_id)] = (vendPorSku90[String(v.variation_id)]||0) + qtde;
+      } else {
+        if(v.ml_item_id) vendPorSku90[v.ml_item_id] = (vendPorSku90[v.ml_item_id]||0) + qtde;
+      }
     });
 
     // Mesclar dados da API com dados locais (preservando custo, estFisico, prazo)
@@ -3920,23 +3930,22 @@ async function syncEstoqueAPI(){
       if(p.ml_variation_id) localMap[p.ml_variation_id] = p;
     });
 
-    // ── PASSO 1: mapear cada registro da API ──────────────────────────────
-    var mapeados = estData.produtos.map(function(p){
-      var varId  = p.ml_variation_id || '';
-      var skuRaw = p.sku || '';
-      // Chave de deduplicação: SKU real > variation_id humanizado > ml_item_id
-      var dedupKey = skuRaw
-        ? skuRaw
-        : (varId ? (p.ml_item_id+'-'+varId) : p.ml_item_id);
-      var local = localMap[skuRaw] || localMap[varId] || localMap[p.ml_item_id] || {};
-      var v30 = vendPorSku[skuRaw] || (varId ? vendPorSku[varId] : 0) || vendPorSku[p.ml_item_id] || 0;
-      var v90val = vendPorSku90[skuRaw] || (varId ? vendPorSku90[varId] : 0) || vendPorSku90[p.ml_item_id] || 0;
+    var novos = estData.produtos.map(function(p){
+      var varId = p.ml_variation_id || '';
+      var sku = p.sku || '';
+      // chave de lookup: SKU real > variation_id > ml_item_id
+      var lookupKey = sku || varId || p.ml_item_id || '';
+      var local = localMap[lookupKey] || localMap[p.ml_item_id] || {};
+      // vendas: tenta por SKU, variation_id, ml_item_id
+      var v30 = vendPorSku[sku] || (varId ? vendPorSku[varId] : 0) || vendPorSku[p.ml_item_id] || 0;
+      var vdEf = v30 > 0 ? Math.max(1, Math.round(v30/30)) : (local.vdEf || local.vd || 0);
+      if(lookupKey) console.log('[SYNC] sku='+sku+' varId='+varId+' ml_item_id='+p.ml_item_id+' v30='+v30+' vdEf='+vdEf);
+
       return {
-        _dedupKey:     dedupKey,
-        sku:           skuRaw || dedupKey,
+        sku:           lookupKey,
         ml_item_id:    p.ml_item_id || '',
         ml_variation_id: varId,
-        nome:          local.nome || p.nome || '',
+        nome:          local.nome || p.nome || '',  // manual — preservar local
         cat:           local.cat || '',
         forn:          local.forn || '',
         custo:         local.custo || 0,
@@ -3946,50 +3955,15 @@ async function syncEstoqueAPI(){
         taxaFrete:     local.taxaFrete || 0,
         estFisico:     local.estFisico || 0,
         estTransf:     p.estoque_transf || local.estTransf || 0,
-        estFull:       p.estoque || 0,
-        _v30raw:       v30,
-        _v90raw:       v90val,
-        vd:            0,
-        vdEf:          0,
+        estFull:       p.estoque || 0,               // campo real da API
+        v30:           v30 || local.v30 || 0,
+        v90:           vendPorSku90[sku] || (varId ? vendPorSku90[varId] : 0) || vendPorSku90[p.ml_item_id] || local.v90 || 0,
+        vd:            vdEf,
+        vdEf:          vdEf,
         prazo:         local.prazo || leadTime,
         prazoOverride: local.prazoOverride || null,
       };
     });
-
-    // ── PASSO 2: deduplicar por dedupKey ─────────────────────────────────
-    // Mesmo SKU em múltiplos anúncios → soma estFull, soma vendas, preserva dados locais
-    var dedupMap = {};
-    mapeados.forEach(function(p){
-      var k = p._dedupKey;
-      if(!dedupMap[k]){
-        dedupMap[k] = Object.assign({}, p);
-      } else {
-        // Somar estoques Full (anúncio A + anúncio B do mesmo produto)
-        dedupMap[k].estFull   += p.estFull;
-        dedupMap[k].estTransf += p.estTransf;
-        // Vendas: já estão somadas por SKU no vendPorSku, não duplicar
-        // Preservar maior estFisico registrado localmente
-        if(p.estFisico > dedupMap[k].estFisico) dedupMap[k].estFisico = p.estFisico;
-        // Preservar ml_item_ids múltiplos (útil para debug)
-        if(p.ml_item_id && dedupMap[k].ml_item_id !== p.ml_item_id){
-          dedupMap[k]._ml_item_ids = (dedupMap[k]._ml_item_ids || dedupMap[k].ml_item_id) + ',' + p.ml_item_id;
-        }
-      }
-    });
-
-    // ── PASSO 3: calcular vdEf após deduplicação ─────────────────────────
-    var novos = Object.values(dedupMap).map(function(p){
-      var v30 = p._v30raw;
-      var vdEf = v30 > 0 ? Math.max(1, Math.round(v30/30)) : (p.vd || 0);
-      p.v30   = v30;
-      p.v90   = p._v90raw;
-      p.vd    = vdEf;
-      p.vdEf  = vdEf;
-      delete p._dedupKey; delete p._v30raw; delete p._v90raw;
-      return p;
-    });
-
-    console.log('[SYNC] mapeados='+mapeados.length+' → dedupados='+novos.length);
 
     data = novos;
     saveState();
