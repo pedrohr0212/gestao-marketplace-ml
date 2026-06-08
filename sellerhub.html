@@ -4124,6 +4124,7 @@ function renderInvSearchBar(){
 }
 function onInvSearch(v){ _invSearch=v.toLowerCase(); _invPage=1; setFF(finFilter); }
 function onInvPerPage(v){ _invPerPage=Number(v); _invPage=1; setFF(finFilter); }
+function onInvGoPage(n){ _invPage=Number(n); setFF(finFilter); }
 
 function renderInvTable(prods,filter){
   var rows=[...prods];
