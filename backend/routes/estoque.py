@@ -12,54 +12,57 @@ async def fetch_json(client: httpx.AsyncClient, url: str, token: str):
         return r.json()
     return {}
 
-async def build_sku_map_from_orders(ml_user_id: str, token: str) -> dict:
+async def build_sku_map_from_orders(ml_user_id: str, token: str) -> tuple:
     """Constrói mapa variation_id → sku a partir dos pedidos dos últimos 90d"""
-    sku_map = {}  # variation_id → sku
-    item_sku_map = {}  # ml_item_id → sku (para itens sem variação)
+    sku_map = {}      # variation_id → sku
+    item_sku_map = {} # ml_item_id → sku
 
-    offset = 0
-    while offset < 1000:
-        url = (
-            f"{ML_API}/orders/search?seller={ml_user_id}"
-            f"&order.status=paid&order.date_created.from=NOW-90DAYS"
-            f"&limit=50&offset={offset}&sort=date_desc"
-        )
-        async with httpx.AsyncClient() as client:
-            data = await fetch_json(client, url, token)
+    headers = {"Authorization": f"Bearer {token}"}
+    offset  = 0
 
-        results = data.get("results", [])
-        if not results:
-            break
+    async with httpx.AsyncClient() as client:
+        while offset < 2000:
+            url = (
+                f"{ML_API}/orders/search?seller={ml_user_id}"
+                f"&order.status=paid&limit=50&offset={offset}&sort=date_desc"
+            )
+            r = await client.get(url, headers=headers, timeout=30)
+            if r.status_code != 200:
+                print(f"[ESTOQUE] orders/search erro: {r.status_code}")
+                break
+            data    = r.json()
+            results = data.get("results", [])
+            if not results:
+                break
 
-        for order in results:
-            for item in order.get("order_items", []):
-                item_info = item.get("item", {})
-                ml_item_id  = str(item_info.get("id", ""))
-                variation_id = str(item_info.get("variation_id", "") or "")
+            for order in results:
+                for item in order.get("order_items", []):
+                    item_info    = item.get("item", {})
+                    ml_item_id   = str(item_info.get("id", ""))
+                    variation_id = str(item_info.get("variation_id", "") or "")
 
-                # Extrair SKU igual ao vendas.py
-                raw_sku = item_info.get("seller_sku", "")
-                if not raw_sku:
-                    for attr in item_info.get("variation_attributes", []):
-                        if attr.get("id") == "SELLER_SKU":
-                            raw_sku = attr.get("value_name", "")
-                            break
-                if not raw_sku:
-                    for attr in item_info.get("attributes", []):
-                        if attr.get("id") == "SELLER_SKU":
-                            raw_sku = attr.get("value_name", "")
-                            break
+                    raw_sku = item_info.get("seller_sku", "")
+                    if not raw_sku:
+                        for attr in item_info.get("variation_attributes", []):
+                            if attr.get("id") == "SELLER_SKU":
+                                raw_sku = attr.get("value_name", "")
+                                break
+                    if not raw_sku:
+                        for attr in item_info.get("attributes", []):
+                            if attr.get("id") == "SELLER_SKU":
+                                raw_sku = attr.get("value_name", "")
+                                break
 
-                if raw_sku:
-                    if variation_id:
-                        sku_map[variation_id] = raw_sku
-                    if ml_item_id:
-                        item_sku_map[ml_item_id] = raw_sku
+                    if raw_sku:
+                        if variation_id:
+                            sku_map[variation_id] = raw_sku
+                        if ml_item_id:
+                            item_sku_map[ml_item_id] = raw_sku
 
-        total = data.get("paging", {}).get("total", 0)
-        offset += len(results)
-        if offset >= total:
-            break
+            total   = data.get("paging", {}).get("total", 0)
+            offset += len(results)
+            if offset >= total:
+                break
 
     print(f"[ESTOQUE] mapa SKU via pedidos: {len(sku_map)} variações, {len(item_sku_map)} itens")
     return sku_map, item_sku_map
