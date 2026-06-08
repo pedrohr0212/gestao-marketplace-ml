@@ -162,7 +162,7 @@ async def get_estoque(ml_user_id: str = Query(...)):
                     print(f"[EST] {item['id']} var={var_id} sku={repr(var_sku)} avail={var_avail}")
 
                     produtos.append({
-                        "sku":             var_sku or f"{item['id']}-{var_id}",
+                        "sku":             var_sku,  # vazio se não cadastrado no ML
                         "ml_item_id":      item["id"],
                         "ml_variation_id": str(var_id),
                         "nome":            var_nome,
