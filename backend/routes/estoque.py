@@ -62,7 +62,48 @@ async def get_estoque(ml_user_id: str = Query(...)):
 
     item_ids = list(dict.fromkeys(item_ids))
 
-    # Buscar detalhes em batch
+    # Buscar mapa variation_id -> seller_sku via pedidos recentes
+    var_sku_map = {}
+    try:
+        from datetime import datetime, timedelta, timezone
+        BRT = timezone(timedelta(hours=-3))
+        dt_from = (datetime.now(BRT) - timedelta(days=90)).strftime("%Y-%m-%dT00:00:00.000-03:00")
+        dt_to   = datetime.now(BRT).strftime("%Y-%m-%dT23:59:59.999-03:00")
+        offset_p = 0
+        while True:
+            async with httpx.AsyncClient(timeout=20) as client:
+                rp = await client.get(
+                    f"{ML_API}/orders/search",
+                    headers={"Authorization": f"Bearer {token}"},
+                    params={"seller": seller_id, "sort": "date_desc",
+                            "offset": offset_p, "limit": 50,
+                            "order.status": "paid",
+                            "order.date_created.from": dt_from,
+                            "order.date_created.to":   dt_to}
+                )
+            orders = rp.json().get("results", []) if rp.status_code == 200 else []
+            for order in orders:
+                for oi in order.get("order_items", []):
+                    it     = oi.get("item", {})
+                    var_id = str(it.get("variation_id", "") or "")
+                    sku    = it.get("seller_sku", "") or ""
+                    if not sku:
+                        for attr in (it.get("variation_attributes") or []):
+                            if attr.get("id") == "SELLER_SKU":
+                                sku = attr.get("value_name", "") or ""
+                                break
+                    if var_id and sku:
+                        var_sku_map[var_id] = sku
+            if len(orders) < 50:
+                break
+            offset_p += 50
+            if offset_p > 2000:
+                break
+        print(f"[EST] var_sku_map: {len(var_sku_map)} variacoes mapeadas")
+    except Exception as e:
+        print(f"[EST] var_sku_map error: {e}")
+
+        # Buscar detalhes em batch
     semaphore = asyncio.Semaphore(5)
 
     async def buscar_batch(batch):
