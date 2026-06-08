@@ -4103,6 +4103,27 @@ function renderFinanceiro(prods){
 
 function setFF(k){finFilter=decodeURIComponent(k);const prods=data.map(calcProd).sort((a,b)=>PO[a.status]-PO[b.status]);renderFinanceiro(prods);}
 
+
+var _invSearch='', _invPerPage=25, _invPage=1;
+
+function renderInvSearchBar(){
+  var wrap=document.getElementById('invSearchWrap');
+  if(!wrap) return;
+  wrap.innerHTML=
+    '<input id="invSearchInput" type="text" placeholder="Filtrar por produto, SKU..." '+
+    'style="flex:1;min-width:180px;padding:6px 10px;border-radius:8px;background:var(--bg3);border:0.5px solid var(--border2);color:var(--text);font-family:var(--font);font-size:12px" '+
+    'oninput="onInvSearch(this.value)" value="'+_invSearch+'">'+
+    '<select id="invPerPageSel" style="padding:5px 10px;border-radius:8px;background:var(--bg3);border:0.5px solid var(--border2);color:var(--text2);font-family:var(--font);font-size:12px;cursor:pointer" onchange="onInvPerPage(this.value)">'+
+    '<option value="10"'  +(_invPerPage===10?  ' selected':'')+'>10 por pagina</option>'+
+    '<option value="25"'  +(_invPerPage===25?  ' selected':'')+'>25 por pagina</option>'+
+    '<option value="50"'  +(_invPerPage===50?  ' selected':'')+'>50 por pagina</option>'+
+    '<option value="100"' +(_invPerPage===100?' selected':'')+'>100 por pagina</option>'+
+    '<option value="9999"'+(_invPerPage===9999?' selected':'')+'>Todos</option>'+
+    '</select>';
+}
+function onInvSearch(v){ _invSearch=v.toLowerCase(); _invPage=1; setFF(finFilter); }
+function onInvPerPage(v){ _invPerPage=Number(v); _invPage=1; setFF(finFilter); }
+
 function renderInvTable(prods,filter){
   let rows=[...prods];
   if(filter==='valor')rows.sort((a,b)=>b.valorTotal-a.valorTotal);
