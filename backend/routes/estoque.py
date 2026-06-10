@@ -13,58 +13,67 @@ async def fetch_json(client: httpx.AsyncClient, url: str, token: str):
     return {}
 
 async def build_sku_map_from_orders(ml_user_id: str, token: str) -> tuple:
-    """Constrói mapa variation_id → sku a partir dos pedidos dos últimos 90d"""
-    sku_map = {}      # variation_id → sku
-    item_sku_map = {} # ml_item_id → sku
-
+    """Constrói mapa variation_id → sku via pedidos dos últimos 90d (mesmo padrão do vendas.py)"""
+    from datetime import datetime, timedelta, timezone
+    sku_map = {}
+    item_sku_map = {}
     headers = {"Authorization": f"Bearer {token}"}
-    offset  = 0
 
-    async with httpx.AsyncClient() as client:
-        while offset < 2000:
-            from datetime import datetime, timedelta, timezone
-            data_90d = (datetime.now(timezone.utc) - timedelta(days=90)).strftime("%Y-%m-%dT%H:%M:%S.000-00:00")
-            url = (
-                f"{ML_API}/orders/search?seller={ml_user_id}"
-                f"&order.status=paid&order.date_created.from={data_90d}"
-                f"&limit=50&offset={offset}&sort=date_desc"
-            )
-            r = await client.get(url, headers=headers, timeout=30)
+    # Usar date_closed igual ao vendas.py
+    date_to   = datetime.now(timezone.utc)
+    date_from = date_to - timedelta(days=90)
+    date_from_str = date_from.strftime("%Y-%m-%dT%H:%M:%S.000-00:00")
+    date_to_str   = date_to.strftime("%Y-%m-%dT%H:%M:%S.000-00:00")
+
+    async with httpx.AsyncClient(timeout=30) as client:
+        # Buscar seller_id numérico via /users/me
+        me = await client.get(f"{ML_API}/users/me", headers=headers)
+        seller_id = me.json().get("id") if me.status_code == 200 else int(ml_user_id)
+
+        offset = 0
+        while True:
+            params = {
+                "seller":                 seller_id,
+                "order.status":           "paid",
+                "order.date_closed.from": date_from_str,
+                "order.date_closed.to":   date_to_str,
+                "sort":                   "date_desc",
+                "offset":                 offset,
+                "limit":                  50,
+            }
+            r = await client.get(f"{ML_API}/orders/search", headers=headers, params=params)
             if r.status_code != 200:
-                print(f"[ESTOQUE] orders/search erro: {r.status_code} url={url[:150]}")
+                print(f"[ESTOQUE] orders/search erro: {r.status_code}")
                 break
             data    = r.json()
-            total_pg = data.get("paging", {}).get("total", 0)
+            total   = data.get("paging", {}).get("total", 0)
             results = data.get("results", [])
-            print(f"[ESTOQUE] orders offset={offset} total={total_pg} results={len(results)}")
+            print(f"[ESTOQUE] orders offset={offset} total={total} results={len(results)}")
             if not results:
                 break
 
             for order in results:
                 for item in order.get("order_items", []):
-                    item_info    = item.get("item", {})
-                    ml_item_id   = str(item_info.get("id", ""))
-                    variation_id = str(item_info.get("variation_id", "") or "")
-
-                    raw_sku = item_info.get("seller_sku", "")
+                    info         = item.get("item", {})
+                    ml_item_id   = str(info.get("id", ""))
+                    variation_id = str(info.get("variation_id", "") or "")
+                    raw_sku      = info.get("seller_sku", "")
                     if not raw_sku:
-                        for attr in item_info.get("variation_attributes", []):
+                        for attr in (info.get("variation_attributes") or []):
                             if attr.get("id") == "SELLER_SKU":
                                 raw_sku = attr.get("value_name", "")
                                 break
                     if not raw_sku:
-                        for attr in item_info.get("attributes", []):
+                        for attr in (info.get("attributes") or []):
                             if attr.get("id") == "SELLER_SKU":
                                 raw_sku = attr.get("value_name", "")
                                 break
-
                     if raw_sku:
                         if variation_id:
                             sku_map[variation_id] = raw_sku
                         if ml_item_id:
                             item_sku_map[ml_item_id] = raw_sku
 
-            total   = data.get("paging", {}).get("total", 0)
             offset += len(results)
             if offset >= total:
                 break
