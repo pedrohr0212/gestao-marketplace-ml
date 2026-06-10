@@ -6794,9 +6794,9 @@ function closeCustoHistorico(){
 }
 
 async function loadCustoHistorico(sku){
-  var uid = localStorage.getItem('ml_user_id');
+  var uid   = localStorage.getItem('ml_user_id');
   var token = localStorage.getItem('ml_token');
-  var el = document.getElementById('custoHistList');
+  var el    = document.getElementById('custoHistList');
   el.innerHTML = '<div style="color:var(--text3);text-align:center;padding:16px">Carregando...</div>';
   try {
     var r = await fetch(API_BASE+'/api/custos?ml_user_id='+uid, {headers:{'Authorization':'Bearer '+token}});
@@ -6807,17 +6807,24 @@ async function loadCustoHistorico(sku){
       el.innerHTML = '<div style="color:var(--text3);text-align:center;padding:16px">Nenhum histórico cadastrado.</div>';
       return;
     }
-    el.innerHTML = '<div style="margin-bottom:8px;font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;font-weight:600">Vigências cadastradas</div>'
-      + item.historico.map(function(h){
-        var fim = h.data_fim ? h.data_fim : 'atual';
-        return '<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:var(--bg3);border-radius:8px;margin-bottom:6px">'
-          + '<div>'
-          +   '<span style="font-family:var(--mono);color:var(--teal);font-weight:600;font-size:13px">R$ '+h.custo.toFixed(2).replace('.',',')+'</span>'
-          +   '<span style="color:var(--text3);font-size:11px;margin-left:10px">'+h.data_inicio+' → '+fim+'</span>'
-          + '</div>'
-          + '<button onclick="deletarCustoVigencia(''+sku+'',''+h.data_inicio+'')" style="background:transparent;border:none;cursor:pointer;color:var(--red);font-size:13px" title="Remover">×</button>'
-          + '</div>';
-      }).join('');
+    var rows = '';
+    item.historico.forEach(function(h){
+      var fim = h.data_fim ? h.data_fim : 'atual';
+      var custo_fmt = 'R$ ' + h.custo.toFixed(2).replace('.',',');
+      rows += '<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:var(--bg3);border-radius:8px;margin-bottom:6px">'
+            + '<div>'
+            +   '<span style="font-family:var(--mono);color:var(--teal);font-weight:600;font-size:13px">' + custo_fmt + '</span>'
+            +   '<span style="color:var(--text3);font-size:11px;margin-left:10px">' + h.data_inicio + ' → ' + fim + '</span>'
+            + '</div>'
+            + '<button data-sku="' + sku + '" data-dt="' + h.data_inicio + '" class="del-vig-btn" style="background:transparent;border:none;cursor:pointer;color:var(--red);font-size:16px;line-height:1" title="Remover">×</button>'
+            + '</div>';
+    });
+    el.innerHTML = '<div style="margin-bottom:8px;font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;font-weight:600">Vigências cadastradas</div>' + rows;
+    el.querySelectorAll('.del-vig-btn').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        deletarCustoVigencia(this.dataset.sku, this.dataset.dt);
+      });
+    });
   } catch(e) {
     el.innerHTML = '<div style="color:var(--red);text-align:center;padding:16px">Erro ao carregar histórico.</div>';
   }
