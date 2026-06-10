@@ -3993,6 +3993,11 @@ async function syncEstoqueAPI(){
     saveState();
     renderAll();
     showToast('Estoque sincronizado · '+novos.length+' produtos');
+
+    // Sincronizar custos para o Neon — apenas SKUs com custo > 0 sem vigência prévia
+    sincronizarCustosNeon(novos).catch(function(e){
+      console.warn('[CUSTO SYNC]', e);
+    });
   } catch(e){
     console.warn('[EST SYNC]', e);
     showToast('Erro ao sincronizar estoque');
@@ -6778,9 +6783,8 @@ async function openCustoHistorico(i){
   var p = data[i];
   document.getElementById('custoHistTitle').textContent = 'Histórico de Custos — ' + (p.nome||p.sku||'Produto');
   document.getElementById('custoHistSku').textContent = 'SKU: ' + (p.sku||'—');
-  // Pré-preencher data início com hoje
-  var hoje = new Date().toISOString().slice(0,10);
-  document.getElementById('custoHistIni').value = hoje;
+  // Limpar datas (custo padrão por defeito)
+  document.getElementById('custoHistIni').value = '';
   document.getElementById('custoHistFim').value = '';
   document.getElementById('custoHistVal').value = (p.custo||0).toFixed(2);
   document.getElementById('custoHistModal').style.display = 'flex';
@@ -6809,12 +6813,19 @@ async function loadCustoHistorico(sku){
     }
     var rows = '';
     item.historico.forEach(function(h){
-      var fim = h.data_fim ? h.data_fim : 'atual';
+      var periodo;
+      if(!h.data_inicio && !h.data_fim){
+        periodo = 'Custo padrão (todos os períodos)';
+      } else if(h.data_inicio && !h.data_fim){
+        periodo = 'A partir de ' + h.data_inicio;
+      } else {
+        periodo = (h.data_inicio||'') + ' → ' + (h.data_fim||'');
+      }
       var custo_fmt = 'R$ ' + h.custo.toFixed(2).replace('.',',');
       rows += '<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:var(--bg3);border-radius:8px;margin-bottom:6px">'
             + '<div>'
             +   '<span style="font-family:var(--mono);color:var(--teal);font-weight:600;font-size:13px">' + custo_fmt + '</span>'
-            +   '<span style="color:var(--text3);font-size:11px;margin-left:10px">' + h.data_inicio + ' → ' + fim + '</span>'
+            +   '<span style="color:var(--text3);font-size:11px;margin-left:10px">' + periodo + '</span>'
             + '</div>'
             + '<button data-sku="' + sku + '" data-dt="' + h.data_inicio + '" class="del-vig-btn" style="background:transparent;border:none;cursor:pointer;color:var(--red);font-size:16px;line-height:1" title="Remover">×</button>'
             + '</div>';
@@ -6838,7 +6849,6 @@ async function salvarCustoHistorico(){
   var ini   = document.getElementById('custoHistIni').value;
   var fim   = document.getElementById('custoHistFim').value || null;
   var val   = parseFloat(document.getElementById('custoHistVal').value);
-  if(!ini){ showToast('Informe a data de início.'); return; }
   if(isNaN(val) || val < 0){ showToast('Informe um custo válido.'); return; }
   try {
     var r = await fetch(BASE_API+'/api/custos', {
@@ -6879,6 +6889,55 @@ async function deletarCustoVigencia(sku, dataInicio){
   }
 }
 
+
+// ── SINCRONIZAÇÃO AUTOMÁTICA DE CUSTOS PARA O NEON ───────────────────────────
+async function sincronizarCustosNeon(produtos){
+  var uid   = localStorage.getItem('ml_user_id');
+  var token = localStorage.getItem('ml_token');
+  if(!uid || !token) return;
+
+  // Buscar SKUs que já têm vigência no Neon
+  var r = await fetch(BASE_API+'/api/custos?ml_user_id='+uid,
+    {headers:{'Authorization':'Bearer '+token}});
+  if(!r.ok) return;
+  var d = await r.json();
+  var skusNeon = new Set((d.custos||[]).map(function(c){ return c.sku; }));
+
+  // Filtrar produtos com custo > 0 que ainda não têm custo padrão no Neon
+  var novos = produtos.filter(function(p){
+    return p.sku && p.custo > 0 && !skusNeon.has(p.sku);
+  });
+
+  if(!novos.length){
+    console.log('[CUSTO SYNC] nenhum custo novo para sincronizar');
+    return;
+  }
+
+  console.log('[CUSTO SYNC] sincronizando '+novos.length+' custos...');
+
+  // Enviar em série para não sobrecarregar o backend
+  var salvos = 0;
+  for(var i=0; i<novos.length; i++){
+    var p = novos[i];
+    try {
+      var resp = await fetch(BASE_API+'/api/custos', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json','Authorization':'Bearer '+token},
+        body: JSON.stringify({
+          ml_user_id:  uid,
+          sku:         p.sku,
+          nome:        p.nome || p.sku,
+          custo:       p.custo,
+          data_inicio: null,
+          data_fim:    null
+        })
+      });
+      if(resp.ok) salvos++;
+    } catch(e){}
+  }
+  console.log('[CUSTO SYNC] salvos='+salvos+'/'+novos.length);
+}
+
 </script>
 
 <!-- ── MODAL HISTÓRICO DE CUSTOS ─────────────────────────────────────── -->
@@ -6893,9 +6952,10 @@ async function deletarCustoVigencia(sku, dataInicio){
     </div>
     <div style="padding:16px 18px;border-bottom:0.5px solid var(--border)">
       <div style="font-size:11px;color:var(--text3);margin-bottom:8px;text-transform:uppercase;letter-spacing:.06em;font-weight:600">Adicionar vigência de custo</div>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:8px">Sem datas = custo padrão (vale para todo o período). Com início = novo custo a partir desta data. Com início e fim = custo temporário.</div>
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:8px;align-items:end">
         <div>
-          <div style="font-size:10px;color:var(--text3);margin-bottom:4px">Data início</div>
+          <div style="font-size:10px;color:var(--text3);margin-bottom:4px">Data início (opcional)</div>
           <input type="date" id="custoHistIni" style="width:100%;background:var(--bg3);border:0.5px solid var(--border2);border-radius:8px;padding:7px 10px;color:var(--text);font-size:12px;outline:none">
         </div>
         <div>
