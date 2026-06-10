@@ -1189,6 +1189,12 @@ select.pag-form-inp{cursor:pointer;}
 .dre-sync-spinner{display:inline-block;width:12px;height:12px;border:2px solid rgba(255,255,255,.3);
   border-top-color:#fff;border-radius:50%;animation:dreSpinAnim 0.7s linear infinite;margin-right:5px;vertical-align:middle;}
 @keyframes dreSpinAnim{to{transform:rotate(360deg);}}
+
+/* Remove spinners de inputs number na tabela editor */
+.etw input[type=number]::-webkit-inner-spin-button,
+.etw input[type=number]::-webkit-outer-spin-button { -webkit-appearance:none; margin:0; }
+.etw input[type=number] { -moz-appearance:textfield; }
+
 </style>
 </head>
 <body>
@@ -2162,7 +2168,7 @@ select.pag-form-inp{cursor:pointer;}
     <input type="number" id="impostoInput" step="0.1" min="0" max="100" value="6" oninput="impostoGlobal=+this.value;renderEditor();saveState()">
     <span class="imp-note">Aplicado a todos os produtos automaticamente. Ex: Simples Nacional 6%, Lucro Presumido 8%…</span>
   </div>
-  <div class="etw"><table><thead><tr><th>SKU</th><th>Produto</th><th>Categoria</th><th>Fornecedor</th><th>Custo R$</th><th style="width:36px"></th><th>Preço Venda R$</th><th>Físico</th><th title="Lead time individual. Deixe em branco para usar o global.">Lead Time d ✎</th><th>Ação</th></tr></thead><tbody id="editorBody"></tbody></table></div>
+  <div class="etw"><table><thead><tr><th>SKU</th><th>Produto</th><th>Fornecedor</th><th>Custo R$</th><th>Físico</th><th title="Lead time individual. Deixe em branco para usar o global.">Lead Time d ✎</th><th>Ação</th></tr></thead><tbody id="editorBody"></tbody></table></div>
   <button class="add-btn" onclick="addRow()">+ Adicionar produto</button>
   <div class="ibox">
     <div style="font-size:12px;font-weight:500;color:var(--text);margin-bottom:7px">Como os cálculos funcionam</div>
@@ -4364,21 +4370,22 @@ function renderInsights(prods){
 function renderEditor(){
   const imp=document.getElementById('impostoInput');
   if(imp)imp.value=impostoGlobal;
-  const inputStyle='background:transparent;border:none;font-size:12px;outline:none;text-align:center;width:100%;padding:2px 4px';
+  const inputStyle='background:var(--bg3);border:0.5px solid var(--border2);border-radius:7px;font-size:12px;outline:none;text-align:center;width:100%;padding:4px 6px;-moz-appearance:textfield';
+  const noSpin='appearance:none;-webkit-appearance:none;-moz-appearance:textfield';
   document.getElementById('editorBody').innerHTML=data.map((p,i)=>{
     const ltOvr=p.prazoOverride!=null;
-    const ltStyle=ltOvr?'color:var(--accent2);border-bottom:1px solid var(--accent2);':'';
+    const ltBorder=ltOvr?'border-color:var(--accent2);color:var(--accent2);':'';
     const ltTitle=ltOvr?'Lead time individual (global: '+leadTime+'d)':'Usando lead time global: '+leadTime+'d';
     return '<tr>'
       +'<td><input value="'+(p.sku||'')+'" onchange="data['+i+'].sku=this.value;saveState()" style="'+inputStyle+';color:var(--accent2);font-family:var(--mono)"></td>'
       +'<td><input value="'+p.nome.replace(/"/g,'&quot;')+'" onchange="data['+i+'].nome=this.value;saveState()" style="'+inputStyle+';color:var(--text)"></td>'
-      +'<td><input value="'+(p.cat||'')+'" onchange="data['+i+'].cat=this.value;saveState()" style="'+inputStyle+';color:var(--text2)"></td>'
       +'<td><input value="'+(p.forn||'')+'" onchange="data['+i+'].forn=this.value;saveState()" style="'+inputStyle+';color:var(--text2)"></td>'
-      +'<td><input type="number" step="0.01" value="'+((p.custo||0).toFixed(2))+'" onchange="data['+i+'].custo=+this.value;saveState()" style="'+inputStyle+';color:var(--teal);font-family:var(--mono)"></td>'
-      +'<td style="text-align:center;padding:0 4px"><button onclick="openCustoHistorico('+i+')" title="Histórico de custos" style="background:transparent;border:none;cursor:pointer;font-size:14px;color:var(--text3);padding:2px 4px">📋</button></td>'
-      +'<td><input type="number" step="0.01" value="'+((p.precoVenda||0).toFixed(2))+'" onchange="data['+i+'].precoVenda=+this.value;saveState()" style="'+inputStyle+';color:var(--green);font-family:var(--mono)"></td>'
-      +'<td><input type="number" value="'+(p.estFisico||0)+'" onchange="data['+i+'].estFisico=+this.value;saveState()" id="ef'+i+'" style="'+inputStyle+';font-family:var(--mono)"></td>'
-      +'<td title="'+ltTitle+'"><input type="number" id="prazoInp'+i+'" value="'+p.prazo+'" onchange="setProductLeadTime('+i+',+this.value)" style="'+inputStyle+';font-family:var(--mono);'+ltStyle+'"></td>'
+      +'<td><div style="display:flex;align-items:center;gap:4px">'
+      +  '<input type="number" step="0.01" value="'+((p.custo||0).toFixed(2))+'" onchange="data['+i+'].custo=+this.value;saveState()" style="'+inputStyle+';'+noSpin+';color:var(--teal);font-family:var(--mono);flex:1">'
+      +  '<button onclick="openCustoHistorico('+i+')" title="Histórico de custos" style="background:transparent;border:none;cursor:pointer;font-size:14px;color:var(--text3);padding:2px;flex-shrink:0">📋</button>'
+      +'</div></td>'
+      +'<td><input type="number" value="'+(p.estFisico||0)+'" onchange="data['+i+'].estFisico=+this.value;saveState()" id="ef'+i+'" style="'+inputStyle+';'+noSpin+';font-family:var(--mono)"></td>'
+      +'<td title="'+ltTitle+'"><input type="number" id="prazoInp'+i+'" value="'+p.prazo+'" onchange="setProductLeadTime('+i+',+this.value)" style="'+inputStyle+';'+noSpin+';font-family:var(--mono);'+ltBorder+'"></td>'
       +'<td><button class="btn dbtn" onclick="removeRow('+i+')" style="padding:3px 8px;font-size:11px">Remover</button></td>'
       +'</tr>';
   }).join('');
