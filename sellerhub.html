@@ -3964,22 +3964,14 @@ async function syncEstoqueAPI(){
     });
 
     // ── PASSO 2: deduplicar por dedupKey ─────────────────────────────────
-    // Regra estFull:
-    //   igual  → anúncios vinculados (tradicional + catálogo) → manter só 1 valor
-    //   diferente → estoques independentes → somar
+    // mesmo SKU em múltiplos anúncios → soma estFull, preserva dados locais
     var dedupMap = {};
     mapeados.forEach(function(p){
       var k = p._dedupKey;
       if(!dedupMap[k]){
         dedupMap[k] = Object.assign({}, p);
-        dedupMap[k]._fullVistos = [p.estFull];
       } else {
-        var jaVisto = dedupMap[k]._fullVistos.indexOf(p.estFull) >= 0;
-        if(!jaVisto){
-          dedupMap[k].estFull += p.estFull;  // independente → somar
-          dedupMap[k]._fullVistos.push(p.estFull);
-        }
-        // igual → vinculado → não somar
+        dedupMap[k].estFull   += p.estFull;
         dedupMap[k].estTransf += p.estTransf;
         if(p.estFisico > dedupMap[k].estFisico) dedupMap[k].estFisico = p.estFisico;
       }
@@ -4245,8 +4237,10 @@ function renderInvTable(prods,filter){
   var tot30=rows.reduce(function(s,p){return s+(p.v30||Math.round(p.vdEf*30));},0);
   document.getElementById('finTFoot').innerHTML=
     '<tr style="background:var(--bg3)">'+
-    '<td style="padding:8px 10px;font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase">Total ('+rows.length+' produtos)</td>'+
-    '<td colspan="3" style="padding:8px 10px"></td>'+
+    '<td colspan="2" style="padding:8px 10px;font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase">Total ('+rows.length+' produtos)</td>'+
+    '<td style="padding:8px 10px"></td>'+
+    '<td style="padding:8px 10px"></td>'+
+    '<td style="padding:8px 10px"></td>'+
     '<td style="text-align:right;padding:8px 10px;font-family:var(--mono);font-weight:600;color:var(--text)">'+totU+'</td>'+
     '<td style="padding:8px 10px"></td>'+
     '<td style="text-align:right;padding:8px 10px;font-family:var(--mono);font-weight:600;color:var(--teal)">'+BRL(totV)+'</td>'+
