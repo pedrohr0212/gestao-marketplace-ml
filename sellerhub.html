@@ -3964,14 +3964,22 @@ async function syncEstoqueAPI(){
     });
 
     // ── PASSO 2: deduplicar por dedupKey ─────────────────────────────────
-    // mesmo SKU em múltiplos anúncios → soma estFull, preserva dados locais
+    // Regra estFull:
+    //   igual  → anúncios vinculados (tradicional + catálogo) → manter só 1 valor
+    //   diferente → estoques independentes → somar
     var dedupMap = {};
     mapeados.forEach(function(p){
       var k = p._dedupKey;
       if(!dedupMap[k]){
         dedupMap[k] = Object.assign({}, p);
+        dedupMap[k]._fullVistos = [p.estFull];
       } else {
-        dedupMap[k].estFull   += p.estFull;
+        var jaVisto = dedupMap[k]._fullVistos.indexOf(p.estFull) >= 0;
+        if(!jaVisto){
+          dedupMap[k].estFull += p.estFull;  // independente → somar
+          dedupMap[k]._fullVistos.push(p.estFull);
+        }
+        // igual → vinculado → não somar
         dedupMap[k].estTransf += p.estTransf;
         if(p.estFisico > dedupMap[k].estFisico) dedupMap[k].estFisico = p.estFisico;
       }
