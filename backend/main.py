@@ -9,6 +9,7 @@ from routes.vendas import router as vendas_router
 from routes.estoque import router as estoque_router
 from routes.publicidade import router as publicidade_router
 from routes.webhooks import router as webhooks_router
+from routes.custos import router as custos_router
 
 settings = get_settings()
 
@@ -44,6 +45,7 @@ app.include_router(vendas_router)
 app.include_router(estoque_router)
 app.include_router(publicidade_router)
 app.include_router(webhooks_router)
+app.include_router(custos_router)
 
 @app.get("/")
 async def root():
