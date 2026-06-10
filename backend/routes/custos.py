@@ -2,7 +2,7 @@ import httpx
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 import asyncpg
 from auth import get_valid_token
 from config import get_settings
@@ -13,12 +13,12 @@ ML_API  = "https://api.mercadolibre.com"
 
 # ── Modelos ────────────────────────────────────────────────────────────────────
 class CustoIn(BaseModel):
-    ml_user_id: str
-    sku:        str
-    nome:       str
-    custo:      float
-    data_inicio: date
-    data_fim:    Optional[date] = None  # None = vigente até hoje
+    ml_user_id:  str
+    sku:         str
+    nome:        str
+    custo:       float
+    data_inicio: Optional[date] = None  # None = custo padrão
+    data_fim:    Optional[date] = None
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 async def get_conn():
@@ -32,7 +32,7 @@ async def ensure_table(conn):
             sku         TEXT NOT NULL,
             nome        TEXT,
             custo       NUMERIC(12,2) NOT NULL,
-            data_inicio DATE NOT NULL,
+            data_inicio DATE,
             data_fim    DATE,
             criado_em   TIMESTAMPTZ DEFAULT NOW()
         )
@@ -42,25 +42,63 @@ async def ensure_table(conn):
         ON produto_custos(ml_user_id, sku)
     """)
 
+def custo_na_data(vigencias: list, dt: date) -> Optional[float]:
+    """
+    Prioridade para uma data dt:
+    1. Vigência com data_inicio <= dt <= data_fim (período específico)
+    2. Vigência com data_inicio <= dt e data_fim NULL (aberta a partir de uma data)
+       → usa a mais recente (maior data_inicio)
+    3. Custo padrão (data_inicio NULL)
+    """
+    # 1. Vigência com período fechado que cobre dt
+    for v in vigencias:
+        if v["data_inicio"] and v["data_fim"]:
+            if v["data_inicio"] <= dt <= v["data_fim"]:
+                return float(v["custo"])
+
+    # 2. Vigência aberta (início <= dt, sem fim) — mais recente primeiro
+    abertas = [v for v in vigencias if v["data_inicio"] and not v["data_fim"] and v["data_inicio"] <= dt]
+    if abertas:
+        abertas.sort(key=lambda v: v["data_inicio"], reverse=True)
+        return float(abertas[0]["custo"])
+
+    # 3. Custo padrão (sem data)
+    padrao = [v for v in vigencias if not v["data_inicio"]]
+    if padrao:
+        return float(padrao[0]["custo"])
+
+    return None
+
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
 @router.post("/api/custos")
 async def salvar_custo(body: CustoIn):
-    """Salva ou atualiza vigência de custo de um SKU."""
     conn = await get_conn()
     try:
         await ensure_table(conn)
-        # Fechar vigência aberta anterior do mesmo SKU se houver
-        await conn.execute("""
-            UPDATE produto_custos
-               SET data_fim = $1
-             WHERE ml_user_id = $2
-               AND sku        = $3
-               AND data_fim IS NULL
-               AND data_inicio < $1
-        """, body.data_inicio, body.ml_user_id, body.sku)
 
-        # Inserir novo registro
+        if body.data_inicio is None:
+            # Custo padrão — substituir existente se houver
+            await conn.execute("""
+                DELETE FROM produto_custos
+                 WHERE ml_user_id  = $1
+                   AND sku         = $2
+                   AND data_inicio IS NULL
+            """, body.ml_user_id, body.sku)
+        else:
+            # Vigência específica — fechar abertas anteriores que conflitem
+            if body.data_fim is None:
+                # Nova vigência aberta: fechar outras abertas com início anterior
+                await conn.execute("""
+                    UPDATE produto_custos
+                       SET data_fim = $1 - INTERVAL '1 day'
+                     WHERE ml_user_id  = $2
+                       AND sku         = $3
+                       AND data_inicio IS NOT NULL
+                       AND data_fim    IS NULL
+                       AND data_inicio < $1
+                """, body.data_inicio, body.ml_user_id, body.sku)
+
         await conn.execute("""
             INSERT INTO produto_custos
                    (ml_user_id, sku, nome, custo, data_inicio, data_fim)
@@ -75,7 +113,6 @@ async def salvar_custo(body: CustoIn):
 
 @router.get("/api/custos")
 async def listar_custos(ml_user_id: str):
-    """Lista todo o histórico de custos do vendedor agrupado por SKU."""
     conn = await get_conn()
     try:
         await ensure_table(conn)
@@ -83,7 +120,7 @@ async def listar_custos(ml_user_id: str):
             SELECT sku, nome, custo, data_inicio, data_fim
               FROM produto_custos
              WHERE ml_user_id = $1
-          ORDER BY sku, data_inicio DESC
+          ORDER BY sku, data_inicio DESC NULLS LAST
         """, ml_user_id)
         result = {}
         for r in rows:
@@ -91,7 +128,7 @@ async def listar_custos(ml_user_id: str):
                 result[r["sku"]] = {"sku": r["sku"], "nome": r["nome"], "historico": []}
             result[r["sku"]]["historico"].append({
                 "custo":       float(r["custo"]),
-                "data_inicio": r["data_inicio"].isoformat(),
+                "data_inicio": r["data_inicio"].isoformat() if r["data_inicio"] else None,
                 "data_fim":    r["data_fim"].isoformat() if r["data_fim"] else None,
             })
         return {"custos": list(result.values())}
@@ -100,16 +137,24 @@ async def listar_custos(ml_user_id: str):
 
 
 @router.delete("/api/custos/{ml_user_id}/{sku}")
-async def deletar_custo(ml_user_id: str, sku: str, data_inicio: str):
-    """Remove um registro específico de custo."""
+async def deletar_custo(ml_user_id: str, sku: str, data_inicio: Optional[str] = None):
     conn = await get_conn()
     try:
-        await conn.execute("""
-            DELETE FROM produto_custos
-             WHERE ml_user_id  = $1
-               AND sku         = $2
-               AND data_inicio = $3
-        """, ml_user_id, sku, date.fromisoformat(data_inicio))
+        if data_inicio:
+            await conn.execute("""
+                DELETE FROM produto_custos
+                 WHERE ml_user_id  = $1
+                   AND sku         = $2
+                   AND data_inicio = $3
+            """, ml_user_id, sku, date.fromisoformat(data_inicio))
+        else:
+            # Deletar custo padrão
+            await conn.execute("""
+                DELETE FROM produto_custos
+                 WHERE ml_user_id  = $1
+                   AND sku         = $2
+                   AND data_inicio IS NULL
+            """, ml_user_id, sku)
         return {"ok": True}
     finally:
         await conn.close()
@@ -117,30 +162,17 @@ async def deletar_custo(ml_user_id: str, sku: str, data_inicio: str):
 
 @router.get("/api/dre/cmv")
 async def calcular_cmv(ml_user_id: str, mes: int, ano: int):
-    """
-    Calcula o CMV do mês:
-    - Busca todos os pedidos pagos do mês (00:00 dia 1 até 23:59 último dia)
-    - Cruza cada item vendido com o custo vigente na data do pedido
-    - Retorna CMV total + detalhamento por SKU + lista de SKUs sem custo
-    """
-    from datetime import datetime, timezone, timedelta
     import calendar
-
     token = await get_valid_token(ml_user_id)
     conn  = await get_conn()
 
     try:
         await ensure_table(conn)
 
-        # Período do mês em UTC (BRT = UTC-3)
-        brt = timezone(timedelta(hours=-3))
+        brt   = timezone(timedelta(hours=-3))
         d_ini = datetime(ano, mes, 1, 0, 0, 0, tzinfo=brt)
-        ultimo_dia = calendar.monthrange(ano, mes)[1]
-        d_fim = datetime(ano, mes, ultimo_dia, 23, 59, 59, tzinfo=brt)
-        d_ini_utc = d_ini.astimezone(timezone.utc)
-        d_fim_utc = d_fim.astimezone(timezone.utc)
+        d_fim = datetime(ano, mes, calendar.monthrange(ano, mes)[1], 23, 59, 59, tzinfo=brt)
 
-        # Buscar pedidos do mês
         headers = {"Authorization": f"Bearer {token}"}
         async with httpx.AsyncClient(timeout=30) as client:
             me = await client.get(f"{ML_API}/users/me", headers=headers)
@@ -152,32 +184,29 @@ async def calcular_cmv(ml_user_id: str, mes: int, ano: int):
                 params = {
                     "seller":                 seller_id,
                     "order.status":           "paid",
-                    "order.date_closed.from": d_ini_utc.strftime("%Y-%m-%dT%H:%M:%S.000-00:00"),
-                    "order.date_closed.to":   d_fim_utc.strftime("%Y-%m-%dT%H:%M:%S.000-00:00"),
-                    "sort":  "date_asc",
-                    "limit": 50,
-                    "offset": offset,
+                    "order.date_closed.from": d_ini.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000-00:00"),
+                    "order.date_closed.to":   d_fim.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000-00:00"),
+                    "sort": "date_asc", "limit": 50, "offset": offset,
                 }
                 r = await client.get(f"{ML_API}/orders/search", headers=headers, params=params)
                 if r.status_code != 200:
                     break
-                data   = r.json()
-                total  = data.get("paging", {}).get("total", 0)
-                lote   = data.get("results", [])
+                data  = r.json()
+                total = data.get("paging", {}).get("total", 0)
+                lote  = data.get("results", [])
                 pedidos.extend(lote)
                 offset += len(lote)
                 if offset >= total or not lote:
                     break
 
-        # Buscar todos os custos do vendedor
+        # Buscar vigências do vendedor
         rows_custo = await conn.fetch("""
             SELECT sku, custo, data_inicio, data_fim
               FROM produto_custos
              WHERE ml_user_id = $1
-          ORDER BY sku, data_inicio
+          ORDER BY sku, data_inicio DESC NULLS LAST
         """, ml_user_id)
 
-        # Indexar custos por SKU → lista de vigências
         custos_por_sku = {}
         for r in rows_custo:
             sku = r["sku"]
@@ -189,22 +218,9 @@ async def calcular_cmv(ml_user_id: str, mes: int, ano: int):
                 "data_fim":    r["data_fim"],
             })
 
-        def custo_na_data(sku: str, dt: date) -> Optional[float]:
-            vigencias = custos_por_sku.get(sku, [])
-            for v in reversed(vigencias):
-                ini = v["data_inicio"]
-                fim = v["data_fim"] if v["data_fim"] else date.today()
-                if ini <= dt <= fim:
-                    return v["custo"]
-            # fallback: custo mais recente disponível
-            if vigencias:
-                return vigencias[-1]["custo"]
-            return None
-
-        # Calcular CMV
-        cmv_total   = 0.0
-        detalhes    = {}
-        sem_custo   = set()
+        cmv_total = 0.0
+        detalhes  = {}
+        sem_custo = set()
 
         for pedido in pedidos:
             data_pedido = pedido.get("date_closed") or pedido.get("date_created", "")
@@ -214,10 +230,9 @@ async def calcular_cmv(ml_user_id: str, mes: int, ano: int):
                 dt = date.today()
 
             for item in pedido.get("order_items", []):
-                info  = item.get("item", {})
-                qtde  = item.get("quantity", 1)
+                info = item.get("item", {})
+                qtde = item.get("quantity", 1)
 
-                # Extrair SKU (mesmo padrão do vendas.py)
                 sku = info.get("seller_sku", "")
                 if not sku:
                     for attr in (info.get("variation_attributes") or []):
@@ -227,7 +242,7 @@ async def calcular_cmv(ml_user_id: str, mes: int, ano: int):
                 if not sku:
                     sku = str(info.get("id", ""))
 
-                custo = custo_na_data(sku, dt)
+                custo = custo_na_data(custos_por_sku.get(sku, []), dt)
                 if custo is None:
                     sem_custo.add(sku)
                     continue
