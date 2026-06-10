@@ -2999,6 +2999,25 @@ async function carregarDREAPI(mes, ano){
   }
 }
 
+async function carregarCMV(mes, ano){
+  var token = localStorage.getItem('ml_token');
+  var userId = localStorage.getItem('ml_user_id');
+  if(!token || !userId) return null;
+  try{
+    var r = await fetch(BACKEND_DRE+'/api/dre/cmv?ml_user_id='+userId+'&mes='+mes+'&ano='+ano,
+      {headers:{'Authorization':'Bearer '+token}});
+    if(!r.ok) return null;
+    var d = await r.json();
+    if(d.sem_custo && d.sem_custo.length > 0){
+      console.warn('[DRE CMV] SKUs sem custo cadastrado:', d.sem_custo);
+    }
+    return d;
+  }catch(e){
+    console.warn('[DRE CMV]', e);
+    return null;
+  }
+}
+
 async function syncDREAPI(silent){
   var btn = document.getElementById('dreSyncBtn');
   if(btn){btn.innerHTML='<span class="dre-sync-spinner"></span>Sincronizando...';btn.disabled=true;}
@@ -3022,10 +3041,12 @@ async function syncDREAnual(){
 }
 
 async function preencherDREAPIAnual(mes, ano){
-  var dados = await carregarDREAPI(mes, ano);
+  var [dados, cmvDados] = await Promise.all([
+    carregarDREAPI(mes, ano),
+    carregarCMV(mes, ano)
+  ]);
   if(!dados) return;
   ensureLanc();
-  // Usar chave do mês específico
   var oldMonth = dreMonth;
   dreMonth = mes - 1;
   var key = lancKey();
@@ -3037,30 +3058,39 @@ async function preencherDREAPIAnual(mes, ano){
   l.taxasMl      = dados.tarifa_ml    || 0;
   l.freteVendas  = dados.frete_vendas || 0;
   l.adsMeli      = dados.pub_ml       || 0;
+  l.cmv          = cmvDados ? (cmvDados.cmv_total || 0) : (l.cmv || 0);
   saveLanc();
 }
 
 async function preencherDREAPI(mes, ano){
-  var dados = await carregarDREAPI(mes, ano);
+  // Buscar vendas e CMV em paralelo
+  var [dados, cmvDados] = await Promise.all([
+    carregarDREAPI(mes, ano),
+    carregarCMV(mes, ano)
+  ]);
   if(!dados) return;
 
-  // Preencher campos readonly da API no localStorage de lançamentos
   ensureLanc();
   var key = lancKey();
   if(!lancamentos[key]) lancamentos[key] = getDefaultLanc();
   var l = lancamentos[key];
 
-  // Campos que vêm da API (readonly) — nomes conforme getDefaultLanc
   l.fat          = dados.faturamento    || 0;
   l.cancelamentos= dados.cancelamentos  || 0;
   l.taxasMl      = dados.tarifa_ml      || 0;
   l.freteVendas  = dados.frete_vendas   || 0;
   l.adsMeli      = dados.pub_ml         || 0;
+  l.cmv          = cmvDados ? (cmvDados.cmv_total || 0) : (l.cmv || 0);
 
   saveLanc();
   renderDRE();
 
-  showToast('DRE atualizado com dados reais do ML · '+MESES[mes-1]+' '+ano);
+  // Aviso de SKUs sem custo
+  if(cmvDados && cmvDados.sem_custo && cmvDados.sem_custo.length > 0){
+    showToast('⚠️ CMV incompleto: ' + cmvDados.sem_custo.length + ' SKU(s) sem custo. Verifique Editar Dados.');
+  } else {
+    showToast('DRE atualizado com dados reais do ML · '+MESES[mes-1]+' '+ano);
+  }
 }
 
 function renderDRE(){
