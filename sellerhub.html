@@ -6799,7 +6799,7 @@ async function loadCustoHistorico(sku){
   var el    = document.getElementById('custoHistList');
   el.innerHTML = '<div style="color:var(--text3);text-align:center;padding:16px">Carregando...</div>';
   try {
-    var r = await fetch(API_BASE+'/api/custos?ml_user_id='+uid, {headers:{'Authorization':'Bearer '+token}});
+    var r = await fetch(BASE_API+'/api/custos?ml_user_id='+uid, {headers:{'Authorization':'Bearer '+token}});
     var d = await r.json();
     _custoHistData = d.custos || [];
     var item = _custoHistData.find(function(c){ return c.sku === sku; });
@@ -6841,7 +6841,7 @@ async function salvarCustoHistorico(){
   if(!ini){ showToast('Informe a data de início.'); return; }
   if(isNaN(val) || val < 0){ showToast('Informe um custo válido.'); return; }
   try {
-    var r = await fetch(API_BASE+'/api/custos', {
+    var r = await fetch(BASE_API+'/api/custos', {
       method:'POST',
       headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
       body: JSON.stringify({ml_user_id:uid, sku:p.sku, nome:p.nome||p.sku, custo:val, data_inicio:ini, data_fim:fim})
@@ -6866,7 +6866,7 @@ async function deletarCustoVigencia(sku, dataInicio){
   var uid   = localStorage.getItem('ml_user_id');
   var token = localStorage.getItem('ml_token');
   try {
-    var r = await fetch(API_BASE+'/api/custos/'+uid+'/'+encodeURIComponent(sku)+'?data_inicio='+dataInicio, {
+    var r = await fetch(BASE_API+'/api/custos/'+uid+'/'+encodeURIComponent(sku)+'?data_inicio='+dataInicio, {
       method:'DELETE',
       headers:{'Authorization':'Bearer '+token}
     });
