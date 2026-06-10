@@ -41,6 +41,14 @@ async def ensure_table(conn):
         CREATE INDEX IF NOT EXISTS idx_pc_user_sku
         ON produto_custos(ml_user_id, sku)
     """)
+    # Migration: garantir que data_inicio é nullable (versão antiga tinha NOT NULL)
+    try:
+        await conn.execute("""
+            ALTER TABLE produto_custos
+            ALTER COLUMN data_inicio DROP NOT NULL
+        """)
+    except Exception:
+        pass  # já é nullable, ignorar
 
 def custo_na_data(vigencias: list, dt: date) -> Optional[float]:
     """
