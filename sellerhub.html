@@ -2407,6 +2407,19 @@ async function carregarVendasAPI(periodo){
       v.mc = +(v.valor - v.tarifa - v.frete - v.custo - v.imposto).toFixed(2);
       v.mcPct = v.valor > 0 ? +((v.mc/v.valor)*100).toFixed(1) : 0;
     });
+
+    // Filtrar pedidos fora do range BRT do período (ML às vezes retorna borderline com fuso -04:00)
+    var hoje = new Date(new Date().toLocaleString('en-US',{timeZone:'America/Sao_Paulo'}));
+    var hojeStr = hoje.getFullYear()+'-'+String(hoje.getMonth()+1).padStart(2,'0')+'-'+String(hoje.getDate()).padStart(2,'0');
+    function getDiaBRTStr(d){ var brt=new Date(new Date(d).toLocaleString('en-US',{timeZone:'America/Sao_Paulo'})); return brt.getFullYear()+'-'+String(brt.getMonth()+1).padStart(2,'0')+'-'+String(brt.getDate()).padStart(2,'0'); }
+    if(periodo==='hoje'){
+      vendas = vendas.filter(function(v){ return getDiaBRTStr(v.data)===hojeStr; });
+    } else if(periodo==='ontem'){
+      var ontemDate = new Date(hoje); ontemDate.setDate(hoje.getDate()-1);
+      var ontemStr = ontemDate.getFullYear()+'-'+String(ontemDate.getMonth()+1).padStart(2,'0')+'-'+String(ontemDate.getDate()).padStart(2,'0');
+      vendas = vendas.filter(function(v){ return getDiaBRTStr(v.data)===ontemStr; });
+    }
+
     return {vendas, erro:null};
   }catch(e){
     console.warn('API indisponivel, usando dados demo',e);
