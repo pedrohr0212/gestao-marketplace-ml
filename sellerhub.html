@@ -2322,6 +2322,7 @@ let vendas=gerarVendas('hoje');
 let tableTypeFilter='all';
 let salesPage=1;
 let descontarAds=false;
+var vendasAnt=null;
 let fatChartInst=null,adsInvCI=null,adsRevCI=null;
 
 // COLS VISIBILITY
@@ -2389,14 +2390,23 @@ async function carregarVendasAPI(periodo){
       qtd: +v.qtde||1,
       tarifa: +v.tarifa||0,
       frete: +v.frete||0,
-      custo: +v.custo||0,
+      custo: (function(){
+        var qtde = +v.qtde||1;
+        var prod = data.find(function(p){ return p.sku && p.sku===v.sku; });
+        return prod ? +(prod.custo*qtde) : (+v.custo||0);
+      })(),
       imposto: +v.imposto||+(v.valor*(IMPOSTOGLOBAL/100)).toFixed(2),
-      mc: +v.mc||0,
-      mcPct: +v.mcPct||0,
+      mc: 0, // recalculado abaixo
+      mcPct: 0,
       isPub: v.isPub||false,
       cancelada: v.cancelada||false,
       idAnuncio: '—',
     }));
+    // Recalcular mc real com custo do localStorage
+    vendas.forEach(function(v){
+      v.mc = +(v.valor - v.tarifa - v.frete - v.custo - v.imposto).toFixed(2);
+      v.mcPct = v.valor > 0 ? +((v.mc/v.valor)*100).toFixed(1) : 0;
+    });
     return {vendas, erro:null};
   }catch(e){
     console.warn('API indisponivel, usando dados demo',e);
@@ -2429,6 +2439,17 @@ function setDemoBanner(show, erroKey){
 }
 
 // ── FATURAMENTO ───────────────────────────────────────────────
+function getPeriodoAnterior(key){
+  // Retorna o período equivalente anterior para comparação
+  var map = {
+    'hoje':'ontem','ontem':'anteontem',
+    '7d':'7d_ant','30d':'30d_ant',
+    'mes':'mesant','mesant':'mes_ant2',
+    '15d':'15d_ant','60d':'60d_ant','90d':'90d_ant'
+  };
+  return map[key] || null;
+}
+
 function setPeriod(key){
   currentPeriod=key;
   document.getElementById('customDates').className='custom-dates'+(key==='custom'?' show':'');
@@ -2438,18 +2459,27 @@ function setPeriod(key){
     if(token){
       salesPage=1;
       showApiLoader('Carregando vendas do Mercado Livre...');
-      carregarVendasAPI(key).then(res=>{
-        if(res.vendas&&res.vendas.length>0){
+      var periodoAnt = getPeriodoAnterior(key);
+      Promise.all([
+        carregarVendasAPI(key),
+        periodoAnt ? carregarVendasAPI(periodoAnt) : Promise.resolve({vendas:null,erro:null})
+      ]).then(function(results){
+        hideApiLoader();
+        var res    = results[0];
+        var resAnt = results[1];
+        vendasAnt = (resAnt && resAnt.vendas) ? resAnt.vendas : null;
+        if(res.vendas && res.vendas.length>0){
           vendas=res.vendas;
           setDemoBanner(false);
         }else{
           vendas=gerarVendas(key);
           setDemoBanner(true, res.erro||'api_erro');
         }
+        salesPage=1;
         renderFaturamento();
       });
     }else{
-      vendas=gerarVendas(key);salesPage=1;
+      vendas=gerarVendas(key); salesPage=1;
       setDemoBanner(true,'sem_token');
       renderFaturamento();
     }
@@ -2476,14 +2506,16 @@ function renderFaturamento(){
   const tacos=fat>0?+((adsInv/fat)*100).toFixed(2):0;
   const lucroExib=descontarAds?+(lucro-adsInv).toFixed(2):lucro;
   const lucPct=fat>0?(lucroExib/fat)*100:0;
-  const prev={fat:fat*(0.6+Math.random()*0.5)};
-  const dFat=prev.fat>0?((fat-prev.fat)/prev.fat*100):0;
-  const dCls=dFat>=0?'up':'down';
+  // Delta real: compara com período anterior buscado da API
+  var fatAnt = vendasAnt ? vendasAnt.filter(function(v){return !v.cancelada;}).reduce(function(s,v){return s+v.valor;},0) : 0;
+  var dFat = fatAnt > 0 ? ((fat - fatAnt) / fatAnt * 100) : 0;
+  var dCls = dFat >= 0 ? 'up' : 'down';
+  var dFatStr = vendasAnt ? (Math.abs(dFat).toFixed(1)+'% vs anterior') : '— sem dados anteriores';
 
   // HERO destacado
   document.getElementById('fatHero').innerHTML=
     '<div class="fat-hero">'
-    +'<div class="fat-hero-card fat"><div class="fat-hero-label">Faturamento</div><div class="fat-hero-val">'+BRL(fat)+'</div><div class="fat-hero-sub"><span class="delta '+dCls+'">'+(dFat>=0?'▲':'▼')+' '+Math.abs(dFat).toFixed(1)+'% vs anterior</span></div></div>'
+    +'<div class="fat-hero-card fat"><div class="fat-hero-label">Faturamento</div><div class="fat-hero-val">'+BRL(fat)+'</div><div class="fat-hero-sub"><span class="delta '+(vendasAnt?dCls:'gray')+'">'+(vendasAnt?(dFat>=0?'▲':'▼')+' ':'')+dFatStr+'</span></div></div>'
     +'<div class="fat-hero-card luc"><div class="fat-hero-label">Lucro (MC)</div><div class="fat-hero-val">'+BRL(lucroExib)+'</div><div class="fat-hero-sub"><span style="font-family:var(--mono);color:'+(lucPct>=15?'var(--green)':'var(--amber)')+'">'+lucPct.toFixed(1)+'% margem</span>'+(descontarAds?' · <span style="color:var(--purple);font-size:11px">ADS incluído</span>':'')+'</div></div>'
     +'</div>';
 
