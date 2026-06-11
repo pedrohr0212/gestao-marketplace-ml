@@ -111,15 +111,20 @@ async def buscar_pedidos_por_status(
     offset = 0
     limit  = 50
 
+    # Pedidos sem date_closed (em processamento) usam date_created
+    use_date_created = status in ("payment_in_process", "confirmed", "payment_required")
+    date_field_from  = "order.date_created.from" if use_date_created else "order.date_closed.from"
+    date_field_to    = "order.date_created.to"   if use_date_created else "order.date_closed.to"
+
     while True:
         params = {
-            "seller":                    seller_id,
-            "order.status":              status,
-            "order.date_closed.from":    date_from.strftime("%Y-%m-%dT%H:%M:%S.000-00:00"),
-            "order.date_closed.to":      date_to.strftime("%Y-%m-%dT%H:%M:%S.000-00:00"),
-            "sort":                      "date_desc",
-            "offset":                    offset,
-            "limit":                     limit,
+            "seller":         seller_id,
+            "order.status":   status,
+            date_field_from:  date_from.strftime("%Y-%m-%dT%H:%M:%S.000-00:00"),
+            date_field_to:    date_to.strftime("%Y-%m-%dT%H:%M:%S.000-00:00"),
+            "sort":           "date_desc",
+            "offset":         offset,
+            "limit":          limit,
         }
         resp = await client.get(f"{ML_API}/orders/search", headers=headers, params=params)
         if resp.status_code != 200:
