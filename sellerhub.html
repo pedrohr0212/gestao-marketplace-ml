@@ -1648,8 +1648,6 @@ select.pag-form-inp{cursor:pointer;}
       </div>
       <button onclick="loadRecebiveis()" style="background:var(--accent);color:#fff;border:none;border-radius:20px;padding:5px 14px;font-size:12px;cursor:pointer;font-family:var(--font)">⟳ Atualizar</button>
     </div>
-    <!-- KPI cards Recebíveis -->
-    <div id="recKpis" style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:12px 0"></div>
     <!-- Tabela de recebimentos diários -->
     <div id="recTabela"></div>
   </div>
@@ -5989,6 +5987,10 @@ function setPagTab(tab){
 
 // ── KPIs
 function renderPagKpis(){
+  if(pagTab==='recebiveis'){
+    document.getElementById('pagKpis').innerHTML='';
+    return; // KPIs preenchidos por loadRecebiveis
+  }
   var d=pagData();
   var items=pagTab==='fornecedores'?d.fornecedores:d.gerais;
   var hoje=new Date(); hoje.setHours(0,0,0,0);
@@ -7011,7 +7013,7 @@ async function loadRecebiveis(){
   var token  = localStorage.getItem('ml_token');
   var userId = localStorage.getItem('ml_user_id');
   var dias   = +(document.getElementById('recPeriodoSel')?.value || 30);
-  var kpisEl = document.getElementById('recKpis');
+  var kpisEl = document.getElementById('pagKpis');
   var tabEl  = document.getElementById('recTabela');
   if(!kpisEl || !tabEl) { _recLoading=false; return; }
   if(!token || !userId){
@@ -7064,18 +7066,11 @@ async function loadRecebiveis(){
 
     // KPI cards
     var ticketMedio = pagas.length > 0 ? totalLiq / pagas.length : 0;
-    kpisEl.innerHTML = [
-      {label:'Recebido Líquido', val:BRL(totalLiq), color:'var(--teal)', sub: dias+'d'},
-      {label:'Faturamento Bruto', val:BRL(totalBruto), color:'var(--green)', sub: pagas.length+' pedidos'},
-      {label:'Tarifas ML', val:BRL(totalTarifa), color:'var(--red)', sub: totalBruto>0?(totalTarifa/totalBruto*100).toFixed(1)+'% do bruto':''},
-      {label:'Ticket Médio Líq.', val:BRL(ticketMedio), color:'var(--blue)', sub: 'por pedido'},
-    ].map(function(c){
-      return '<div class="tc" style="padding:14px 16px">'
-        +'<div class="tc-label">'+c.label+'</div>'
-        +'<div class="tc-val" style="color:'+c.color+';font-size:20px">'+c.val+'</div>'
-        +'<div class="tc-sub">'+c.sub+'</div>'
-        +'</div>';
-    }).join('');
+    kpisEl.innerHTML =
+      kpi('RECEBIDO LÍQUIDO', BRL(totalLiq), dias+'d', 'teal')
+     +kpi('FATURAMENTO BRUTO', BRL(totalBruto), pagas.length+' pedidos', 'green')
+     +kpi('TARIFAS ML', BRL(totalTarifa), totalBruto>0?(totalTarifa/totalBruto*100).toFixed(1)+'% do bruto':'0%', 'red')
+     +kpi('TICKET MÉDIO LÍQ.', BRL(ticketMedio), 'por pedido', '');
 
     // Tabela diária
     var dias_ord = Object.keys(porDia).sort().reverse();
