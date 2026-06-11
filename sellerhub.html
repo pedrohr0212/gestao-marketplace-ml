@@ -2499,7 +2499,8 @@ function renderFaturamento(){
   const totalImpostos=valid.reduce((s,v)=>s+v.imposto,0);
   const totalFrete=valid.reduce((s,v)=>s+v.frete,0);
   const adsRec=valid.filter(v=>v.isPub).reduce((s,v)=>s+v.valor,0);
-  const adsInv=+(adsRec*0.083).toFixed(2);
+  // Usar investimento real da API de publicidade se disponível
+  const adsInv=window._adsData ? +(window._adsData.investimento||0) : +(adsRec*0.083).toFixed(2);
   const roas=adsInv>0?+(adsRec/adsInv).toFixed(2):0;
   const acos=adsRec>0?+((adsInv/adsRec)*100).toFixed(2):0;
   const tacos=fat>0?+((adsInv/fat)*100).toFixed(2):0;
@@ -2551,14 +2552,51 @@ function renderFaturamento(){
       +'<span style="font-size:11px;color:var(--text3)">Receita ADS: <span style="color:var(--teal);font-family:var(--mono);font-weight:500">'+BRL(adsRec)+'</span></span>'
     +'</div>';
 
-  // Chart
-  const pts=currentPeriod==='hoje'||currentPeriod==='ontem'?16:currentPeriod==='7d'?7:30;
-  const labels=[],d1=[],d2=[];
-  for(let i=0;i<pts;i++){
-    if(currentPeriod==='hoje'||currentPeriod==='ontem')labels.push((8+i)+':00');
-    else{const d=new Date();d.setDate(d.getDate()-(pts-1-i));labels.push(fmt(d));}
-    d1.push(+(fat/pts*(0.5+Math.random()*1.2)).toFixed(0));
-    d2.push(+(fat*0.85/pts*(0.5+Math.random()*1.2)).toFixed(0));
+  // Chart — dados reais agrupados por dia ou hora
+  var labels=[], d1=[], d2=[];
+  var isHoje = currentPeriod==='hoje'||currentPeriod==='ontem';
+  if(isHoje){
+    // Agrupar por hora (0-23)
+    var porHora={};
+    valid.forEach(function(v){
+      var h = v.data instanceof Date ? v.data.getHours() : new Date(v.data).getHours();
+      porHora[h]=(porHora[h]||0)+v.valor;
+    });
+    var porHoraAnt={};
+    if(vendasAnt) vendasAnt.filter(function(v){return !v.cancelada;}).forEach(function(v){
+      var h = v.data instanceof Date ? v.data.getHours() : new Date(v.data).getHours();
+      porHoraAnt[h]=(porHoraAnt[h]||0)+v.valor;
+    });
+    for(var h=0;h<24;h++){
+      labels.push(String(h).padStart(2,'0')+':00');
+      d1.push(porHora[h]||0);
+      d2.push(porHoraAnt[h]||0);
+    }
+  } else {
+    // Agrupar por dia
+    var porDia={};
+    valid.forEach(function(v){
+      var dt = v.data instanceof Date ? v.data : new Date(v.data);
+      var k = dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0');
+      porDia[k]=(porDia[k]||0)+v.valor;
+    });
+    var porDiaAnt={};
+    if(vendasAnt) vendasAnt.filter(function(v){return !v.cancelada;}).forEach(function(v){
+      var dt = v.data instanceof Date ? v.data : new Date(v.data);
+      var k = dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0');
+      porDiaAnt[k]=(porDiaAnt[k]||0)+v.valor;
+    });
+    // Gerar eixo de datas do período
+    var diasMap={'7d':7,'mes':30,'mesant':30,'30d':30,'15d':15,'60d':60,'90d':90};
+    var nDias=diasMap[currentPeriod]||30;
+    var hoje=new Date(new Date().toLocaleString('en-US',{timeZone:'America/Sao_Paulo'}));
+    for(var i=nDias-1;i>=0;i--){
+      var d=new Date(hoje);d.setDate(hoje.getDate()-i);
+      var k=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+      labels.push(fmt(d));
+      d1.push(+(porDia[k]||0).toFixed(0));
+      d2.push(+(porDiaAnt[k]||0).toFixed(0));
+    }
   }
   if(fatChartInst)fatChartInst.destroy();
   fatChartInst=new Chart(document.getElementById('fatChart'),{
@@ -2707,6 +2745,7 @@ async function carregarPublicidadeAPI(periodo){
     var dados    = rPub.ok ? await rPub.json() : null;
     var resumo   = rRes.ok ? await rRes.json() : null;
     window._adsFatTotal = resumo ? (resumo.faturamento || 0) : 0;
+    window._adsData = dados; // cache para usar no renderFaturamento
     _renderAdsUI(dados, false);
   }catch(e){
     console.warn('[ADS API]', e);
