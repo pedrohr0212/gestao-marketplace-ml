@@ -46,6 +46,44 @@ def get_date_range(periodo: str):
         start_brt = last.replace(day=1, hour=0,  minute=0,  second=0,  microsecond=0)
         end_brt   = last.replace(hour=23, minute=59, second=59, microsecond=0)
 
+    # Períodos anteriores para comparação (delta %)
+    elif periodo == "anteontem":
+        d         = now_brt - timedelta(days=2)
+        start_brt = d.replace(hour=0,  minute=0,  second=0,  microsecond=0)
+        end_brt   = d.replace(hour=23, minute=59, second=59, microsecond=0)
+
+    elif periodo == "7d_ant":
+        d         = now_brt - timedelta(days=13)
+        start_brt = d.replace(hour=0,  minute=0,  second=0,  microsecond=0)
+        end_brt   = (now_brt - timedelta(days=7)).replace(hour=23, minute=59, second=59, microsecond=0)
+
+    elif periodo == "15d_ant":
+        d         = now_brt - timedelta(days=29)
+        start_brt = d.replace(hour=0,  minute=0,  second=0,  microsecond=0)
+        end_brt   = (now_brt - timedelta(days=15)).replace(hour=23, minute=59, second=59, microsecond=0)
+
+    elif periodo == "30d_ant":
+        d         = now_brt - timedelta(days=59)
+        start_brt = d.replace(hour=0,  minute=0,  second=0,  microsecond=0)
+        end_brt   = (now_brt - timedelta(days=30)).replace(hour=23, minute=59, second=59, microsecond=0)
+
+    elif periodo == "60d_ant":
+        d         = now_brt - timedelta(days=119)
+        start_brt = d.replace(hour=0,  minute=0,  second=0,  microsecond=0)
+        end_brt   = (now_brt - timedelta(days=60)).replace(hour=23, minute=59, second=59, microsecond=0)
+
+    elif periodo == "90d_ant":
+        d         = now_brt - timedelta(days=179)
+        start_brt = d.replace(hour=0,  minute=0,  second=0,  microsecond=0)
+        end_brt   = (now_brt - timedelta(days=90)).replace(hour=23, minute=59, second=59, microsecond=0)
+
+    elif periodo == "mes_ant2":
+        # Mês retrasado (anterior ao mês anterior)
+        last      = now_brt.replace(day=1) - timedelta(days=1)
+        ant2      = last.replace(day=1) - timedelta(days=1)
+        start_brt = ant2.replace(day=1, hour=0,  minute=0,  second=0,  microsecond=0)
+        end_brt   = ant2.replace(hour=23, minute=59, second=59, microsecond=0)
+
     else:
         d         = now_brt - timedelta(days=29)
         start_brt = d.replace(hour=0,  minute=0,  second=0,  microsecond=0)
