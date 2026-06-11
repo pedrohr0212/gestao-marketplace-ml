@@ -2464,7 +2464,6 @@ function setPeriod(key){
         carregarVendasAPI(key),
         periodoAnt ? carregarVendasAPI(periodoAnt) : Promise.resolve({vendas:null,erro:null})
       ]).then(function(results){
-        hideApiLoader();
         var res    = results[0];
         var resAnt = results[1];
         vendasAnt = (resAnt && resAnt.vendas) ? resAnt.vendas : null;
