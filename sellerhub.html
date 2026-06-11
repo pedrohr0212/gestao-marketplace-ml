@@ -2377,8 +2377,8 @@ async function carregarVendasAPI(periodo){
     });
     if(r.status===401||r.status===403) return {vendas:null, erro:'token_expirado'};
     if(!r.ok) return {vendas:null, erro:'api_erro'};
-    const data=await r.json();
-    const vendas=(data.vendas||[]).map(v=>({
+    const apiResp=await r.json();
+    const vendas=(apiResp.vendas||[]).map(v=>({
       id: 'VDA-'+v.ml_order_id,
       sku: v.sku||'—',
       titulo: v.nome||'Produto',
