@@ -2385,7 +2385,7 @@ async function carregarVendasAPI(periodo){
       img: '📦',
       conta: localStorage.getItem('ml_nickname')||'ML',
       logistica: 'Full',
-      data: new Date(v.data),
+      data: v.data ? new Date(new Date(v.data).toLocaleString('en-US',{timeZone:'America/Sao_Paulo'})) : new Date(),
       valor: +v.valor||0,
       qtd: +v.qtde||1,
       tarifa: +v.tarifa||0,
@@ -2462,10 +2462,12 @@ function setPeriod(key){
       var periodoAnt = getPeriodoAnterior(key);
       Promise.all([
         carregarVendasAPI(key),
-        periodoAnt ? carregarVendasAPI(periodoAnt) : Promise.resolve({vendas:null,erro:null})
+        periodoAnt ? carregarVendasAPI(periodoAnt) : Promise.resolve({vendas:null,erro:null}),
+        carregarADSParaFaturamento(key)
       ]).then(function(results){
         var res    = results[0];
         var resAnt = results[1];
+        // ADS já salvo em window._adsData por carregarADSParaFaturamento
         vendasAnt = (resAnt && resAnt.vendas) ? resAnt.vendas : null;
         if(res.vendas && res.vendas.length>0){
           vendas=res.vendas;
@@ -2558,13 +2560,16 @@ function renderFaturamento(){
   if(isHoje){
     // Agrupar por hora (0-23)
     var porHora={};
+    // Usar hora em BRT
+    function getHoraBRT(d){ var dt=d instanceof Date?d:new Date(d); return new Date(dt.toLocaleString('en-US',{timeZone:'America/Sao_Paulo'})).getHours(); }
+    function getDiaBRT(d){ var dt=d instanceof Date?d:new Date(d); var brt=new Date(dt.toLocaleString('en-US',{timeZone:'America/Sao_Paulo'})); return brt.getFullYear()+'-'+String(brt.getMonth()+1).padStart(2,'0')+'-'+String(brt.getDate()).padStart(2,'0'); }
     valid.forEach(function(v){
-      var h = v.data instanceof Date ? v.data.getHours() : new Date(v.data).getHours();
+      var h = getHoraBRT(v.data);
       porHora[h]=(porHora[h]||0)+v.valor;
     });
     var porHoraAnt={};
     if(vendasAnt) vendasAnt.filter(function(v){return !v.cancelada;}).forEach(function(v){
-      var h = v.data instanceof Date ? v.data.getHours() : new Date(v.data).getHours();
+      var h = getHoraBRT(v.data);
       porHoraAnt[h]=(porHoraAnt[h]||0)+v.valor;
     });
     for(var h=0;h<24;h++){
@@ -2576,14 +2581,12 @@ function renderFaturamento(){
     // Agrupar por dia
     var porDia={};
     valid.forEach(function(v){
-      var dt = v.data instanceof Date ? v.data : new Date(v.data);
-      var k = dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0');
+      var k = getDiaBRT(v.data);
       porDia[k]=(porDia[k]||0)+v.valor;
     });
     var porDiaAnt={};
     if(vendasAnt) vendasAnt.filter(function(v){return !v.cancelada;}).forEach(function(v){
-      var dt = v.data instanceof Date ? v.data : new Date(v.data);
-      var k = dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0');
+      var k = getDiaBRT(v.data);
       porDiaAnt[k]=(porDiaAnt[k]||0)+v.valor;
     });
     // Gerar eixo de datas do período
@@ -7206,6 +7209,21 @@ async function loadRecebiveis(){
     tabEl.innerHTML='<div style="color:var(--red);padding:24px;text-align:center">Erro ao carregar recebíveis. Tente novamente.</div>';
   }
   _recLoading=false;
+}
+
+
+// Busca ADS para o card de investimento na aba Faturamento
+async function carregarADSParaFaturamento(periodo){
+  var token  = localStorage.getItem('ml_token');
+  var userId = localStorage.getItem('ml_user_id');
+  if(!token || !userId){ window._adsData = null; return; }
+  try{
+    var r = await fetch(BASE_API+'/api/publicidade?ml_user_id='+userId+'&periodo='+periodo,
+      {headers:{'Authorization':'Bearer '+token}});
+    window._adsData = r.ok ? await r.json() : null;
+  }catch(e){
+    window._adsData = null;
+  }
 }
 
 </script>
