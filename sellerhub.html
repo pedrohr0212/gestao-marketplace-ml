@@ -2501,10 +2501,12 @@ function renderFaturamento(){
   const totalImpostos=valid.reduce((s,v)=>s+v.imposto,0);
   const totalFrete=valid.reduce((s,v)=>s+v.frete,0);
   const adsRec=valid.filter(v=>v.isPub).reduce((s,v)=>s+v.valor,0);
-  // Usar investimento real da API de publicidade se disponível
-  const adsInv=window._adsData ? +(window._adsData.investimento||0) : +(adsRec*0.083).toFixed(2);
-  const roas=adsInv>0?+(adsRec/adsInv).toFixed(2):0;
-  const acos=adsRec>0?+((adsInv/adsRec)*100).toFixed(2):0;
+  // Usar dados reais da API de publicidade se disponível
+  const _ads = window._adsData;
+  const adsInv = _ads ? +(_ads.investimento||0) : +(adsRec*0.083).toFixed(2);
+  const adsRecReal = _ads ? +(_ads.receita_ads||0) : adsRec;
+  const roas = _ads ? +(_ads.roas||0) : (adsInv>0?+(adsRecReal/adsInv).toFixed(2):0);
+  const acos = _ads ? +(_ads.acos||0) : (adsRecReal>0?+((adsInv/adsRecReal)*100).toFixed(2):0);
   const tacos=fat>0?+((adsInv/fat)*100).toFixed(2):0;
   const lucroExib=descontarAds?+(lucro-adsInv).toFixed(2):lucro;
   const lucPct=fat>0?(lucroExib/fat)*100:0;
@@ -2551,7 +2553,7 @@ function renderFaturamento(){
       +'<span style="font-size:11px;color:var(--text3)">TACOS: <span style="color:var(--amber);font-family:var(--mono);font-weight:600">'+tacos+'%</span></span>'
       +'<span style="font-size:11px;color:var(--text3)">ROAS: <span style="color:var(--green);font-family:var(--mono);font-weight:600">'+roas+'x</span></span>'
       +'<span style="font-size:11px;color:var(--text3)">ACOS: <span style="color:var(--blue);font-family:var(--mono);font-weight:600">'+acos+'%</span></span>'
-      +'<span style="font-size:11px;color:var(--text3)">Receita ADS: <span style="color:var(--teal);font-family:var(--mono);font-weight:500">'+BRL(adsRec)+'</span></span>'
+      +'<span style="font-size:11px;color:var(--text3)">Receita ADS: <span style="color:var(--teal);font-family:var(--mono);font-weight:500">'+BRL(adsRecReal)+'</span></span>'
     +'</div>';
 
   // Chart — dados reais agrupados por dia ou hora
