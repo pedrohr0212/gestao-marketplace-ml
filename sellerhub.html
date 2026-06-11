@@ -7024,21 +7024,30 @@ async function loadRecebiveis(){
   tabEl.innerHTML='';
 
   try {
-    // Buscar pedidos pagos do período
-    var BRT = -3*60;
-    var agora = new Date();
-    var dtFim = new Date(agora.getTime() + (BRT - agora.getTimezoneOffset())*60000);
-    var dtIni = new Date(dtFim.getTime() - dias*24*60*60*1000);
-    var fmtDt = function(d){ return d.toISOString().slice(0,10); };
-
+    // Buscar pedidos pagos do período — BRT (GMT-3), 00:00 do dia inicial até 23:59 de hoje
     var r = await fetch(BASE_API+'/api/vendas?ml_user_id='+userId+'&periodo='+dias+'d',
       {headers:{'Authorization':'Bearer '+token}});
     if(!r.ok) throw new Error('API erro '+r.status);
     var d = await r.json();
     var vendas = Array.isArray(d) ? d : (d.vendas || []);
 
-    // Filtrar somente pagas (não canceladas)
-    var pagas = vendas.filter(function(v){ return !v.cancelada && v.status !== 'cancelled'; });
+    // Calcular range correto em BRT: hoje BRT - (dias-1) até hoje BRT
+    var agoraBRT = new Date(new Date().toLocaleString('en-US', {timeZone:'America/Sao_Paulo'}));
+    var hojeStr = agoraBRT.getFullYear()+'-'
+      +String(agoraBRT.getMonth()+1).padStart(2,'0')+'-'
+      +String(agoraBRT.getDate()).padStart(2,'0');
+    var iniDate = new Date(agoraBRT);
+    iniDate.setDate(agoraBRT.getDate() - (dias-1));
+    var iniStr = iniDate.getFullYear()+'-'
+      +String(iniDate.getMonth()+1).padStart(2,'0')+'-'
+      +String(iniDate.getDate()).padStart(2,'0');
+
+    // Filtrar somente pagas (não canceladas) dentro do range BRT
+    var pagas = vendas.filter(function(v){
+      if(v.cancelada || v.status === 'cancelled') return false;
+      var dia = (v.data||'').slice(0,10);
+      return dia >= iniStr && dia <= hojeStr;
+    });
 
     // Calcular valor líquido = valor - tarifa - frete
     var totalBruto = 0, totalTarifa = 0, totalFrete = 0, totalLiq = 0;
