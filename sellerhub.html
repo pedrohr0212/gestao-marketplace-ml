@@ -1268,6 +1268,11 @@ select.pag-form-inp{cursor:pointer;}
       <span class="ni-label">Estoque</span>
       <span class="ni-tip">Estoque</span>
     </div>
+    <div class="ni" onclick="showPage('cobertura',this);return false;">
+      <div class="ni-icon"><svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>
+      <span class="ni-label">Cobertura</span>
+      <span class="ni-tip">Cobertura</span>
+    </div>
     </div>
   </div>
   <div class="nav-group" id="grp-operacional">
@@ -1285,11 +1290,6 @@ select.pag-form-inp{cursor:pointer;}
       <div class="ni-icon"><svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg></div>
       <span class="ni-label">Envios Full</span>
       <span class="ni-tip">Envios Full</span>
-    </div>
-    <div class="ni" onclick="showPage('cobertura',this);return false;">
-      <div class="ni-icon"><svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>
-      <span class="ni-label">Cobertura</span>
-      <span class="ni-tip">Cobertura</span>
     </div>
     </div>
   </div>
@@ -3701,7 +3701,7 @@ function toggleGroup(key){
 
 function goModule(file,page){window.location=file+(page?'#'+page:'');}
 // Mapa: página → grupo
-const PAGE_GROUP={faturamento:'vendas',publicidade:'vendas',pagamentos:'financeiro',dre:'financeiro',financeiro:'inventario',movimentacao:'operacional',full:'operacional',cobertura:'operacional',insights:'gerencial',relatorios:'gerencial',marketplaces:'configuracoes',editor:'configuracoes'};
+const PAGE_GROUP={faturamento:'vendas',publicidade:'vendas',pagamentos:'financeiro',dre:'financeiro',financeiro:'inventario',movimentacao:'operacional',full:'operacional',cobertura:'inventario',insights:'gerencial',relatorios:'gerencial',marketplaces:'configuracoes',editor:'configuracoes'};
 function openGroupForPage(name){
   var grpKey=PAGE_GROUP[name];if(!grpKey)return;
   var grp=document.getElementById('grp-'+grpKey);if(!grp)return;
