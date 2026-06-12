@@ -2136,8 +2136,16 @@ select.pag-form-inp{cursor:pointer;}
 <!-- INSIGHTS -->
 <div class="page" id="page-insights">
   <div style="height:18px"></div>
-  <div class="sec">Análise estratégica</div>
-  <div class="icg" id="insightCards"></div>
+  <!-- Header com data/hora e botão refresh -->
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;flex-wrap:wrap;gap:8px">
+    <div>
+      <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.07em;font-weight:600">Painel Executivo</div>
+      <div style="font-size:11px;color:var(--text3);margin-top:2px" id="insLastUpdate">Clique em Atualizar para gerar análise</div>
+    </div>
+    <button onclick="renderInsights(data)" style="background:var(--accent);color:#fff;border:none;border-radius:20px;padding:6px 16px;font-size:12px;font-weight:600;cursor:pointer;font-family:var(--font)">⟳ Atualizar análise</button>
+  </div>
+  <!-- Categorias -->
+  <div id="insightContainer"></div>
 </div>
 
 <!-- RELATÓRIOS -->
@@ -4492,19 +4500,226 @@ function renderProjGrid(prods){
 }
 
 function renderInsights(prods){
-  const urg=prods.filter(p=>p.status==='urgente'||p.status==='ruptura');
-  const ocioso=prods.filter(p=>p.diasRup>60).sort((a,b)=>b.diasRup-a.diasRup);
-  const vO=ocioso.reduce((s,p)=>s+p.valorTotal,0);
-  const tv=prods.reduce((s,p)=>s+p.valorTotal,0);
-  const ins=[
-    {cls:'red',t:'Rupturas e urgências',b:urg.length+' produto'+(urg.length>1?'s':'')+' precisam de compra imediata: '+urg.map(p=>p.sku||p.nome).join(', ')+'. Ruptura penaliza ranking no ML.'},
-    {cls:'amber',t:'Capital imobilizado: '+BRL(vO),b:ocioso.length?ocioso.map(p=>p.sku+' — '+(p.diasRup>=999?'90+':p.diasRup)+'d ('+BRL(p.valorTotal)+')').join(' · ')+' com cobertura excessiva ('+((vO/tv)*100).toFixed(0)+'% do portfólio). Ative patrocinados ou promoção.':'Nenhum produto com estoque excessivo.'},
-    {cls:'blue',t:'Consolidar pedidos por fornecedor',b:'Agrupe compras: Balato Balato ('+prods.filter(p=>p.forn==='Balato Balato').length+' SKUs), Keita ('+prods.filter(p=>p.forn==='Keita').length+' SKUs). Economiza frete.'},
-    {cls:'amber',t:'Prazo Amigold — maior risco logístico',b:'Cabideiro Mancebo tem prazo de 20 dias. Gatilho de recompra ao atingir mínimo de 30 dias.'},
-    {cls:'green',t:'Vantagem Balato Balato (prazo 1 dia)',b:'Prazo de 1 dia permite estoque mínimo menor. Considere reposição semanal automática.'},
-    {cls:'green',t:'Revisão de estoques recomendada',b:'Prazo ≤2 dias: check toda segunda. Prazo ≥7 dias: gatilho ao atingir mínimo de 30 dias.'},
-  ];
-  document.getElementById('insightCards').innerHTML=ins.map(i=>'<div class="ic '+i.cls+'"><div class="ic-t">'+i.t+'</div><div class="ic-b">'+i.b+'</div></div>').join('');
+  var agora = new Date().toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
+  var el = document.getElementById('insLastUpdate');
+  if(el) el.textContent = 'Atualizado em '+agora;
+
+  var container = document.getElementById('insightContainer');
+  if(!container) return;
+
+  // ── Dados base ─────────────────────────────────────────────
+  var fat30    = vendas ? vendas.filter(function(v){return !v.cancelada;}).reduce(function(s,v){return s+v.valor;},0) : 0;
+  var fat7     = vendas ? vendas.filter(function(v){return !v.cancelada && isUltDias(v.data,7);}).reduce(function(s,v){return s+v.valor;},0) : 0;
+  var lucro30  = vendas ? vendas.filter(function(v){return !v.cancelada;}).reduce(function(s,v){return s+v.mc;},0) : 0;
+  var margem30 = fat30>0 ? (lucro30/fat30*100) : 0;
+  var cancel30 = vendas ? vendas.filter(function(v){return v.cancelada;}).length : 0;
+  var totalVend= vendas ? vendas.filter(function(v){return !v.cancelada;}).length : 0;
+  var adsInvReal = window._adsData ? (window._adsData.investimento||0) : 0;
+  var adsRec     = window._adsData ? (window._adsData.receita_ads||0) : 0;
+  var roas       = window._adsData ? (window._adsData.roas||0) : 0;
+  var acos       = window._adsData ? (window._adsData.acos||0) : 0;
+  var tacos      = fat30>0 && adsInvReal>0 ? (adsInvReal/fat30*100) : 0;
+
+  // Estoque
+  var ruptura   = prods.filter(function(p){return p.status==='ruptura';});
+  var urgente   = prods.filter(function(p){return p.status==='urgente';});
+  var critico   = prods.filter(function(p){return p.status==='critico';});
+  var saudavel  = prods.filter(function(p){return p.status==='saudavel';});
+  var inativo   = prods.filter(function(p){return p.status==='inativo';});
+  var ocioso    = prods.filter(function(p){return p.diasRup>60 && p.valorTotal>0;}).sort(function(a,b){return b.valorTotal-a.valorTotal;});
+  var tv        = prods.reduce(function(s,p){return s+p.valorTotal;},0);
+  var vOcioso   = ocioso.reduce(function(s,p){return s+p.valorTotal;},0);
+  var topVend   = prods.filter(function(p){return p.v30>0;}).sort(function(a,b){return b.v30-a.v30;}).slice(0,3);
+  var semCusto  = prods.filter(function(p){return !p.custo||p.custo===0;});
+  var pctSauda  = prods.length>0 ? (saudavel.length/prods.length*100) : 0;
+
+  // Fornecedores
+  var fornMap={};
+  prods.forEach(function(p){
+    if(!p.forn) return;
+    if(!fornMap[p.forn]) fornMap[p.forn]={skus:0,ruptura:0,capital:0,prazo:p.prazo||7};
+    fornMap[p.forn].skus++;
+    if(p.status==='ruptura'||p.status==='urgente') fornMap[p.forn].ruptura++;
+    fornMap[p.forn].capital+=p.valorTotal||0;
+  });
+  var fornList = Object.entries(fornMap).sort(function(a,b){return b[1].capital-a[1].capital;});
+
+  function isUltDias(d, n){
+    try{var dt=new Date(d),now=new Date();return (now-dt)<n*86400000;}catch(e){return false;}
+  }
+
+  function badge(txt,cor){
+    var cores={red:'var(--red)',amber:'var(--amber)',green:'var(--green)',blue:'var(--blue)',purple:'var(--purple)',teal:'var(--teal)',gray:'var(--text3)'};
+    var bgs={red:'var(--red-bg)',amber:'rgba(245,158,11,.12)',green:'var(--green-bg)',blue:'var(--blue-bg)',purple:'var(--purple-bg)',teal:'rgba(45,212,191,.12)',gray:'var(--bg4)'};
+    return '<span style="background:'+bgs[cor]+';color:'+cores[cor]+';font-size:10px;font-weight:600;padding:2px 8px;border-radius:20px;white-space:nowrap">'+txt+'</span>';
+  }
+
+  function insCard(prio, titulo, porque, acao, dados){
+    var cores={critico:'var(--red)',atencao:'var(--amber)',positivo:'var(--green)',info:'var(--blue)'};
+    var icons={critico:'🔴',atencao:'🟡',positivo:'🟢',info:'🔵'};
+    var bordas={critico:'var(--red)',atencao:'var(--amber)',positivo:'var(--green)',info:'var(--blue)'};
+    return '<div style="background:var(--bg3);border:0.5px solid var(--border);border-left:3px solid '+bordas[prio]+';border-radius:var(--r2);padding:16px 18px;margin-bottom:10px">'
+      +'<div style="display:flex;align-items:flex-start;gap:10px">'
+      +'<span style="font-size:14px;flex-shrink:0;margin-top:1px">'+icons[prio]+'</span>'
+      +'<div style="flex:1;min-width:0">'
+      +'<div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:4px">'+titulo+'</div>'
+      +'<div style="font-size:12px;color:var(--text2);line-height:1.5;margin-bottom:'+(acao?'8':'0')+'px">'+porque+'</div>'
+      +(acao?'<div style="font-size:11px;color:var(--text3);background:var(--bg4);border-radius:7px;padding:7px 10px;border-left:2px solid var(--accent2)"><strong style="color:var(--accent2)">Ação recomendada:</strong> '+acao+'</div>':'')
+      +(dados?'<div style="margin-top:10px">'+dados+'</div>':'')
+      +'</div></div></div>';
+  }
+
+  function secao(titulo, icone, cor, cards){
+    return '<div style="margin-bottom:28px">'
+      +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;padding-bottom:8px;border-bottom:0.5px solid var(--border2)">'
+      +'<span style="font-size:16px">'+icone+'</span>'
+      +'<span style="font-size:13px;font-weight:700;color:var(--text)">'+titulo+'</span>'
+      +'<div style="flex:1;height:1px;background:var(--border)"></div>'
+      +'</div>'
+      +cards
+      +'</div>';
+  }
+
+  function miniStat(label, valor, cor){
+    return '<div style="background:var(--bg4);border-radius:8px;padding:8px 12px;text-align:center;min-width:80px">'
+      +'<div style="font-size:10px;color:var(--text3);margin-bottom:2px">'+label+'</div>'
+      +'<div style="font-size:13px;font-weight:700;font-family:var(--mono);color:'+(cor||'var(--text)')+'">'+valor+'</div>'
+      +'</div>';
+  }
+
+  function miniStats(arr){
+    return '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">'+arr.map(function(s){return miniStat(s[0],s[1],s[2]);}).join('')+'</div>';
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  // CATEGORIA 1 — VENDAS
+  // ══════════════════════════════════════════════════════════════
+  var cardsVendas = '';
+
+  // 1a. Saúde do faturamento
+  var saudeFat = margem30>=20?'positivo':margem30>=10?'atencao':'critico';
+  cardsVendas += insCard(saudeFat,
+    'Margem de Contribuição: '+margem30.toFixed(1)+'% nos últimos 30 dias',
+    'O faturamento bruto foi '+BRL(fat30)+' com lucro de '+BRL(lucro30)+'. '+(margem30<15?'A margem está abaixo do ideal (mínimo recomendado: 15%). Verifique se custos de produto, tarifas ou frete estão comprimindo o resultado.':'A margem está '+( margem30>=20?'dentro de um patamar saudável.':'razoável, mas pode ser melhorada.')),
+    margem30<15?'Revise precificação dos produtos com menor margem. Negocie custos com fornecedores ou ajuste preço de venda.':null,
+    miniStats([['Faturamento 30d',BRL(fat30),'var(--teal)'],['Lucro 30d',BRL(lucro30),'var(--green)'],['Margem',margem30.toFixed(1)+'%',margem30>=20?'var(--green)':margem30>=10?'var(--amber)':'var(--red)'],['Canceladas',cancel30,'var(--red)']])
+  );
+
+  // 1b. Top produtos
+  if(topVend.length>0){
+    var topTxt = topVend.map(function(p,i){return (i+1)+'. <strong>'+p.sku+'</strong> — '+p.v30+' un/30d ('+BRL(p.vdEf*p.precoVenda*30)+' est.)';}).join('<br>');
+    cardsVendas += insCard('info',
+      'Top '+topVend.length+' produtos por volume de vendas',
+      'Estes produtos concentram a maior parte do giro. Garantir estoque deles é prioridade máxima — uma ruptura impacta diretamente o faturamento e o ranking no ML.<br><br>'+topTxt,
+      'Monitore cobertura destes SKUs semanalmente e defina estoque de segurança maior que a média.',
+      null
+    );
+  }
+
+  // 1c. Publicidade
+  if(adsInvReal>0){
+    var adsPrio = tacos>10?'critico':tacos>6?'atencao':'positivo';
+    cardsVendas += insCard(adsPrio,
+      'Publicidade ML — TACOS de '+tacos.toFixed(1)+'% do faturamento',
+      'Você investiu '+BRL(adsInvReal)+' em ADS e gerou '+BRL(adsRec)+' em receita patrocinada. '+(tacos>10?'O investimento em publicidade está alto em relação ao faturamento total. Isso pode estar comprimindo margem.':tacos>6?'O gasto com ADS está moderado. Há espaço para otimização de campanhas.':'O investimento em ADS está eficiente — TACOS dentro do ideal (<6%).'),
+      tacos>8?'Revise campanhas com ACOS alto. Pause palavras-chave de baixa conversão. Foque orçamento nos top produtos.':null,
+      miniStats([['Investimento',BRL(adsInvReal),'var(--purple)'],['Receita ADS',BRL(adsRec),'var(--teal)'],['ROAS',roas.toFixed(1)+'x',roas>=4?'var(--green)':roas>=2?'var(--amber)':'var(--red)'],['ACOS',acos.toFixed(1)+'%',acos<=25?'var(--green)':acos<=40?'var(--amber)':'var(--red)'],['TACOS',tacos.toFixed(1)+'%',tacos<=6?'var(--green)':tacos<=10?'var(--amber)':'var(--red)']])
+    );
+  } else {
+    cardsVendas += insCard('info',
+      'Dados de publicidade não disponíveis',
+      'Acesse a aba Publicidade e aguarde o carregamento para habilitar análise de ADS aqui.',
+      null, null
+    );
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  // CATEGORIA 2 — FINANCEIRO
+  // ══════════════════════════════════════════════════════════════
+  var cardsFinanceiro = '';
+
+  // 2a. Capital em estoque
+  var pctOcioso = tv>0 ? (vOcioso/tv*100) : 0;
+  var prioOcioso = pctOcioso>30?'critico':pctOcioso>15?'atencao':'positivo';
+  cardsFinanceiro += insCard(prioOcioso,
+    'Capital em estoque: '+BRL(tv)+' total — '+pctOcioso.toFixed(0)+'% imobilizado',
+    'O portfólio possui '+BRL(tv)+' em estoque. '+(ocioso.length>0?BRL(vOcioso)+' ('+pctOcioso.toFixed(0)+'%) estão em '+ocioso.length+' produto(s) com cobertura acima de 60 dias — capital que poderia estar girando.':'Todo o capital está em produtos com giro dentro do esperado.')
+    +(ocioso.length>0?'<br><br><strong>Produtos com estoque ocioso:</strong><br>'+ocioso.slice(0,4).map(function(p){return '• '+p.sku+' — '+(p.diasRup>=999?'90+':p.diasRup)+'d cobertura ('+BRL(p.valorTotal)+')';}).join('<br>'):''),
+    ocioso.length>0?'Ative campanhas patrocinadas nesses produtos ou oferte desconto para acelerar o giro e liberar capital.':null,
+    miniStats([['Capital Total',BRL(tv),'var(--teal)'],['Imobilizado',BRL(vOcioso),'var(--amber)'],['% Imobilizado',pctOcioso.toFixed(0)+'%',pctOcioso>30?'var(--red)':pctOcioso>15?'var(--amber)':'var(--green)']])
+  );
+
+  // 2b. Custo sem cadastro
+  if(semCusto.length>0){
+    cardsFinanceiro += insCard('atencao',
+      semCusto.length+' produto(s) sem custo cadastrado — CMV do DRE impreciso',
+      'Os seguintes SKUs não possuem custo unitário: <strong>'+semCusto.slice(0,5).map(function(p){return p.sku;}).join(', ')+(semCusto.length>5?' e mais '+(semCusto.length-5)+'...':'')+'</strong>. Sem custo, o CMV do DRE fica subestimado e a margem real é maior do que aparece.',
+      'Acesse Configurações → Editar Dados e preencha o custo de cada SKU. Em seguida, sincronize o DRE.',
+      null
+    );
+  }
+
+  // 2c. Fornecedores e concentração de capital
+  if(fornList.length>0){
+    var topForn = fornList.slice(0,3);
+    var fornTxt = topForn.map(function(f){
+      return '• <strong>'+f[0]+'</strong>: '+f[1].skus+' SKUs, '+BRL(f[1].capital)+' capital'+(f[1].ruptura>0?' — ⚠️ '+f[1].ruptura+' em ruptura/urgência':'');
+    }).join('<br>');
+    var fornConc = tv>0 && topForn.length>0 ? (topForn[0][1].capital/tv*100) : 0;
+    cardsFinanceiro += insCard(fornConc>50?'atencao':'info',
+      'Concentração por fornecedor — '+topForn[0][0]+' representa '+fornConc.toFixed(0)+'% do capital',
+      'Distribuição do capital por fornecedor:<br>'+fornTxt+(fornConc>50?'<br><br>Alta concentração em um único fornecedor aumenta o risco operacional — qualquer atraso de entrega impacta múltiplos SKUs.':''),
+      fornConc>50?'Considere diversificar fornecedores para os SKUs de maior giro.':null,
+      null
+    );
+  }
+
+  // ══════════════════════════════════════════════════════════════
+  // CATEGORIA 3 — INVENTÁRIO
+  // ══════════════════════════════════════════════════════════════
+  var cardsInventario = '';
+
+  // 3a. Rupturas e urgências
+  var totalCriticos = ruptura.length + urgente.length;
+  var prioCrit = ruptura.length>0?'critico':urgente.length>0?'atencao':'positivo';
+  cardsInventario += insCard(prioCrit,
+    totalCriticos>0?(ruptura.length+' em ruptura, '+urgente.length+' urgentes — ação imediata necessária'):'Nenhuma ruptura ou urgência no momento',
+    totalCriticos>0?
+      'Produtos em ruptura perdem posição no ranking do ML e deixam de aparecer nas buscas, impactando o faturamento mesmo após a reposição.'
+      +(ruptura.length>0?'<br><br><strong>Em ruptura:</strong> '+ruptura.slice(0,5).map(function(p){return p.sku;}).join(', '):'')
+      +(urgente.length>0?'<br><strong>Urgentes (≤7d):</strong> '+urgente.slice(0,5).map(function(p){return p.sku+' ('+p.diasRup+'d)';}).join(', '):'')
+      :'Todos os produtos estão com cobertura adequada. Continue monitorando os em atenção.',
+    totalCriticos>0?'Emita pedido de reposição hoje para os SKUs em ruptura. Para urgentes, verifique data de chegada de pedidos em aberto.':null,
+    miniStats([['Em ruptura',ruptura.length,'var(--red)'],['Urgentes',urgente.length,'var(--amber)'],['Críticos',critico.length,'var(--orange,#f97316)'],['Saudáveis',saudavel.length,'var(--green)'],['Saúde geral',pctSauda.toFixed(0)+'%',pctSauda>=70?'var(--green)':pctSauda>=50?'var(--amber)':'var(--red)']])
+  );
+
+  // 3b. Produtos inativos
+  if(inativo.length>0){
+    var vInativo = inativo.reduce(function(s,p){return s+p.valorTotal;},0);
+    cardsInventario += insCard('info',
+      inativo.length+' produto(s) inativo(s) — sem venda nos últimos 90 dias',
+      'Estes produtos não tiveram nenhuma venda nos últimos 90 dias'+(vInativo>0?' e representam '+BRL(vInativo)+' em estoque parado':'')+': <strong>'+inativo.slice(0,5).map(function(p){return p.sku;}).join(', ')+(inativo.length>5?' +'+( inativo.length-5):'')+'</strong>.',
+      'Avalie pausar ou encerrar os anúncios desses SKUs. Produtos sem giro penalizam a saúde da conta no ML.',
+      vInativo>0?miniStats([['Inativos',inativo.length,'var(--text3)'],['Capital parado',BRL(vInativo),'var(--amber)']]):null
+    );
+  }
+
+  // 3c. Cobertura e lead time
+  var prodComPrazoLongo = prods.filter(function(p){return (p.prazo||7)>=14 && (p.status==='ruptura'||p.status==='urgente');});
+  if(prodComPrazoLongo.length>0){
+    cardsInventario += insCard('critico',
+      prodComPrazoLongo.length+' produto(s) crítico(s) com lead time alto (≥14 dias)',
+      'Estes produtos estão em ruptura ou urgência E possuem prazo de entrega longo — o risco de desabastecimento prolongado é alto:<br>'+prodComPrazoLongo.map(function(p){return '• <strong>'+p.sku+'</strong>: prazo '+p.prazo+'d, cobertura '+(p.diasRup>=999?'90+':p.diasRup)+'d';}).join('<br>'),
+      'Antecipe o pedido imediatamente. Para esses SKUs, considere aumentar o estoque mínimo para cobrir pelo menos 2× o lead time.',
+      null
+    );
+  }
+
+  // ── Montar tudo ─────────────────────────────────────────────
+  container.innerHTML =
+    secao('Vendas — Faturamento & Publicidade','📈','var(--teal)', cardsVendas)
+   +secao('Financeiro — Pagamentos & Custos','💰','var(--amber)', cardsFinanceiro)
+   +secao('Inventário — Estoque & Cobertura','📦','var(--blue)', cardsInventario);
 }
 
 function renderEditor(){
